@@ -29,23 +29,43 @@ export default function AboutPage() {
             </div>
 
             <div className="max-w-none">
-<p className="text-stone-600 leading-relaxed text-[15px] mb-8">
-  Gia phả Dòng họ Nguyễn Thiệu được hình thành nhằm ghi chép, hệ thống và lưu giữ một cách đầy đủ, có trật tự về cội nguồn, huyết thống và sự phát triển của các thế hệ trong dòng họ qua nhiều thời kỳ lịch sử. Đây không chỉ là một tài liệu mang tính ghi chép đơn thuần mà còn là kết tinh của truyền thống, ký ức và đạo lý gia tộc, phản ánh quá trình hình thành, tồn tại và phát triển của một dòng họ trong dòng chảy chung của lịch sử dân tộc.
+<div className="space-y-6 text-stone-600 leading-relaxed text-[15px]">
+  <p>
+    Gia phả Dòng họ Nguyễn Thiệu được hình thành nhằm ghi chép, hệ thống và lưu giữ một cách đầy đủ, có trật tự về cội nguồn, huyết thống và sự phát triển của các thế hệ trong dòng họ qua nhiều thời kỳ lịch sử. Đây không chỉ là một tài liệu mang tính ghi chép đơn thuần mà còn là kết tinh của truyền thống, ký ức và đạo lý gia tộc, phản ánh quá trình hình thành, tồn tại và phát triển của một dòng họ trong dòng chảy chung của lịch sử dân tộc.
+  </p>
 
-  Nhân vật tiêu biểu, giữ vị trí quan trọng trong việc định hình danh phận và truyền thống của dòng họ là Nguyễn Thiệu Trị (1442–1522). Ông là người làng Xuân Lôi, huyện Lập Thạch (nay thuộc tỉnh Vĩnh Phúc), đỗ tiến sĩ khoa Mậu Tuất năm 1478 dưới triều Lê sơ và từng giữ chức Thượng thư bộ Hộ. Với học vấn uyên thâm và sự nghiệp quan trường rõ ràng, ông được xem là người đặt nền tảng cho truyền thống hiếu học, trọng danh tiết và tham gia quản lý nhà nước của các thế hệ con cháu về sau. Cuộc đời và sự nghiệp của ông cũng phản ánh những biến động lịch sử đương thời, đặc biệt là giai đoạn chuyển tiếp giữa nhà Lê và nhà Mạc, qua đó ảnh hưởng nhất định đến gia tộc.
+  <p>
+    Nhân vật tiêu biểu, giữ vị trí quan trọng trong việc định hình danh phận và truyền thống của dòng họ là Nguyễn Thiệu Trị (1442–1522). Ông là người làng Xuân Lôi, huyện Lập Thạch (nay thuộc tỉnh Vĩnh Phúc), đỗ tiến sĩ khoa Mậu Tuất năm 1478 dưới triều Lê sơ và từng giữ chức Thượng thư bộ Hộ. Với học vấn uyên thâm và sự nghiệp quan trường rõ ràng, ông được xem là người đặt nền tảng cho truyền thống hiếu học, trọng danh tiết và tham gia quản lý nhà nước của các thế hệ con cháu về sau.
+  </p>
 
-  Việc biên soạn gia phả được thực hiện trên cơ sở tổng hợp các tư liệu còn lưu giữ trong dòng họ, kết hợp với sự truyền lại qua trí nhớ của các thế hệ cao niên. Trong điều kiện nhiều biến động lịch sử, chiến tranh và sự dịch chuyển nơi cư trú của các chi phái, không ít thông tin đã bị mai một hoặc gián đoạn. Vì vậy, việc tái lập, bổ sung và hoàn thiện gia phả là một nỗ lực mang tính kế thừa và trách nhiệm, nhằm khôi phục lại bức tranh tương đối đầy đủ về sự liên kết huyết thống và lịch sử gia tộc.
+  <p>
+    Cuộc đời và sự nghiệp của ông cũng phản ánh những biến động lịch sử đương thời, đặc biệt là giai đoạn chuyển tiếp giữa nhà Lê và nhà Mạc, qua đó ảnh hưởng nhất định đến gia tộc. Việc biên soạn gia phả được thực hiện trên cơ sở tổng hợp các tư liệu còn lưu giữ trong dòng họ, kết hợp với sự truyền lại qua trí nhớ của các thế hệ cao niên.
+  </p>
 
-  Trong truyền thống văn hóa Việt Nam, quan niệm “chim có tổ, người có tông” không chỉ là một câu nói mang tính hình tượng mà còn thể hiện ý thức sâu sắc về cội nguồn và đạo lý làm người. Gia phả vì thế giữ vai trò như một nền tảng tinh thần, giúp mỗi thành viên trong dòng họ nhận thức rõ vị trí của mình trong hệ thống gia tộc, hiểu được mối quan hệ giữa các thế hệ và nuôi dưỡng lòng hiếu kính đối với tổ tiên, ông bà và cha mẹ.
+  <p>
+    Trong điều kiện nhiều biến động lịch sử, chiến tranh và sự dịch chuyển nơi cư trú của các chi phái, không ít thông tin đã bị mai một hoặc gián đoạn. Vì vậy, việc tái lập, bổ sung và hoàn thiện gia phả là một nỗ lực mang tính kế thừa và trách nhiệm, nhằm khôi phục lại bức tranh tương đối đầy đủ về sự liên kết huyết thống và lịch sử gia tộc.
+  </p>
 
-  Gia phả còn là cơ sở quan trọng để duy trì các nghi lễ truyền thống như thờ phụng tổ tiên, giỗ kỵ, tảo mộ và các hoạt động mang tính cộng đồng của dòng họ. Thông qua những dịp này, con cháu có điều kiện gặp gỡ, gắn kết và củng cố tình cảm huyết thống, đồng thời tiếp nhận những giá trị đạo đức, gia phong và kinh nghiệm sống được truyền lại từ các thế hệ đi trước. Những hoạt động đó không chỉ mang ý nghĩa tâm linh mà còn góp phần tạo nên sự ổn định và bền vững trong đời sống gia đình và xã hội.
+  <p>
+    Trong truyền thống văn hóa Việt Nam, quan niệm “chim có tổ, người có tông” thể hiện ý thức sâu sắc về cội nguồn và đạo lý làm người. Gia phả vì thế giữ vai trò như một nền tảng tinh thần, giúp mỗi thành viên trong dòng họ nhận thức rõ vị trí của mình trong hệ thống gia tộc, hiểu được mối quan hệ giữa các thế hệ và nuôi dưỡng lòng hiếu kính đối với tổ tiên, ông bà và cha mẹ.
+  </p>
 
-  Trải qua nhiều thế hệ, cùng với sự phát triển của xã hội và sự thay đổi về điều kiện sống, nhiều chi nhánh trong dòng họ đã phân tán, sinh sống ở nhiều vùng miền khác nhau. Điều này đặt ra yêu cầu cần có một hệ thống lưu trữ thông tin rõ ràng, chính xác để các thế hệ sau có thể nhận biết và kết nối lại với nhau. Gia phả, trong ý nghĩa đó, trở thành cầu nối giữa quá khứ, hiện tại và tương lai, giúp duy trì sự liên tục của dòng họ không chỉ về mặt huyết thống mà còn về mặt tinh thần và văn hóa.
+  <p>
+    Gia phả còn là cơ sở quan trọng để duy trì các nghi lễ truyền thống như thờ phụng tổ tiên, giỗ kỵ, tảo mộ và các hoạt động mang tính cộng đồng của dòng họ. Thông qua những dịp này, con cháu có điều kiện gặp gỡ, gắn kết và củng cố tình cảm huyết thống, đồng thời tiếp nhận những giá trị đạo đức, gia phong và kinh nghiệm sống được truyền lại từ các thế hệ đi trước.
+  </p>
 
-  Việc xây dựng và cập nhật gia phả không phải là công việc của riêng một cá nhân hay một chi phái, mà là trách nhiệm chung của toàn thể con cháu trong dòng họ. Mỗi thế hệ có nghĩa vụ tiếp tục bổ sung, chỉnh lý những thông tin mới phát sinh, đồng thời bảo tồn những giá trị cốt lõi đã được hình thành từ trước. Chỉ khi có sự tham gia và ý thức trách nhiệm chung, gia phả mới có thể phản ánh trung thực và đầy đủ lịch sử phát triển của dòng họ.
+  <p>
+    Trải qua nhiều thế hệ, cùng với sự phát triển của xã hội, nhiều chi nhánh trong dòng họ đã phân tán, sinh sống ở nhiều vùng miền khác nhau. Gia phả vì vậy trở thành cầu nối giữa quá khứ, hiện tại và tương lai, giúp duy trì sự liên tục của dòng họ không chỉ về huyết thống mà còn về tinh thần và văn hóa.
+  </p>
 
-  Gia phả Dòng họ Nguyễn Thiệu vì vậy không chỉ là một tài liệu lưu trữ mà còn là một di sản tinh thần quý giá, thể hiện bản sắc, truyền thống và sức mạnh đoàn kết của cả dòng tộc. Việc gìn giữ và phát huy giá trị của gia phả chính là cách thiết thực để mỗi thế hệ con cháu thể hiện lòng tri ân đối với tổ tiên, đồng thời góp phần xây dựng nền tảng vững chắc cho sự phát triển lâu dài của dòng họ trong tương lai.
-</p>
+  <p>
+    Việc xây dựng và cập nhật gia phả là trách nhiệm chung của toàn thể con cháu trong dòng họ. Mỗi thế hệ cần tiếp tục bổ sung, chỉnh lý thông tin, góp phần bảo tồn truyền thống, phát huy đạo lý gia tộc và lưu truyền những giá trị tốt đẹp cho các thế hệ mai sau.
+  </p>
+
+  <p>
+    Gia phả Dòng họ Nguyễn Thiệu không chỉ là một tài liệu lưu trữ mà còn là một di sản tinh thần quý giá, thể hiện bản sắc và sức mạnh đoàn kết của dòng tộc. Việc gìn giữ và phát huy giá trị của gia phả chính là cách thiết thực để tri ân tổ tiên và xây dựng nền tảng bền vững cho tương lai.
+  </p>
+</div>
 
               <div className="mt-8 mb-4 border-t border-stone-100 pt-8 flex items-center gap-3">
                 <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
