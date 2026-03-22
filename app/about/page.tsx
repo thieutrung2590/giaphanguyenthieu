@@ -25,12 +25,25 @@ export default function AboutPage() {
               <div className="p-3 bg-amber-100/50 text-amber-700 rounded-2xl">
                 <Info className="size-6" />
               </div>
-              <h1 className="title">Giới thiệu dự án</h1>
+              <h1 className="title">Giới thiệu Dòng họ Nguyễn Thiệu</h1>
             </div>
 
             <div className="max-w-none">
-              <p className="text-stone-600 leading-relaxed text-[15px] mb-8">
-  Dòng họ Nguyễn Thiệu là một chi họ có nguồn gốc lâu đời tại vùng đất Bắc Bộ, gắn với nhân vật tiêu biểu là Nguyễn Thiệu Trị (1442–1522) – một vị quan dưới triều Lê sơ, từng giữ chức Thượng thư bộ Hộ và đỗ tiến sĩ khoa Mậu Tuất năm 1478. Ông được xem là nhân vật trung tâm trong việc xác lập và phát triển danh phận của dòng họ. Xuất thân từ làng Xuân Lôi, huyện Lập Thạch (nay thuộc tỉnh Vĩnh Phúc), ông là người có học vấn cao, tham gia hệ thống khoa cử và triều chính đương thời. Sự nghiệp của ông góp phần đặt nền tảng cho truyền thống hiếu học và danh giá của các thế hệ sau. Gia phả dòng họ ghi nhận sự tiếp nối qua nhiều thế hệ, tuy chịu ảnh hưởng bởi biến động lịch sử thời Lê – Mạc. Trải qua nhiều thế kỷ, dòng họ vẫn duy trì truyền thống tôn kính tổ tiên và gìn giữ gia phả.
+<p className="text-stone-600 leading-relaxed text-[15px] mb-8">
+  Dòng họ Nguyễn Thiệu là một chi họ có nguồn gốc lâu đời tại vùng đất Bắc Bộ, 
+  gắn với nhân vật tiêu biểu là Nguyễn Thiệu Trị (1442–1522) – một vị quan dưới 
+  triều Lê sơ, từng giữ chức Thượng thư bộ Hộ và đỗ tiến sĩ khoa Mậu Tuất năm 1478. 
+  Ông được xem là nhân vật trung tâm trong việc xác lập và phát triển danh phận của dòng họ.
+
+  Xuất thân từ làng Xuân Lôi, huyện Lập Thạch (nay thuộc tỉnh Vĩnh Phúc), 
+  ông là người có học vấn cao, tham gia hệ thống khoa cử và triều chính đương thời. 
+  Sự nghiệp của ông góp phần đặt nền tảng cho truyền thống hiếu học và danh giá của các thế hệ sau.
+
+  Gia phả dòng họ ghi nhận sự tiếp nối qua nhiều thế hệ, tuy chịu ảnh hưởng bởi 
+  biến động lịch sử thời Lê – Mạc.
+
+  Trải qua nhiều thế kỷ, dòng họ vẫn duy trì truyền thống tôn kính tổ tiên 
+  và gìn giữ gia phả.
 </p>
 
               <div className="mt-8 mb-4 border-t border-stone-100 pt-8 flex items-center gap-3">
@@ -99,13 +112,14 @@ export default function AboutPage() {
 
               <p className="text-stone-600 leading-relaxed text-[15px] mb-8">
                 Nếu bạn có bất kỳ thắc mắc, đề xuất tính năng, báo lỗi khi sử
-                dụng phần mềm, hoặc muốn thảo luận thì xin vui lòng gửi email về
-                địa chỉ:{` `}
+                dụng phần mềm, hoặc muốn thảo luận thì xin vui lòng liên hệ
+                mail, số điện thoại:{` `}
                 <a
                   href="mailto:giaphaos@homielab.com"
                   className="font-semibold text-amber-700 hover:text-amber-600 transition-colors inline-flex items-center gap-1.5 mt-2"
                 >
-                  giaphaos@homielab.com
+                  0973.525.248
+                  nguyentrung2590@gmail.com
                 </a>
               </p>
             </div>
