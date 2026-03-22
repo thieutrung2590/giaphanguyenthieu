@@ -56,9 +56,12 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
             <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
           </motion.div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5rem] font-serif font-bold text-stone-900 tracking-tight leading-[1.1] max-w-4xl">
-            <span className="block">{siteName}</span>
-          </h1>
+         <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5rem] font-serif font-bold tracking-tight leading-[1.1] max-w-4xl">
+  <span className="block text-stone-900">Gia Phả</span>
+  <span className="block text-amber-700">
+    Dòng họ Nguyễn Thiệu
+  </span>
+</h1>
 
           <p className="text-lg sm:text-xl md:text-2xl text-stone-600 max-w-2xl mx-auto leading-relaxed font-light">
             Gìn giữ và lưu truyền những giá trị, cội nguồn và truyền thống tốt
