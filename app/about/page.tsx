@@ -57,8 +57,7 @@ export default function AboutPage() {
 
               <div className="bg-stone-50 border border-stone-200/60 rounded-2xl p-6 text-[14.5px] leading-relaxed">
                 <p className="font-bold text-stone-800 mb-4 bg-white py-2 px-3 rounded-lg border border-stone-200 shadow-sm inline-block">
-                  Dự án này chỉ cung cấp mã nguồn (source code). Không có bất kỳ
-                  dữ liệu cá nhân nào được thu thập hay lưu trữ bởi tác giả.
+                  Dự án đang trong quá trình triển khai
                 </p>
 
                 <ul className="space-y-4 text-stone-600 list-disc pl-5">
@@ -91,12 +90,11 @@ export default function AboutPage() {
                   </li>
                   <li>
                     <strong className="text-stone-800">Demo công khai:</strong>{" "}
-                    Trang demo tại{" "}
+                    Trang web tại{" "}
                     <code className="bg-white border border-stone-200 px-1 py-0.5 rounded text-[13px] text-amber-700">
-                      giapha-os.homielab.com
+                      honguyenthieu.vn
                     </code>{" "}
-                    sử dụng dữ liệu mẫu hư cấu, không chứa thông tin của người
-                    thật. Không nên nhập thông tin cá nhân thật vào trang demo.
+                    sử dụng dữ liệu thật của các thành viên Dòng họ.
                   </li>
                 </ul>
               </div>
