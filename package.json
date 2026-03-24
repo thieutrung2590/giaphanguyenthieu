@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.2",
+    "@vercel/analytics": "latest",
     "framer-motion": "^12.38.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
