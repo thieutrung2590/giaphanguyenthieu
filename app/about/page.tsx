@@ -35,7 +35,7 @@ export default function AboutPage() {
   </p>
 
   <p>
-    Nhân vật tiêu biểu, giữ vị trí quan trọng trong việc định hình danh phận và truyền thống của dòng họ là Nguyễn Thiệu Trị (1442–1522). Ông là người làng Xuân Lôi, huyện Lập Thạch (nay thuộc tỉnh Vĩnh Phúc), đỗ tiến sĩ khoa Mậu Tuất năm 1478 dưới triều Lê sơ và từng giữ chức Thượng thư bộ Hộ. Với học vấn uyên thâm và sự nghiệp quan trường rõ ràng, ông được xem là người đặt nền tảng cho truyền thống hiếu học, trọng danh tiết và tham gia quản lý nhà nước của các thế hệ con cháu về sau.
+    Nhân vật tiêu biểu, giữ vị trí quan trọng trong việc định hình danh phận và truyền thống của dòng họ là Nguyễn Thiệu Trị (1442–1522). Ông là người xã Xuân Lôi, huyện Lập Thạch, tỉnh Vĩnh Phúc (nay thuộc xã Tiên Lữ, tỉnh Phú Thọ), đỗ tiến sĩ khoa Mậu Tuất năm 1478 dưới triều Lê sơ và từng giữ chức Thượng thư bộ Hộ. Với học vấn uyên thâm và sự nghiệp quan trường rõ ràng, ông được xem là người đặt nền tảng cho truyền thống hiếu học, trọng danh tiết và tham gia quản lý nhà nước của các thế hệ con cháu về sau.
   </p>
 
   <p>
