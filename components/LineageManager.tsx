@@ -30,7 +30,7 @@ interface ComputedUpdate {
   changed: boolean;
 }
 
-// ─── THUẬT TOÁN GIA CỐ (REINFORCED ALGORITHM) ───────────────────────────────
+// ─── THUẬT TOÁN GIA CỐ (FIXED SYNTAX) ───────────────────────────────
 
 function computeGenerations(persons: Person[], relationships: Relationship[]): Map<string, number> {
   const genMap = new Map<string, number>();
@@ -38,12 +38,10 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
   const parentToChildren = new Map<string, string[]>();
   const spouseMap = new Map<string, string[]>();
 
-  // 1. Phân loại quan hệ từ Database
   relationships.forEach(r => {
     if (r.type === "biological_child" || r.type === "adopted_child") {
       if (!childToParents.has(r.person_b)) childToParents.set(r.person_b, []);
       childToParents.get(r.person_b)!.push(r.person_a);
-
       if (!parentToChildren.has(r.person_a)) parentToChildren.set(r.person_a, []);
       parentToChildren.get(r.person_a)!.push(r.person_b);
     } else if (r.type === "marriage") {
@@ -54,10 +52,7 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
     }
   });
 
-  // 2. Tìm Cụ Tổ: Không có bố mẹ trong hệ thống VÀ không phải dâu/rể (is_in_law = false)
   const roots = persons.filter(p => !childToParents.has(p.id) && !p.is_in_law);
-  
-  // Khởi tạo BFS
   let queue: { id: string; gen: number }[] = roots.map(r => ({ id: r.id, gen: 1 }));
   const visited = new Set<string>();
 
@@ -65,11 +60,8 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
     const { id, gen } = queue.shift()!;
     if (visited.has(id)) continue;
     visited.add(id);
-
-    // Gán đời cho bản thân
     genMap.set(id, gen);
 
-    // Quy tắc: Vợ/Chồng hưởng cùng đời (Generation)
     (spouseMap.get(id) || []).forEach(sId => {
       if (!visited.has(sId)) {
         genMap.set(sId, gen);
@@ -77,7 +69,6 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
       }
     });
 
-    // Quy tắc: Con cái = Đời bố mẹ + 1
     (parentToChildren.get(id) || []).forEach(cId => {
       if (!visited.has(cId)) {
         queue.push({ id: cId, gen: gen + 1 });
@@ -85,7 +76,6 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
     });
   }
 
-  // 3. Xử lý "mồ côi" hoặc lỗi logic: Thử gán đời dựa trên bạn đời nếu bị sót
   let retry = true;
   while (retry) {
     retry = false;
@@ -100,7 +90,6 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
       }
     });
   }
-
   return genMap;
 }
 
@@ -112,10 +101,8 @@ function computeBirthOrders(persons: Person[], relationships: Relationship[]): M
       parentChildren.get(r.person_a)!.add(r.person_b);
     }
   });
-
   const personsById = new Map(persons.map(p => [p.id, p]));
   const orderMap = new Map<string, number>();
-
   parentChildren.forEach(childIds => {
     const sorted = Array.from(childIds)
       .map(id => personsById.get(id))
@@ -125,16 +112,10 @@ function computeBirthOrders(persons: Person[], relationships: Relationship[]): M
         const bYear = b?.birth_year ?? 9999;
         return aYear !== bYear ? aYear - bYear : (a?.full_name || "").localeCompare(b?.full_name || "", "vi");
       });
-
-    sorted.forEach((p, index) => {
-      if (p) orderMap.set(p.id, index + 1);
-    });
+    sorted.forEach((p, index) => { if (p) orderMap.set(p.id, index + 1); });
   });
-
   return orderMap;
 }
-
-// ─── COMPONENT CHÍNH ─────────────────────────────────────────────────────────
 
 export default function LineageManager({ persons, relationships }: LineageManagerProps) {
   const supabase = createClient();
@@ -149,11 +130,9 @@ export default function LineageManager({ persons, relationships }: LineageManage
     setComputing(true);
     setApplied(false);
     setError(null);
-
     try {
       const genMap = computeGenerations(persons, relationships);
       const orderMap = computeBirthOrders(persons, relationships);
-
       const result: ComputedUpdate[] = persons.map(p => {
         const newGen = genMap.get(p.id) || null;
         const newOrder = orderMap.get(p.id) || null;
@@ -167,11 +146,10 @@ export default function LineageManager({ persons, relationships }: LineageManage
           changed: newGen !== p.generation || newOrder !== p.birth_order
         };
       });
-
       result.sort((a, b) => (a.changed === b.changed ? 0 : a.changed ? -1 : 1));
       setUpdates(result);
     } catch (err) {
-      setError("Lỗi thuật toán. Vui lòng kiểm tra lại các mối quan hệ vòng lặp.");
+      setError("Lỗi thuật toán tính đời.");
     } finally {
       setComputing(false);
     }
@@ -181,9 +159,7 @@ export default function LineageManager({ persons, relationships }: LineageManage
     if (!updates) return;
     setApplying(true);
     const changedOnly = updates.filter(u => u.changed);
-    
     try {
-      // Cập nhật theo nhóm 10 người một lúc để tránh quá tải
       for (let i = 0; i < changedOnly.length; i += 10) {
         const chunk = changedOnly.slice(i, i + 10);
         await Promise.all(chunk.map(u => 
@@ -196,7 +172,7 @@ export default function LineageManager({ persons, relationships }: LineageManage
       setApplied(true);
       setUpdates(null);
     } catch (err) {
-      setError("Lỗi khi lưu dữ liệu vào cơ sở dữ liệu.");
+      setError("Lỗi khi lưu dữ liệu.");
     } finally {
       setApplying(false);
     }
@@ -208,7 +184,86 @@ export default function LineageManager({ persons, relationships }: LineageManage
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-4">
+        {/* DÒNG 214 ĐÃ ĐƯỢC FIX DƯỚI ĐÂY */}
         <button
           onClick={handleCompute}
           disabled={computing || applying}
-          className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-2xl hover:bg
+          className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-2xl hover:bg-amber-700 disabled:opacity-50 font-bold shadow-lg shadow-amber-200 transition-all"
+        >
+          {computing ? <Loader2 className="animate-spin size-5" /> : <Sparkles className="size-5" />}
+          Tính toán đời & thứ tự sinh
+        </button>
+
+        {updates && changedCount > 0 && !applied && (
+          <button
+            onClick={handleApply}
+            disabled={applying}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 disabled:opacity-50 font-bold shadow-lg shadow-emerald-200 transition-all"
+          >
+            {applying ? <Loader2 className="animate-spin size-5" /> : <RefreshCw className="size-5" />}
+            Áp dụng {changedCount} thay đổi
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 text-rose-700 border border-rose-200 rounded-2xl flex items-center gap-3">
+          <AlertCircle className="size-5" /> {error}
+        </div>
+      )}
+
+      {applied && (
+        <div className="p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-2xl flex items-center gap-3 font-bold">
+          <CheckCircle2 className="size-5" /> Đã cập nhật xong! Hãy tải lại trang để xem kết quả.
+        </div>
+      )}
+
+      {updates && (
+        <div className="bg-white border border-stone-200 rounded-3xl overflow-hidden shadow-sm">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-bold">
+              <tr>
+                <th className="px-6 py-4">Họ và Tên</th>
+                <th className="px-6 py-4 text-center">Thế hệ (Cũ → Mới)</th>
+                <th className="px-6 py-4 text-center">Thứ tự sinh</th>
+                <th className="px-6 py-4 text-right">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {displayedRows.map(u => (
+                <tr key={u.id} className={u.changed ? "bg-amber-50/40" : ""}>
+                  <td className="px-6 py-4 font-bold text-stone-800">{u.full_name}</td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="text-stone-400">{u.old_generation ?? "?"}</span>
+                    {u.old_generation !== u.new_generation && (
+                      <span className="font-bold text-amber-700 ml-2">→ {u.new_generation}</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center font-bold text-stone-600">
+                    {u.new_birth_order || "—"}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {u.changed ? (
+                      <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-bold uppercase border border-amber-200">Thay đổi</span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-lg bg-stone-100 text-stone-400 text-[10px] font-bold uppercase">Giữ nguyên</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          {!showAll && updates.length > 20 && (
+            <button 
+              onClick={() => setShowAll(true)}
+              className="w-full py-4 text-stone-400 hover:text-amber-700 font-bold bg-stone-50/50 border-t border-stone-200 transition-colors"
+            >
+              Xem tất cả {updates.length} thành viên...
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
