@@ -93,7 +93,7 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
           >
             <span className="relative z-10 flex items-center gap-3">
               <BookOpen className="size-5 text-amber-700 group-hover:scale-110 transition-transform" />
-              Giới thiệu dòng họ
+              Giới thiệu dòng họ Nguyễn Thiệu
             </span>
           </Link>
 
