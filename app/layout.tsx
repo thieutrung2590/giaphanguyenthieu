@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import config from "./config";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
   subsets: ["latin", "vietnamese"],
@@ -29,6 +30,7 @@ export default function RootLayout({
       >
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
