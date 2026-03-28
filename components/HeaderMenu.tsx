@@ -1,7 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { BarChart2, ChevronDown, Database, GitMerge, Info, Network, UserCircle, Users } from "lucide-react";
+import { 
+  BarChart2, 
+  ChevronDown, 
+  Database, 
+  GitMerge, 
+  HeartHandshake, // Đã thêm icon này
+  Info, 
+  Network, 
+  UserCircle, 
+  Users 
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import LogoutButton from "./LogoutButton";
@@ -97,9 +107,19 @@ export default function HeaderMenu() {
                 Thống kê
               </Link>
 
+              {/* MỤC CÔNG ĐỨC MỚI THÊM VÀO ĐÂY */}
+              <Link
+                href="/dashboard/donations"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+              >
+                <HeartHandshake className="size-4" />
+                Công đức
+              </Link>
+
               {isAdmin && (
                 <>
-                  <div className="px-4 py-2 mt-1">
+                  <div className="px-4 py-2 mt-1 border-t border-stone-100">
                     <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">
                       Quản trị viên
                     </p>
