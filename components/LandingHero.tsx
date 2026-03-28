@@ -3,6 +3,7 @@
 import { motion, Variants } from "framer-motion";
 import {
   ArrowRight,
+  BookOpen, // Thêm icon cuốn sách cho nút giới thiệu
   Network,
   ShieldCheck,
   Sparkles,
@@ -56,12 +57,10 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
             <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
           </motion.div>
 
-         <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5rem] font-serif font-bold tracking-tight leading-[1.1] max-w-4xl">
-  <span className="block text-stone-900">Gia Phả</span>
-  <span className="block text-amber-700">
-    Dòng họ Nguyễn Thiệu
-  </span>
-</h1>
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5rem] font-serif font-bold tracking-tight leading-[1.1] max-w-4xl">
+            <span className="block text-stone-900">Gia Phả</span>
+            <span className="block text-amber-700">Dòng họ Nguyễn Thiệu</span>
+          </h1>
 
           <p className="text-lg sm:text-xl md:text-2xl text-stone-600 max-w-2xl mx-auto leading-relaxed font-light">
             Gìn giữ và lưu truyền những giá trị, cội nguồn và truyền thống tốt
@@ -73,9 +72,10 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
           className="pt-6 flex flex-col sm:flex-row gap-4 justify-center items-center w-full px-4 sm:px-0 relative"
           variants={fadeIn}
         >
-          {/* Subtle glow behind the button */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-16 bg-amber-500/30 blur-2xl rounded-full z-0 hidden sm:block"></div>
+          {/* Subtle glow behind the buttons */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-16 bg-amber-500/20 blur-2xl rounded-full z-0 hidden sm:block"></div>
 
+          {/* NÚT 1: ĐĂNG NHẬP */}
           <Link
             href="/login"
             className="group inline-flex items-center justify-center gap-2 px-8 py-4 sm:px-10 sm:py-5 text-base sm:text-lg font-bold text-white bg-stone-900 border border-stone-800 hover:bg-stone-800 hover:border-stone-700 rounded-2xl shadow-xl shadow-stone-900/10 hover:shadow-2xl hover:shadow-stone-900/20 transition-all duration-300 hover:-translate-y-1 active:translate-y-0 w-full sm:w-auto overflow-hidden relative"
@@ -85,6 +85,18 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
               <ArrowRight className="size-5 group-hover:translate-x-1.5 transition-transform" />
             </span>
           </Link>
+
+          {/* NÚT 2: GIỚI THIỆU (MỚI THÊM) */}
+          <Link
+            href="/about"
+            className="group inline-flex items-center justify-center gap-2 px-8 py-4 sm:px-10 sm:py-5 text-base sm:text-lg font-bold text-stone-800 bg-white border border-stone-200 hover:bg-stone-50 hover:border-amber-200 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 active:translate-y-0 w-full sm:w-auto overflow-hidden relative"
+          >
+            <span className="relative z-10 flex items-center gap-3">
+              <BookOpen className="size-5 text-amber-700 group-hover:scale-110 transition-transform" />
+              Giới thiệu dòng họ
+            </span>
+          </Link>
+
         </motion.div>
 
         <motion.div
