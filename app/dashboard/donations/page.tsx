@@ -26,7 +26,7 @@ export default async function DonationsPage() {
     <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-serif font-bold text-stone-800 flex items-center gap-3">
-          <Wallet className="size-8 text-rose-600" /> Quản lý Quỹ Dòng Họ
+          <Wallet className="size-8 text-rose-600" /> Công đức Dòng họ
         </h1>
         {isAdmin && (
           <div className="flex gap-3">
