@@ -32,6 +32,25 @@ export default function FamilyNodeCard({
 
   const isDeceased = person.is_deceased;
 
+  // Lấy năm sinh và năm mất từ dữ liệu person
+  const birthYear = person.birth_year;
+  const deathYear = person.death_year;
+
+  // Xây dựng chuỗi ký tự hiển thị năm: "năm sinh - năm mất"
+  let yearsDisplay = "";
+  if (birthYear) {
+    yearsDisplay += birthYear;
+    if (deathYear) {
+      yearsDisplay += ` - ${deathYear}`;
+    } else if (isDeceased) {
+      // Nếu đã mất nhưng không có năm mất, hiển thị một dấu gạch ngang
+      yearsDisplay += " - ?";
+    }
+  } else if (deathYear) {
+    // Trường hợp hiếm gặp: chỉ có năm mất
+    yearsDisplay += `? - ${deathYear}`;
+  }
+
   const content = (
     <div
       onClick={onClickCard}
@@ -127,6 +146,13 @@ export default function FamilyNodeCard({
                 </span>
               ))}
         </div>
+
+        {/* THÊM PHẦN HIỂN THỊ NĂM SINH - NĂM MẤT Ở ĐÂY: */}
+        {showAvatar && yearsDisplay && (
+          <div className="text-[8px] sm:text-[9px] md:text-[10px] text-stone-600 font-normal leading-none -mt-1">
+            ({yearsDisplay})
+          </div>
+        )}
       </div>
     </div>
   );
