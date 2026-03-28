@@ -24,7 +24,7 @@ export default function ExpenseForm() {
         className="flex items-center gap-2 bg-stone-800 text-white px-4 py-2.5 rounded-xl hover:bg-stone-900 transition-colors shadow-sm font-medium"
       >
         <Minus className="size-5" />
-        Thêm phiếu chi
+        Thêm khoản chi
       </button>
 
       {isOpen && (
