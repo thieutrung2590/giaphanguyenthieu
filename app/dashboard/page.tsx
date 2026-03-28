@@ -9,6 +9,7 @@ import {
   Database,
   Flower2,
   GitMerge,
+  HeartHandshake, // Đã thêm icon này
   Network,
   Star,
   Users,
@@ -96,6 +97,16 @@ export default async function DashboardLaunchpad() {
       bgColor: "bg-purple-50",
       borderColor: "border-purple-200/60",
       hoverColor: "hover:border-purple-400 hover:shadow-purple-100",
+    },
+    // Đã thêm thẻ Công đức dòng họ ở đây
+    {
+      title: "Công đức dòng họ",
+      description: "Ghi nhận đóng góp xây dựng quỹ",
+      icon: <HeartHandshake className="size-8 text-rose-600" />,
+      href: "/dashboard/donations",
+      bgColor: "bg-rose-50",
+      borderColor: "border-rose-200/60",
+      hoverColor: "hover:border-rose-400 hover:shadow-rose-100",
     },
     // {
     //   title: "Giới thiệu & Liên hệ",
