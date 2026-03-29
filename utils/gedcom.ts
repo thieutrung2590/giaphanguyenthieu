@@ -14,6 +14,7 @@ export interface GedcomPerson {
   generation?: number | null;
   avatar_url?: string | null;
   note?: string | null;
+  cong_duc?: string | null; // Bổ sung trường công đức
 }
 
 export interface GedcomRelationship {
@@ -98,6 +99,15 @@ export function exportToGedcom(data: {
         gedcom += `2 CONT ${lines[i]}\n`;
       }
     }
+
+    // Công đức (Sử dụng custom tag _MERIT)
+    if (person.cong_duc) {
+      const lines = person.cong_duc.split("\n");
+      gedcom += `1 _MERIT ${lines[0]}\n`;
+      for (let i = 1; i < lines.length; i++) {
+        gedcom += `2 CONT ${lines[i]}\n`;
+      }
+    }
   }
 
   // Export Families
@@ -171,36 +181,16 @@ export function exportToGedcom(data: {
 function getMonthName(month: number | null): string {
   if (!month) return "";
   const months = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
+    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
   ];
   return months[month - 1] || "";
 }
 
 function parseMonthName(name: string): number | null {
   const months = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
+    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
   ];
   const index = months.findIndex((m) => m === name.toUpperCase());
   return index !== -1 ? index + 1 : null;
@@ -267,6 +257,7 @@ export function parseGedcom(gedcom: string): {
     let death_month = null;
     let death_year = null;
     let note = "";
+    let cong_duc = ""; // Biến chứa dữ liệu công đức
 
     let currentTag = "";
 
@@ -290,10 +281,14 @@ export function parseGedcom(gedcom: string): {
           is_deceased = val.trim().length === 0 || val === "Y";
         } else if (tag === "NOTE") {
           note = val;
+        } else if (tag === "_MERIT") { // Bắt thẻ _MERIT
+          cong_duc = val;
         }
       } else if (level === 2) {
         if (currentTag === "NOTE" && tag === "CONT") {
           note += "\n" + val;
+        } else if (currentTag === "_MERIT" && tag === "CONT") { // Hỗ trợ _MERIT nhiều dòng
+          cong_duc += "\n" + val;
         } else if (currentTag === "BIRT" && tag === "DATE") {
           const cleanVal = val.replace(/^(ABT|EST|AFT|BEF|CAL)\s+/i, "");
           const parts = cleanVal.split(" ");
@@ -341,6 +336,7 @@ export function parseGedcom(gedcom: string): {
       generation: null,
       avatar_url: null,
       note: note.length > 0 ? note : null,
+      cong_duc: cong_duc.length > 0 ? cong_duc : null, // Lưu dữ liệu công đức
     });
   }
 
