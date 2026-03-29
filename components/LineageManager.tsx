@@ -31,7 +31,7 @@ interface ComputedUpdate {
   changed: boolean;
 }
 
-// ─── THUẬT TOÁN AN TOÀN (SAFE BFS ALGORITHM) ───────────────────────────────
+// ─── THUẬT TOÁN TỐI ƯU & NỘI SUY ĐỜI CHUẨN XÁC ───────────────────────────────
 
 function computeGenerations(persons: Person[], relationships: Relationship[]): Map<string, number> {
   const genMap = new Map<string, number>();
@@ -39,7 +39,7 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
   const childToParents = new Map<string, string[]>();
   const spouseMap = new Map<string, string[]>();
 
-  // 1. Khởi tạo bản đồ quan hệ
+  // 1. Quét dữ liệu từ bảng Quan hệ
   relationships.forEach(r => {
     if (r.type === "biological_child" || r.type === "adopted_child") {
       if (!parentToChildren.has(r.person_a)) parentToChildren.set(r.person_a, []);
@@ -54,52 +54,107 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
     }
   });
 
+  // 1.5. DỰ PHÒNG: Quét trực tiếp từ cột cha/mẹ trong bảng Persons (nếu có)
+  persons.forEach(p => {
+    const pid = p.id;
+    const pAny = p as any;
+    const parents = [pAny.father_id, pAny.mother_id].filter(Boolean);
+    
+    parents.forEach(parentId => {
+      if (!childToParents.get(pid)?.includes(parentId)) {
+        if (!parentToChildren.has(parentId)) parentToChildren.set(parentId, []);
+        parentToChildren.get(parentId)!.push(pid);
+        if (!childToParents.has(pid)) childToParents.set(pid, []);
+        childToParents.get(pid)!.push(parentId);
+      }
+    });
+  });
+
+  // 2. TÌM 1 CỤ TỔ DUY NHẤT (Người già nhất không có cha mẹ và không phải dâu/rể)
+  let roots = persons.filter(p => !childToParents.has(p.id) && !p.is_in_law);
+  if (roots.length === 0) roots = persons; // Đề phòng lỗi dữ liệu vòng lặp sạch
+
+  roots.sort((a, b) => (a.birth_year || 9999) - (b.birth_year || 9999));
+  const trueRoot = roots[0];
+
   const visited = new Set<string>();
-  const queue: { id: string; gen: number }[] = [];
+  const queue: { id: string; gen: number }[] = [{ id: trueRoot.id, gen: 1 }];
 
-  // 2. Tìm các "gốc" (Những người không có cha mẹ trong hệ thống)
-  const roots = persons.filter(p => !childToParents.has(p.id));
-  roots.forEach(r => queue.push({ id: r.id, gen: 1 }));
+  // 3. TÍNH TOÁN NHÁNH CHÍNH
+  while (queue.length > 0) {
+    const { id, gen } = queue.shift()!;
+    if (visited.has(id)) {
+      if (gen < (genMap.get(id) || 9999)) genMap.set(id, gen);
+      else continue;
+    }
 
-  // 3. Chạy vòng lặp an toàn (Safety break để chống treo trình duyệt)
-  let safetyCounter = 0;
-  const MAX_SAFE_ITERATIONS = 5000;
+    visited.add(id);
+    genMap.set(id, gen);
 
-  while (queue.length > 0 && safetyCounter < MAX_SAFE_ITERATIONS) {
-    safetyCounter++;
-    const current = queue.shift()!;
-    if (visited.has(current.id)) continue;
-
-    visited.add(current.id);
-    genMap.set(current.id, current.gen);
-
-    // Lan tỏa cho con cái (Đời + 1)
-    const children = parentToChildren.get(current.id) || [];
-    children.forEach(cid => {
-      if (!visited.has(cid)) queue.push({ id: cid, gen: current.gen + 1 });
-    });
-
-    // Lan tỏa cho vợ/chồng (Cùng đời)
-    const spouses = spouseMap.get(current.id) || [];
-    spouses.forEach(sid => {
-      if (!visited.has(sid)) queue.push({ id: sid, gen: current.gen });
-    });
+    (parentToChildren.get(id) || []).forEach(cid => queue.push({ id: cid, gen: gen + 1 }));
+    (spouseMap.get(id) || []).forEach(sid => queue.push({ id: sid, gen: gen }));
   }
 
-  if (safetyCounter >= MAX_SAFE_ITERATIONS) {
-    throw new Error("Phát hiện vòng lặp vô hạn trong dữ liệu quan hệ (Ví dụ: Cha là con của chính mình). Hãy kiểm tra lại phả hệ.");
-  }
+  // 4. XỬ LÝ NHỮNG NGƯỜI BỊ ĐỨT NHÁNH (NỘI SUY THEO NĂM SINH)
+  const rootYear = trueRoot.birth_year || 1900;
+  const YEAR_PER_GEN = 25; // Khoảng cách trung bình 25 năm/đời
+
+  // Tìm các "Rễ phụ" của các nhánh bị đứt
+  persons.forEach(p => {
+    if (!visited.has(p.id) && !childToParents.has(p.id) && !p.is_in_law) {
+      // Ước lượng đời dựa trên năm sinh so với Cụ Tổ
+      const estimatedGen = p.birth_year 
+        ? Math.max(2, Math.round((p.birth_year - rootYear) / YEAR_PER_GEN) + 1) 
+        : (p.generation || 2);
+
+      const subQueue = [{ id: p.id, gen: estimatedGen }];
+      while (subQueue.length > 0) {
+        const { id, gen } = subQueue.shift()!;
+        if (visited.has(id)) continue;
+        visited.add(id);
+        genMap.set(id, gen);
+
+        (parentToChildren.get(id) || []).forEach(cid => subQueue.push({ id: cid, gen: gen + 1 }));
+        (spouseMap.get(id) || []).forEach(sid => subQueue.push({ id: sid, gen: gen }));
+      }
+    }
+  });
+
+  // Vét lưới lần cuối cho dâu rể hoặc người mồ côi
+  persons.forEach(p => {
+    if (!visited.has(p.id)) {
+      const estimatedGen = p.birth_year 
+        ? Math.max(2, Math.round((p.birth_year - rootYear) / YEAR_PER_GEN) + 1) 
+        : (p.generation || 2);
+      genMap.set(p.id, estimatedGen);
+    }
+  });
 
   return genMap;
 }
 
 function computeBirthOrders(persons: Person[], relationships: Relationship[]): Map<string, number> {
   const parentChildren = new Map<string, string[]>();
+  
+  // Quét bảng quan hệ
   relationships.forEach(r => {
     if (r.type === "biological_child" || r.type === "adopted_child") {
       if (!parentChildren.has(r.person_a)) parentChildren.set(r.person_a, []);
       parentChildren.get(r.person_a)!.push(r.person_b);
     }
+  });
+
+  // DỰ PHÒNG: Quét cột trực tiếp
+  persons.forEach(p => {
+    const pid = p.id;
+    const pAny = p as any;
+    const parents = [pAny.father_id, pAny.mother_id].filter(Boolean);
+    parents.forEach(parentId => {
+      if (!parentChildren.has(parentId)) parentChildren.set(parentId, []);
+      if (!parentChildren.get(parentId)!.includes(pid)) {
+        parentChildren.get(parentId)!.push(pid);
+      }
+    });
   });
 
   const personsById = new Map(persons.map(p => [p.id, p]));
@@ -121,6 +176,8 @@ function computeBirthOrders(persons: Person[], relationships: Relationship[]): M
   return orderMap;
 }
 
+// ─── COMPONENT CHÍNH ─────────────────────────────────────────────────────────
+
 export default function LineageManager({ persons, relationships }: LineageManagerProps) {
   const supabase = createClient();
   const [updates, setUpdates] = useState<ComputedUpdate[] | null>(null);
@@ -136,7 +193,6 @@ export default function LineageManager({ persons, relationships }: LineageManage
     setError(null);
     setUpdates(null);
 
-    // Sử dụng setTimeout để UI không bị đơ trong khi tính toán
     setTimeout(() => {
       try {
         const genMap = computeGenerations(persons, relationships);
@@ -156,7 +212,7 @@ export default function LineageManager({ persons, relationships }: LineageManage
           };
         });
 
-        // Sắp xếp: Những người có thay đổi lên đầu
+        // Đưa người bị lệch lên trên
         result.sort((a, b) => {
           if (a.changed !== b.changed) return a.changed ? -1 : 1;
           return (a.new_generation || 0) - (b.new_generation || 0);
@@ -168,7 +224,7 @@ export default function LineageManager({ persons, relationships }: LineageManage
       } finally {
         setComputing(false);
       }
-    }, 100);
+    }, 150); // Timeout tạo cảm giác mượt mà cho UI
   };
 
   const handleApply = async () => {
@@ -205,7 +261,7 @@ export default function LineageManager({ persons, relationships }: LineageManage
           className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-2xl hover:bg-amber-700 disabled:opacity-50 font-bold shadow-lg shadow-amber-200 transition-all active:scale-95"
         >
           {computing ? <Loader2 className="animate-spin size-5" /> : <Sparkles className="size-5" />}
-          {computing ? "Đang xử lý..." : "Tính toán lại đời & thứ tự sinh"}
+          {computing ? "Đang quét toàn bộ họ..." : "Tính toán lại đời & thứ tự sinh"}
         </button>
 
         {updates && updates.some(u => u.changed) && !applied && (
