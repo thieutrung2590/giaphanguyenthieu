@@ -42,8 +42,7 @@ export async function exportToCsvZip(data: {
     zip.file("custom_events.csv", Papa.unparse(data.custom_events));
   }
 
-  const zipBlob = await zip.generateAsync({ type: "blob" });
-  return zipBlob;
+  return await zip.generateAsync({ type: "blob" });
 }
 
 export async function parseCsvZip(zipBlob: Blob): Promise<{
@@ -67,10 +66,11 @@ export async function parseCsvZip(zipBlob: Blob): Promise<{
   const personsCsvStr = await personsFile.async("text");
   const relationshipsCsvStr = await relationshipsFile.async("text");
 
+  // Loại trừ ép kiểu tự động cho các ID
   const personsParsed = Papa.parse<Partial<Person>>(personsCsvStr, {
     header: true,
     skipEmptyLines: true,
-    dynamicTyping: true, // Tự động convert số và boolean
+    dynamicTyping: (field) => field !== "id", 
   });
 
   const relationshipsParsed = Papa.parse<Partial<Relationship>>(
@@ -78,7 +78,7 @@ export async function parseCsvZip(zipBlob: Blob): Promise<{
     {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: true,
+      dynamicTyping: (field) => field !== "person_a" && field !== "person_b",
     },
   );
 
@@ -100,14 +100,14 @@ export async function parseCsvZip(zipBlob: Blob): Promise<{
     relationships: relationshipsParsed.data,
   };
 
-  // Parse person_details_private.csv (optional, backward compat)
   const privateFile = loadedZip.file("person_details_private.csv");
   if (privateFile) {
     const privateCsvStr = await privateFile.async("text");
     const privateParsed = Papa.parse<PersonDetailsPrivateRow>(privateCsvStr, {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: true,
+      // Chặn ép kiểu cho person_id và phone_number để không mất số 0
+      dynamicTyping: (field) => field !== "phone_number" && field !== "person_id",
     });
     if (privateParsed.errors.length > 0) {
       console.error(
@@ -118,14 +118,13 @@ export async function parseCsvZip(zipBlob: Blob): Promise<{
     result.person_details_private = privateParsed.data;
   }
 
-  // Parse custom_events.csv (optional, backward compat)
   const eventsFile = loadedZip.file("custom_events.csv");
   if (eventsFile) {
     const eventsCsvStr = await eventsFile.async("text");
     const eventsParsed = Papa.parse<CustomEventRow>(eventsCsvStr, {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: true,
+      dynamicTyping: (field) => field !== "id" && field !== "created_by",
     });
     if (eventsParsed.errors.length > 0) {
       console.error("Lỗi parse custom_events.csv:", eventsParsed.errors);
