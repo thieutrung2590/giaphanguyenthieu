@@ -55,8 +55,8 @@ export default function MemberDetailModal() {
         }
         setPerson(personData);
 
-        // 2. Fetch Private Data if Admin
-        if (isAdmin) {
+        // 2. MỞ KHÓA: Cho phép cả Admin và Editor tải thông tin liên hệ (Private Data)
+        if (isAdmin || canEdit) {
           const { data: privData } = await supabase
             .from("person_details_private")
             .select("*")
@@ -74,7 +74,7 @@ export default function MemberDetailModal() {
         setLoading(false);
       }
     },
-    [isAdmin, supabase],
+    [isAdmin, canEdit, supabase], // Đã thêm canEdit vào dependency
   );
 
   // Sync state with URL parameter or create mode
@@ -120,28 +120,22 @@ export default function MemberDetailModal() {
 
   // Called by MemberForm after a successful save
   const handleEditSuccess = (savedPersonId: string) => {
-    // Clear stale data first so the loading state is shown while refetching
     setIsEditing(false);
     setPerson(null);
     setPrivateData(null);
     fetchData(savedPersonId);
-    // Revalidate Next.js server component cache so the dashboard list/members updates
     router.refresh();
   };
 
   // Called by MemberForm after a successful CREATE
   const handleCreateSuccess = (savedPersonId: string) => {
     setShowCreateMember(false);
-    // Open the detail modal for the new member
     setMemberModalId(savedPersonId);
-    // Delay refresh so React commits state changes first,
-    // ensuring the server component re-fetches the updated member list.
     setTimeout(() => {
       router.refresh();
     }, 100);
   };
 
-  // initialData for MemberForm — merge public + private
   const formInitialData = person
     ? { ...person, ...(privateData ?? {}) }
     : undefined;
@@ -156,7 +150,6 @@ export default function MemberDetailModal() {
           transition={{ duration: 0.2 }}
           className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40 backdrop-blur-sm"
         >
-          {/* Click-away backdrop (disabled while editing/creating to avoid accidental close) */}
           {!isEditing && !showCreateMember && (
             <div
               className="absolute inset-0 cursor-pointer"
@@ -164,7 +157,6 @@ export default function MemberDetailModal() {
             />
           )}
 
-          {/* Modal Content */}
           <motion.div
             layout
             initial={{ scale: 0.96, opacity: 0, y: 15 }}
@@ -177,18 +169,16 @@ export default function MemberDetailModal() {
             {/* Sticky Header Actions */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
               {isEditing ? (
-                /* In edit mode — show back button */
                 <button
-                  onClick={() => {
-                    setIsEditing(false);
-                  }}
+                  onClick={() => setIsEditing(false)}
                   className="flex items-center gap-1.5 px-4 py-2 bg-stone-100/80 text-stone-700 rounded-full hover:bg-stone-200 font-semibold text-sm shadow-sm border border-stone-200/50 transition-colors"
                 >
                   <ArrowLeft className="size-4" />
                   <span className="hidden sm:inline">Quay lại</span>
                 </button>
               ) : (
-                canEdit &&
+                /* MỞ KHÓA NÚT CHỈNH SỬA CHO CẢ ADMIN VÀ EDITOR */
+                (isAdmin || canEdit) &&
                 person && (
                   <>
                     <Link
@@ -270,7 +260,7 @@ export default function MemberDetailModal() {
                       >[0]["initialData"]
                     }
                     isEditing={true}
-                    isAdmin={isAdmin}
+                    isAdmin={isAdmin || canEdit} // MỞ KHÓA form Private Data cho Editor
                     onSuccess={handleEditSuccess}
                     onCancel={() => setIsEditing(false)}
                   />
@@ -289,7 +279,7 @@ export default function MemberDetailModal() {
                     Thêm thành viên mới
                   </h2>
                   <MemberForm
-                    isAdmin={isAdmin}
+                    isAdmin={isAdmin || canEdit} // MỞ KHÓA form tạo Private Data
                     onSuccess={handleCreateSuccess}
                     onCancel={closeModal}
                   />
@@ -307,7 +297,7 @@ export default function MemberDetailModal() {
                   <MemberDetailContent
                     person={person}
                     privateData={privateData}
-                    isAdmin={isAdmin}
+                    isAdmin={isAdmin || canEdit} // Cho phép Editor xem Private Data trên thẻ
                     canEdit={canEdit}
                   />
                 </motion.div>
