@@ -15,7 +15,7 @@ export default function PersonCard({ person }: PersonCardProps) {
 
   const isDeceased = person.is_deceased;
 
-  // SỬA: Nếu đã mất, icon giới tính cũng chuyển sang màu xám
+  // Lấy màu cho icon giới tính ở góc phải avatar
   const getGenderStyle = (gender: string) => {
     if (isDeceased) return "bg-stone-200 text-stone-500";
     if (gender === "male") return "bg-sky-100 text-sky-600";
@@ -26,21 +26,21 @@ export default function PersonCard({ person }: PersonCardProps) {
   return (
     <button
       onClick={() => setMemberModalId(person.id)}
-      className={`group block relative bg-white/60 p-2 sm:p-4 rounded-2xl shadow-sm border border-stone-200/60 hover:border-amber-300 hover:shadow-md hover:bg-white/90 transition-all duration-300 overflow-hidden
-        ${isDeceased ? "opacity-90" : ""}`}
+      // XÓA: Hiệu ứng làm mờ (opacity/grayscale) ở thẻ bao ngoài
+      className="group block relative bg-white/60 p-2 sm:p-4 rounded-2xl shadow-sm border border-stone-200/60 hover:border-amber-300 hover:shadow-md hover:bg-white/90 transition-all duration-300 overflow-hidden w-full"
     >
       <div className="flex items-center space-x-4 relative z-10">
         <div className="relative">
-          {/* SỬA: Nền avatar mặc định chuyển sang màu xám nhạt nếu đã mất */}
+          {/* VÙNG AVATAR CHÍNH: Chỉ làm xám vùng này */}
           <div
             className={`h-14 w-14 sm:h-16 sm:w-16 rounded-full flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 shadow-lg ring-2 ring-white transition-transform duration-300 group-hover:scale-105
             ${
-              isDeceased 
-                ? "bg-linear-to-br from-stone-300 to-stone-400" 
-                : person.gender === "male" 
-                  ? "bg-linear-to-br from-sky-400 to-sky-700" 
-                  : person.gender === "female" 
-                    ? "bg-linear-to-br from-rose-400 to-rose-700" 
+              isDeceased
+                ? "bg-linear-to-br from-stone-300 to-stone-400" // Nền xám nhạt
+                : person.gender === "male"
+                  ? "bg-linear-to-br from-sky-400 to-sky-700"
+                  : person.gender === "female"
+                    ? "bg-linear-to-br from-rose-400 to-rose-700"
                     : "bg-linear-to-br from-stone-400 to-stone-600"
             }`}
           >
@@ -49,16 +49,17 @@ export default function PersonCard({ person }: PersonCardProps) {
                 unoptimized
                 src={person.avatar_url}
                 alt={person.full_name}
-                width={32}
-                height={32}
-                // SỬA: Thêm class "grayscale" để chuyển ảnh thật thành đen trắng
+                width={64}
+                height={64}
+                // Thêm class grayscale để chuyển ảnh thật thành ảnh đen trắng
                 className={`h-full w-full object-cover ${isDeceased ? "grayscale" : ""}`}
               />
             ) : (
               <DefaultAvatar gender={person.gender} />
             )}
           </div>
-          {/* Gender Indicator Icon */}
+          
+          {/* Icon Giới tính nhỏ ở góc */}
           <div
             className={`absolute bottom-0 right-0 size-5 rounded-full ring-2 ring-white shadow-sm flex items-center justify-center ${getGenderStyle(person.gender)}`}
           >
@@ -71,12 +72,15 @@ export default function PersonCard({ person }: PersonCardProps) {
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className={`text-base text-left sm:text-lg font-bold transition-colors truncate mb-1.5 ${isDeceased ? "text-stone-700 group-hover:text-stone-900" : "text-stone-900 group-hover:text-amber-700"}`}>
+          {/* TÊN: Ép luôn màu đen đậm (text-stone-900) */}
+          <h3 className="text-base text-left sm:text-lg font-bold text-stone-900 group-hover:text-amber-700 transition-colors truncate mb-1.5">
             {person.full_name}
           </h3>
-          <p className="text-sm font-medium text-stone-500 truncate flex items-center gap-1.5">
+          
+          {/* NĂM SINH/MẤT: Ép màu đen đậm (text-stone-800) và font-bold */}
+          <p className="text-sm font-bold text-stone-800 truncate flex items-center gap-1.5">
             <svg
-              className="size-4 shrink-0 text-stone-400"
+              className={`size-4 shrink-0 ${isDeceased ? "text-stone-500" : "text-stone-400"}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -94,6 +98,8 @@ export default function PersonCard({ person }: PersonCardProps) {
                 ` → ${person.death_lunar_year || person.death_year || "..."}`}
             </span>
           </p>
+
+          {/* CÁC TEM NHÃN (BADGES) */}
           {(isDeceased ||
             person.is_in_law ||
             person.birth_order != null ||
@@ -102,8 +108,8 @@ export default function PersonCard({ person }: PersonCardProps) {
               {person.is_in_law && (
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-widest shadow-xs border ${
-                    isDeceased
-                      ? "bg-stone-50 text-stone-600 border-stone-200/60" // Tem Dâu/Rể thành xám nếu đã mất
+                    isDeceased 
+                      ? "bg-stone-50 text-stone-600 border-stone-200/60" // Chuyển tem Dâu/Rể thành màu xám nếu đã mất
                       : person.gender === "male"
                         ? "bg-sky-50 text-sky-700 border-sky-200/60"
                         : person.gender === "female"
@@ -131,7 +137,7 @@ export default function PersonCard({ person }: PersonCardProps) {
                 </span>
               )}
               {isDeceased && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold bg-stone-700 text-white uppercase tracking-widest border border-stone-800 shadow-xs">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold bg-stone-700 text-white uppercase tracking-widest shadow-xs">
                   Đã mất
                 </span>
               )}
