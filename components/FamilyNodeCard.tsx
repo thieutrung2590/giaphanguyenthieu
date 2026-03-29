@@ -43,11 +43,9 @@ export default function FamilyNodeCard({
     if (deathYear) {
       yearsDisplay += ` - ${deathYear}`;
     } else if (isDeceased) {
-      // Nếu đã mất nhưng không có năm mất, hiển thị một dấu gạch ngang
       yearsDisplay += " - ?";
     }
   } else if (deathYear) {
-    // Trường hợp hiếm gặp: chỉ có năm mất
     yearsDisplay += `? - ${deathYear}`;
   }
 
@@ -56,26 +54,23 @@ export default function FamilyNodeCard({
       onClick={onClickCard}
       className={`
         group py-2 px-1 flex flex-col items-center justify-start transition-all duration-300 hover:-translate-y-1 rounded-2xl relative h-full
-        ${isDeceased ? "opacity-90" : ""}
         ${showAvatar ? "w-20 sm:w-24 md:w-28 bg-white/70 hover:shadow-xl" : "px-3"}
       `}
     >
       {isRingVisible && (
         <div
           className={`
-            absolute top-[15%] -left-2.5 sm:-left-3.5 size-5 sm:size-6 rounded-full z-100 flex items-center justify-center text-[10px] sm:text-sm font-medium
-            ${isDeceased ? "text-stone-400" : "text-stone-500"}
+            absolute top-[15%] -left-2.5 sm:-left-3.5 size-5 sm:size-6 rounded-full z-100 flex items-center justify-center text-[10px] sm:text-sm font-medium text-stone-500
             ${showAvatar ? "shadow-sm bg-white" : ""}
           `}
         >
-          <span className={`leading-none ${isDeceased ? "grayscale opacity-70" : ""}`}>💍</span>
+          <span className="leading-none">💍</span>
         </div>
       )}
       {isPlusVisible && (
         <div
           className={`
-            absolute top-[15%] -left-2.5 sm:-left-3.5 size-5 sm:size-6 rounded-full z-100 flex items-center justify-center text-[10px] sm:text-sm font-medium
-            ${isDeceased ? "text-stone-400" : "text-stone-500"}
+            absolute top-[15%] -left-2.5 sm:-left-3.5 size-5 sm:size-6 rounded-full z-100 flex items-center justify-center text-[10px] sm:text-sm font-medium text-stone-500
             ${showAvatar ? "shadow-sm bg-white" : ""}
           `}
         >
@@ -94,16 +89,15 @@ export default function FamilyNodeCard({
         </div>
       )}
 
-      {/* 1. Avatar */}
+      {/* 1. Avatar (Chỉ phần này mới bị làm xám nếu đã mất) */}
       {showAvatar && (
         <div className="relative z-10 mb-1.5 sm:mb-2">
-          {/* SỬA MÀU NỀN MẶC ĐỊNH SANG XÁM NẾU ĐÃ MẤT */}
           <div
             className={`
               h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center text-[10px] sm:text-xs md:text-sm text-white overflow-hidden shrink-0 shadow-lg ring-2 ring-white transition-transform duration-300 group-hover:scale-105
               ${
                 isDeceased
-                  ? "bg-linear-to-br from-stone-300 to-stone-400"
+                  ? "bg-linear-to-br from-stone-300 to-stone-400" // Nền xám nhạt
                   : person.gender === "male"
                     ? "bg-linear-to-br from-sky-400 to-sky-700"
                     : person.gender === "female"
@@ -116,7 +110,7 @@ export default function FamilyNodeCard({
               <Image
                 src={person.avatar_url}
                 alt={person.full_name}
-                // SỬA: Thêm class "grayscale" để lọc ảnh sang đen trắng nếu đã mất
+                // Giữ grayscale để ảnh tải lên biến thành đen trắng
                 className={`w-full h-full object-cover ${isDeceased ? "grayscale" : ""}`}
                 width={64}
                 height={64}
@@ -128,13 +122,12 @@ export default function FamilyNodeCard({
         </div>
       )}
 
-      {/* 2. Gender Icon + Name */}
+      {/* 2. Tên và Năm sinh/mất (LUÔN ĐEN ĐẬM) */}
       <div className="flex flex-col items-center justify-center gap-1 w-full px-0.5 sm:px-1 relative z-10">
         <div
           className={`
-            text-[10px] sm:text-[11px] md:text-xs font-bold text-center leading-tight transition-colors cursor-pointer
-            ${isDeceased ? "text-stone-600" : "text-stone-800"}
-            ${onClickName ? (isDeceased ? "group-hover:text-stone-800 hover:underline" : "group-hover:text-amber-700 hover:underline") : (isDeceased ? "group-hover:text-stone-700" : "group-hover:text-amber-800")}
+            text-[10px] sm:text-[11px] md:text-xs font-bold text-center leading-tight transition-colors cursor-pointer text-stone-900
+            ${onClickName ? "hover:text-amber-700 hover:underline" : "group-hover:text-amber-800"}
           `}
           title={person.full_name}
           onClick={(e) => {
@@ -154,9 +147,9 @@ export default function FamilyNodeCard({
               ))}
         </div>
 
-        {/* THÊM PHẦN HIỂN THỊ NĂM SINH - NĂM MẤT Ở ĐÂY: */}
+        {/* Năm hiển thị màu đen đậm */}
         {showAvatar && yearsDisplay && (
-          <div className={`text-[8px] sm:text-[9px] md:text-[10px] font-normal leading-none -mt-1 ${isDeceased ? "text-stone-500" : "text-stone-600"}`}>
+          <div className="text-[8px] sm:text-[9px] md:text-[10px] font-bold text-stone-800 leading-none -mt-1">
             ({yearsDisplay})
           </div>
         )}
