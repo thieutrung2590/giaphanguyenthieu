@@ -14,7 +14,8 @@ export default function HomePage() {
         <div className="absolute top-[20%] left-[-10%] w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] bg-rose-200/20 rounded-full blur-[120px] mix-blend-multiply" />
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-20 md:py-32 relative z-10 w-full">
+      {/* Đã sửa dòng này: đổi justify-center thành justify-start, đổi py thành pt-10 pb-20 */}
+      <main className="flex-1 flex flex-col items-center justify-start px-4 pt-10 pb-20 md:pt-16 md:pb-32 relative z-10 w-full">
         <LandingHero siteName={config.siteName} />
       </main>
 
