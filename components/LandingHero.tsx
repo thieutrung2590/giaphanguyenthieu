@@ -53,20 +53,11 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
             variants={fadeIn} 
             className="w-full flex justify-center mb-4 sm:mb-8"
           >
-            <div className="relative p-2.5 md:p-3.5 bg-gradient-to-tr from-[#bd954d] via-[#e2c78d] to-[#d3b47c] shadow-[0_10px_30px_-10px_rgba(189,149,77,0.5)] rounded-sm w-full max-w-[400px] md:max-w-[550px] aspect-[4/1]">
-              <div className="w-full h-full bg-[#fcebc0] border border-[#bd954d]/40 flex items-center justify-center shadow-inner relative overflow-hidden">
-                <div className="absolute inset-1 border border-[#bd954d]/20"></div>
-                
-                <h2 className="font-serif font-bold text-4xl md:text-5xl lg:text-[3.5rem] text-[#926e2a] drop-shadow-[2px_2px_3px_rgba(0,0,0,0.15)] tracking-widest relative z-10">
-                  Họ Nguyễn Thiệu
-                </h2>
-              </div>
-              
-              <div className="absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 border-[#fcebc0]/60"></div>
-              <div className="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 border-[#fcebc0]/60"></div>
-              <div className="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 border-[#fcebc0]/60"></div>
-              <div className="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 border-[#fcebc0]/60"></div>
-            </div>
+            <img 
+              src="/hoanh-phi.png" 
+              alt="Hoành phi Họ Nguyễn Thiệu" 
+              className="w-full max-w-[350px] md:max-w-[500px] lg:max-w-[600px] object-contain drop-shadow-xl hover:scale-[1.02] transition-transform duration-500"
+            />
           </motion.div>
 
           <motion.div
