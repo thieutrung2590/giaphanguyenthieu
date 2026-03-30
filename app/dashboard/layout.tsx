@@ -87,3 +87,19 @@ export default async function DashboardLayout({
     </UserProvider>
   );
 }
+// app/layout.tsx (hoặc file layout tương ứng)
+import ZaloWidget from "@/components/ZaloWidget";
+// ... các import khác
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="vi">
+      <body>
+        {children}
+        
+        {/* Thêm component Zalo vào đây */}
+        <ZaloWidget />
+      </body>
+    </html>
+  );
+}
