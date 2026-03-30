@@ -3,7 +3,7 @@
 import { motion, Variants } from "framer-motion";
 import {
   ArrowRight,
-  BookOpen, // Thêm icon cuốn sách cho nút giới thiệu
+  BookOpen,
   Network,
   ShieldCheck,
   Sparkles,
@@ -48,13 +48,36 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
           className="space-y-6 sm:space-y-8 flex flex-col items-center"
           variants={fadeIn}
         >
+          {/* HOÀNH PHI TRUYỀN THỐNG */}
+          <motion.div 
+            variants={fadeIn} 
+            className="w-full flex justify-center mb-4 sm:mb-8"
+          >
+            <div className="relative p-2.5 md:p-3.5 bg-gradient-to-tr from-[#bd954d] via-[#e2c78d] to-[#d3b47c] shadow-[0_10px_30px_-10px_rgba(189,149,77,0.5)] rounded-sm w-full max-w-[400px] md:max-w-[550px] aspect-[4/1]">
+              <div className="w-full h-full bg-[#fcebc0] border border-[#bd954d]/40 flex items-center justify-center shadow-inner relative overflow-hidden">
+                {/* Viền trang trí mờ bên trong */}
+                <div className="absolute inset-1 border border-[#bd954d]/20"></div>
+                
+                <h2 className="font-serif font-bold text-4xl md:text-5xl lg:text-[3.5rem] text-[#926e2a] drop-shadow-[2px_2px_3px_rgba(0,0,0,0.15)] tracking-widest relative z-10">
+                  Họ Nguyễn Thiệu
+                </h2>
+              </div>
+              
+              {/* Trang trí góc khung */}
+              <div className="absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 border-[#fcebc0]/60"></div>
+              <div className="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 border-[#fcebc0]/60"></div>
+              <div className="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 border-[#fcebc0]/60"></div>
+              <div className="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 border-[#fcebc0]/60"></div>
+            </div>
+          </motion.div>
+
           <motion.div
             whileHover={{ scale: 1.05 }}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-amber-800 bg-white/60 rounded-full shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] border border-amber-200/50 relative overflow-hidden group"
           >
             <Sparkles className="size-4 text-amber-500" />
             Nền tảng gia phả hiện đại & bảo mật
-            <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
           </motion.div>
 
           <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5rem] font-serif font-bold tracking-tight leading-[1.1] max-w-4xl">
@@ -70,77 +93,3 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
 
         <motion.div
           className="pt-6 flex flex-col sm:flex-row gap-4 justify-center items-center w-full px-4 sm:px-0 relative"
-          variants={fadeIn}
-        >
-          {/* Subtle glow behind the buttons */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-16 bg-amber-500/20 blur-2xl rounded-full z-0 hidden sm:block"></div>
-
-          {/* NÚT 1: ĐĂNG NHẬP */}
-          <Link
-            href="/login"
-            className="group inline-flex items-center justify-center gap-2 px-8 py-4 sm:px-10 sm:py-5 text-base sm:text-lg font-bold text-white bg-stone-900 border border-stone-800 hover:bg-stone-800 hover:border-stone-700 rounded-2xl shadow-xl shadow-stone-900/10 hover:shadow-2xl hover:shadow-stone-900/20 transition-all duration-300 hover:-translate-y-1 active:translate-y-0 w-full sm:w-auto overflow-hidden relative"
-          >
-            <span className="relative z-10 flex items-center gap-3">
-              Đăng nhập để xem thông tin
-              <ArrowRight className="size-5 group-hover:translate-x-1.5 transition-transform" />
-            </span>
-          </Link>
-
-          {/* NÚT 2: GIỚI THIỆU (MỚI THÊM) */}
-          <Link
-            href="/about"
-            className="group inline-flex items-center justify-center gap-2 px-8 py-4 sm:px-10 sm:py-5 text-base sm:text-lg font-bold text-stone-800 bg-white border border-stone-200 hover:bg-stone-50 hover:border-amber-200 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 active:translate-y-0 w-full sm:w-auto overflow-hidden relative"
-          >
-            <span className="relative z-10 flex items-center gap-3">
-              <BookOpen className="size-5 text-amber-700 group-hover:scale-110 transition-transform" />
-              Giới thiệu dòng họ Nguyễn Thiệu
-            </span>
-          </Link>
-
-        </motion.div>
-
-        <motion.div
-          className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 text-left  border-t border-stone-200/50 relative"
-          variants={staggerContainer}
-        >
-          {[
-            {
-              icon: <Users className="size-6 text-amber-700" />,
-              title: "Quản lý Thành viên",
-              desc: "Cập nhật thông tin chi tiết, tiểu sử và hình ảnh của từng thành viên trong dòng họ một cách nhanh chóng và bảo mật.",
-            },
-            {
-              icon: <Network className="size-6 text-amber-700" />,
-              title: "Sơ đồ Sáng tạo",
-              desc: "Xem trực quan sơ đồ phả hệ, thế hệ và mối quan hệ gia đình với giao diện cây hiện đại, dễ thao tác.",
-            },
-            {
-              icon: <ShieldCheck className="size-6 text-amber-700" />,
-              title: "Bảo mật Tối đa",
-              desc: "Dữ liệu riêng tư như số điện thoại, quê quán được phân quyền chặt chẽ, bảo vệ an toàn trên hệ thống đám mây.",
-            },
-          ].map((feature, idx) => (
-            <motion.div
-              key={idx}
-              variants={fadeIn}
-              whileHover={{ y: -5 }}
-              className="bg-white/70 backdrop-blur-xl p-8 rounded-3xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:bg-white transition-all duration-500 flex flex-col items-start group relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-linear-to-br from-amber-100/50 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-              <div className="p-3.5 bg-white rounded-2xl mb-6 shadow-sm ring-1 ring-stone-100 group-hover:scale-110 group-hover:shadow-md transition-all duration-300 relative z-10">
-                {feature.icon}
-              </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-stone-800 mb-3 font-serif relative z-10 group-hover:text-amber-900 transition-colors">
-                {feature.title}
-              </h3>
-              <p className="text-stone-600 text-base leading-relaxed relative z-10">
-                {feature.desc}
-              </p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </motion.div>
-    </>
-  );
-}
