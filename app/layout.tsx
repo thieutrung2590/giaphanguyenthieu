@@ -5,6 +5,9 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
+// 1. Thêm dòng import ZaloWidget ở đây
+import ZaloWidget from "@/components/ZaloWidget";
+
 const inter = Inter({
   subsets: ["latin", "vietnamese"],
   variable: "--font-inter",
@@ -31,6 +34,9 @@ export default function RootLayout({
         {children}
         <Analytics />
         <SpeedInsights />
+        
+        {/* 2. Thêm thẻ gọi ZaloWidget ở đây (ngay trước khi đóng body) */}
+        <ZaloWidget />
       </body>
     </html>
   );
