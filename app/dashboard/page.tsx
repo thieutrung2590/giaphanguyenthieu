@@ -9,7 +9,8 @@ import {
   Database,
   Flower2,
   GitMerge,
-  HeartHandshake, // Đã thêm icon này
+  HeartHandshake,
+  Image as ImageIcon, // Đã thêm icon này
   Network,
   Star,
   Users,
@@ -98,7 +99,6 @@ export default async function DashboardLaunchpad() {
       borderColor: "border-purple-200/60",
       hoverColor: "hover:border-purple-400 hover:shadow-purple-100",
     },
-    // Đã thêm thẻ Công đức dòng họ ở đây
     {
       title: "Công đức dòng họ",
       description: "Ghi nhận đóng góp xây dựng quỹ",
@@ -107,6 +107,16 @@ export default async function DashboardLaunchpad() {
       bgColor: "bg-rose-50",
       borderColor: "border-rose-200/60",
       hoverColor: "hover:border-rose-400 hover:shadow-rose-100",
+    },
+    // Đã thêm thẻ Ảnh kỷ niệm ở đây
+    {
+      title: "Ảnh kỷ niệm",
+      description: "Lưu giữ và chia sẻ những khoảnh khắc đáng nhớ",
+      icon: <ImageIcon className="size-8 text-green-600" />,
+      href: "/dashboard/photos",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-200/60",
+      hoverColor: "hover:border-green-400 hover:shadow-green-100",
     },
     // {
     //   title: "Giới thiệu & Liên hệ",
