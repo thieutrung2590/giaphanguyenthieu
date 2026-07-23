@@ -459,3 +459,11 @@ BEGIN
     WHERE id = target_user_id;
 END;
 $$;
+-- Thêm vào cuối file docs/schema.sql
+CREATE TABLE IF NOT EXISTS photos (
+    id SERIAL PRIMARY KEY,
+    url TEXT NOT NULL,
+    title VARCHAR(255),
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
