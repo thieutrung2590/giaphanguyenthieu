@@ -3,6 +3,8 @@ import { getSupabase } from '@/utils/supabase/queries';
 import PhotoUpload from '@/components/PhotoUpload';
 // 1. Thêm import hàm tạo link bảo mật tạm thời
 import { generateSignedUrl } from '@/utils/signUrl';
+// Import Component nút xóa
+import DeletePhotoButton from '@/components/DeletePhotoButton';
 
 // Đặt thời gian revalidate để đảm bảo dữ liệu luôn được cập nhật
 export const revalidate = 0;
@@ -43,15 +45,19 @@ export default async function PhotosPage() {
             const secureUrl = generateSignedUrl(photo.url, 15);
 
             return (
-              <div key={photo.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white hover:shadow-md transition-shadow">
-                <div className="aspect-square relative overflow-hidden bg-gray-100">
+              <div key={photo.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white hover:shadow-md transition-shadow relative">
+                <div className="aspect-square relative overflow-hidden bg-gray-100 group">
                   {/* 3. HIỂN THỊ ẢNH: Sử dụng secureUrl thay vì photo.url */}
                   <img 
                     src={secureUrl} 
                     alt={photo.title || 'Ảnh kỷ niệm'} 
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                   />
+                  
+                  {/* COMPONENT NÚT XÓA: Truyền id và url gốc để xử lý xóa */}
+                  <DeletePhotoButton id={photo.id} url={photo.url} />
                 </div>
+                
                 {photo.title && (
                   <div className="p-3 text-sm text-gray-700 text-center truncate border-t border-gray-100">
                     {photo.title}
