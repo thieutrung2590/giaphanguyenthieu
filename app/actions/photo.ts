@@ -22,7 +22,7 @@ export async function uploadPhotoAction(formData: FormData) {
     // Đặt tên file kèm thời gian để tránh trùng lặp tên
     const filename = `photos/${Date.now()}-${file.name}`;
     const blob = await put(filename, file, {
-      access: 'public', // Cho phép ai cũng có thể xem ảnh
+      access: 'private', // Cho phép ai cũng có thể xem ảnh
     });
 
     // 3. Lưu URL ảnh vào cơ sở dữ liệu Supabase
