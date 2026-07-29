@@ -29,19 +29,25 @@ export async function uploadPhotoAction(formData: FormData) {
       return { success: false, error: 'Không có dữ liệu ảnh.' };
     }
 
+    // Lấy đoạn mô tả từ form
+    const description = formData.get('description') as string;
+    
+    // Xử lý tiêu đề: Nếu có mô tả thì dùng mô tả, nếu không thì dùng tên file gốc
+    const finalTitle = description && description.trim() !== '' ? description.trim() : file.name;
+
     // Upload file lên Vercel Blob (Quyền riêng tư)
     const filename = `photos/${Date.now()}-${file.name}`;
     const blob = await put(filename, file, {
       access: 'private', 
     });
 
-    // Lưu URL ảnh và thông tin người đăng vào cơ sở dữ liệu Supabase
+    // Lưu URL ảnh và thông tin người đăng, kèm tiêu đề (mô tả) vào cơ sở dữ liệu Supabase
     const { error: dbError } = await supabase
       .from('photos')
       .insert([
         { 
           url: blob.url, 
-          title: file.name,
+          title: finalTitle, // Đã cập nhật để lưu mô tả
           uploader_id: user.id,
           uploader_email: user.email
         }
