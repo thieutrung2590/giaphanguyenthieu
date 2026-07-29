@@ -52,3 +52,43 @@ export async function uploadPhotoAction(formData: FormData) {
     return { success: false, error: 'Đã xảy ra lỗi hệ thống trong quá trình tải ảnh.' };
   }
 }
+// Thêm hàm del từ @vercel/blob ở dòng import trên cùng của tệp
+import { put, del } from '@vercel/blob'; 
+// (Các import khác giữ nguyên)
+
+// ... (code hàm uploadPhotoAction cũ)
+
+// Hàm mới: Xóa ảnh
+export async function deletePhotoAction(id: string, url: string) {
+  try {
+    // 1. Phân quyền: Chỉ Admin mới được xóa
+    const isAdmin = await getIsAdmin();
+    if (!isAdmin) {
+      return { success: false, error: 'Bạn không có quyền xóa ảnh này.' };
+    }
+
+    // 2. Xóa file khỏi Vercel Blob
+    // Hàm del của Vercel Blob nhận trực tiếp đường dẫn URL gốc của file
+    await del(url);
+
+    // 3. Xóa bản ghi trong cơ sở dữ liệu Supabase
+    const supabase = await getSupabase();
+    const { error: dbError } = await supabase
+      .from('photos')
+      .delete()
+      .eq('id', id);
+
+    if (dbError) {
+      console.error('Lỗi xóa Database:', dbError);
+      return { success: false, error: 'Đã xóa file nhưng không thể xóa bản ghi trong CSDL.' };
+    }
+
+    // 4. Làm mới giao diện
+    revalidatePath('/dashboard/photos');
+    return { success: true };
+
+  } catch (error) {
+    console.error('Lỗi hệ thống khi xóa ảnh:', error);
+    return { success: false, error: 'Đã xảy ra lỗi hệ thống trong quá trình xóa ảnh.' };
+  }
+}
