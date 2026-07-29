@@ -58,11 +58,20 @@ export default async function PhotosPage() {
                   <DeletePhotoButton id={photo.id} url={photo.url} />
                 </div>
                 
-                {photo.title && (
-                  <div className="p-3 text-sm text-gray-700 text-center truncate border-t border-gray-100">
-                    {photo.title}
-                  </div>
-                )}
+                {/* --- PHẦN CẬP NHẬT HIỂN THỊ THÔNG TIN NGƯỜI ĐĂNG --- */}
+                <div className="p-3 text-center border-t border-gray-100">
+                  <p className="text-sm text-gray-700 font-medium truncate">
+                    {photo.title || 'Ảnh kỷ niệm'}
+                  </p>
+                  
+                  {/* Hiển thị email người đăng nếu có */}
+                  {photo.uploader_email && (
+                    <p className="text-xs text-gray-400 truncate mt-1">
+                      Đăng bởi: {photo.uploader_email}
+                    </p>
+                  )}
+                </div>
+                {/* -------------------------------------------------- */}
               </div>
             );
           })
