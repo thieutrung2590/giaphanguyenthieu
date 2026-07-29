@@ -1,19 +1,17 @@
 import React from 'react';
-import { getSupabase } from '@/utils/supabase/queries';
+import { getSupabase, getIsAdmin } from '@/utils/supabase/queries';
 import PhotoUpload from '@/components/PhotoUpload';
-// 1. Thêm import hàm tạo link bảo mật tạm thời
 import { generateSignedUrl } from '@/utils/signUrl';
-// Import Component nút xóa
-import DeletePhotoButton from '@/components/DeletePhotoButton';
 
-// Đặt thời gian revalidate để đảm bảo dữ liệu luôn được cập nhật
+// 1. Nhúng Component PhotoCard thay vì viết trực tiếp giao diện
+import PhotoCard from '@/components/PhotoCard';
+
 export const revalidate = 0;
 
 export default async function PhotosPage() {
-  // Khởi tạo kết nối với Supabase
   const supabase = await getSupabase();
+  const isAdmin = await getIsAdmin();
   
-  // Truy vấn danh sách ảnh từ bảng 'photos', sắp xếp mới nhất lên đầu
   const { data: photos, error } = await supabase
     .from('photos')
     .select('*')
@@ -26,10 +24,8 @@ export default async function PhotosPage() {
         <p className="text-gray-600 mt-2">Nơi lưu giữ những khoảnh khắc và hình ảnh đáng nhớ của dòng họ.</p>
       </div>
       
-      {/* Gọi Component tải ảnh lên mà bạn đã tạo */}
       <PhotoUpload />
 
-      {/* Hiển thị thông báo lỗi nếu truy vấn dữ liệu thất bại */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
           <p className="font-semibold">Không thể tải danh sách ảnh:</p>
@@ -37,42 +33,19 @@ export default async function PhotosPage() {
         </div>
       )}
 
-      {/* Lưới hiển thị danh sách ảnh (CSS Grid với Tailwind) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
         {photos && photos.length > 0 ? (
           photos.map((photo) => {
-            // 2. TẠO LINK BẢO MẬT: Chuyển đổi URL gốc thành URL an toàn, hết hạn sau 15 phút
             const secureUrl = generateSignedUrl(photo.url, 15);
 
+            // 2. Truyền dữ liệu vào Component PhotoCard
             return (
-              <div key={photo.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white hover:shadow-md transition-shadow relative">
-                <div className="aspect-square relative overflow-hidden bg-gray-100 group">
-                  {/* 3. HIỂN THỊ ẢNH: Sử dụng secureUrl thay vì photo.url */}
-                  <img 
-                    src={secureUrl} 
-                    alt={photo.title || 'Ảnh kỷ niệm'} 
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                  
-                  {/* COMPONENT NÚT XÓA: Truyền id và url gốc để xử lý xóa */}
-                  <DeletePhotoButton id={photo.id} url={photo.url} />
-                </div>
-                
-                {/* --- PHẦN CẬP NHẬT HIỂN THỊ THÔNG TIN NGƯỜI ĐĂNG --- */}
-                <div className="p-3 text-center border-t border-gray-100">
-                  <p className="text-sm text-gray-700 font-medium truncate">
-                    {photo.title || 'Ảnh kỷ niệm'}
-                  </p>
-                  
-                  {/* Hiển thị email người đăng nếu có */}
-                  {photo.uploader_email && (
-                    <p className="text-xs text-gray-400 truncate mt-1">
-                      Đăng bởi: {photo.uploader_email}
-                    </p>
-                  )}
-                </div>
-                {/* -------------------------------------------------- */}
-              </div>
+              <PhotoCard 
+                key={photo.id} 
+                photo={photo} 
+                secureUrl={secureUrl} 
+                isAdmin={isAdmin} 
+              />
             );
           })
         ) : (
