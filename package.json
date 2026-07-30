@@ -25,7 +25,8 @@
     "papaparse": "^5.5.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "tuvi-neo": "latest"
+    "tuvi-neo": "latest",
+    "@google/generative-ai": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.1",
