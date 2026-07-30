@@ -1,6 +1,6 @@
 {
   "name": "giapha-os",
-  "version": "0.1.0",
+  "version": "1.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -24,7 +24,8 @@
     "next": "16.1.7",
     "papaparse": "^5.5.3",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tuvi-neo": "^1.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.1",
