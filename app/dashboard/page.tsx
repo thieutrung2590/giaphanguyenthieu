@@ -5,7 +5,7 @@ import {
   ArrowRight,
   BarChart2,
   Cake,
-  Calendar, // Đã thêm icon Calendar cho Lịch Âm Dương
+  Calendar,
   CalendarDays,
   Database,
   Flower2,
@@ -13,6 +13,7 @@ import {
   HeartHandshake,
   Image as ImageIcon,
   Network,
+  Sparkles, // Đã thêm icon Sparkles cho Tử vi
   Star,
   Users,
 } from "lucide-react";
@@ -73,15 +74,6 @@ export default async function DashboardLaunchpad() {
       borderColor: "border-amber-200/60",
       hoverColor: "hover:border-amber-400 hover:shadow-amber-100",
     },
-    // {
-    //   title: "Sự kiện",
-    //   description: "Quản lý ngày giỗ, họp họ và các dịp quan trọng",
-    //   icon: <CalendarClock className="size-8 text-emerald-600" />,
-    //   href: "/dashboard/events",
-    //   bgColor: "bg-emerald-50",
-    //   borderColor: "border-emerald-200/60",
-    //   hoverColor: "hover:border-emerald-400 hover:shadow-emerald-100",
-    // },
     {
       title: "Lịch Âm Dương",
       description: "Tra cứu ngày tháng và quy đổi Âm - Dương",
@@ -90,6 +82,15 @@ export default async function DashboardLaunchpad() {
       bgColor: "bg-indigo-50",
       borderColor: "border-indigo-200/60",
       hoverColor: "hover:border-indigo-400 hover:shadow-indigo-100",
+    },
+    {
+      title: "Xem tử vi",
+      description: "Lập lá số và luận giải tử vi trọn đời",
+      icon: <Sparkles className="size-8 text-fuchsia-600" />,
+      href: "/dashboard/tu-vi",
+      bgColor: "bg-fuchsia-50",
+      borderColor: "border-fuchsia-200/60",
+      hoverColor: "hover:border-fuchsia-400 hover:shadow-fuchsia-100",
     },
     {
       title: "Tra cứu danh xưng",
@@ -127,15 +128,6 @@ export default async function DashboardLaunchpad() {
       borderColor: "border-green-200/60",
       hoverColor: "hover:border-green-400 hover:shadow-green-100",
     },
-    // {
-    //   title: "Giới thiệu & Liên hệ",
-    //   description: "Thông tin về ứng dụng và đội ngũ phát triển",
-    //   icon: <Info className="size-8 text-stone-600" />,
-    //   href: "/about",
-    //   bgColor: "bg-stone-50",
-    //   borderColor: "border-stone-200/60",
-    //   hoverColor: "hover:border-stone-400 hover:shadow-stone-100",
-    // },
   ];
 
   const adminFeatures = [
@@ -170,10 +162,6 @@ export default async function DashboardLaunchpad() {
 
   return (
     <main className="flex-1 flex flex-col p-4 sm:p-8 max-w-7xl mx-auto w-full">
-      {/* <div className="mb-8 sm:mb-12 text-center sm:text-left">
-        <h1 className="title">Bảng điều khiển</h1>
-      </div> */}
-
       {/* ── Today's Date & Upcoming Events ─────────────────── */}
       <Link
         href="/dashboard/events"
@@ -278,10 +266,6 @@ export default async function DashboardLaunchpad() {
       {/* ── Feature Grid ──────────────────────────────────── */}
       <div className="space-y-12">
         <section>
-          {/* <h3 className="text-xl font-serif font-bold text-stone-700 mb-6 flex items-center gap-2">
-            <span className="w-8 h-px bg-stone-300 rounded-full"></span>
-            Chức năng chung
-          </h3> */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {publicFeatures.map((feat) => (
               <Link
