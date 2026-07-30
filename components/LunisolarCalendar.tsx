@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
-import { Solar } from "lunar-javascript";
+import { ChevronLeft, ChevronRight, CalendarDays, X, Sun, Moon } from "lucide-react";
+import { Solar, Lunar } from "lunar-javascript";
 import { useState, useMemo } from "react";
 
 // --- BỘ TỪ ĐIỂN DỊCH THUẬT CAN CHI & MỆNH ---
@@ -33,7 +33,6 @@ const HOUR_STRINGS: Record<string, string> = {
   'Thân': 'Thân (15h-17h)', 'Dậu': 'Dậu (17h-19h)', 'Tuất': 'Tuất (19h-21h)', 'Hợi': 'Hợi (21h-23h)'
 };
 
-// Hàm tiện ích dịch chữ Hán sang tiếng Việt
 function translateToVN(str: string) {
   if (!str) return "";
   let res = str;
@@ -42,7 +41,6 @@ function translateToVN(str: string) {
   return res;
 }
 
-// Các sự kiện Dương lịch cố định
 const SOLAR_EVENTS: Record<string, string> = {
   "01-01": "Tết Dương lịch", "02-14": "Lễ tình nhân", "03-08": "Quốc tế Phụ nữ",
   "04-30": "Giải phóng MN", "05-01": "Quốc tế LĐ", "06-01": "Quốc tế Thiếu nhi",
@@ -51,15 +49,21 @@ const SOLAR_EVENTS: Record<string, string> = {
 };
 
 const WEEKDAYS = ["Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy", "Chủ nhật"];
+const MINI_WEEKDAYS = ["Th 2", "Th 3", "Th 4", "Th 5", "Th 6", "Th 7", "CN"];
 
 export default function LunisolarCalendar() {
+  // Lịch chính
   const [selectedDate, setSelectedDate] = useState(new Date());
-  
-  // Trạng thái tháng/năm đang xem trên lưới (Grid)
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth() + 1);
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
 
-  // --- HÀM XỬ LÝ SỰ KIỆN NÚT BẤM ---
+  // Lịch thu nhỏ (Modal xem nhanh)
+  const [showQuickView, setShowQuickView] = useState(false);
+  const [modalDate, setModalDate] = useState(new Date());
+  const [modalViewMonth, setModalViewMonth] = useState(modalDate.getMonth() + 1);
+  const [modalViewYear, setModalViewYear] = useState(modalDate.getFullYear());
+
+  // --- HÀM XỬ LÝ LỊCH CHÍNH ---
   const handlePrevDay = () => {
     const next = new Date(selectedDate);
     next.setDate(next.getDate() - 1);
@@ -76,13 +80,6 @@ export default function LunisolarCalendar() {
     setViewYear(next.getFullYear());
   };
 
-  const handleToday = () => {
-    const today = new Date();
-    setSelectedDate(today);
-    setViewMonth(today.getMonth() + 1);
-    setViewYear(today.getFullYear());
-  };
-
   const handlePrevMonth = () => {
     if (viewMonth === 1) { setViewMonth(12); setViewYear(viewYear - 1); } 
     else { setViewMonth(viewMonth - 1); }
@@ -93,33 +90,137 @@ export default function LunisolarCalendar() {
     else { setViewMonth(viewMonth + 1); }
   };
 
-  const handleJumpToGridMonth = () => {
-    // Nút XEM (hiện tại gắn trực tiếp vào Select nên có thể để trống)
+  // --- HÀM XỬ LÝ MODAL (XEM NHANH THEO NGÀY) ---
+  const openQuickView = () => {
+    setModalDate(selectedDate);
+    setModalViewMonth(selectedDate.getMonth() + 1);
+    setModalViewYear(selectedDate.getFullYear());
+    setShowQuickView(true);
   };
 
-  // --- TÍNH TOÁN DỮ LIỆU NGÀY ĐANG CHỌN ĐỂ HIỂN THỊ PHẦN TRÊN ---
+  const closeQuickView = () => setShowQuickView(false);
+
+  const handleApplyQuickView = () => {
+    setSelectedDate(modalDate);
+    setViewMonth(modalDate.getMonth() + 1);
+    setViewYear(modalDate.getFullYear());
+    setShowQuickView(false);
+  };
+
+  const handleModalPrevMonth = () => {
+    if (modalViewMonth === 1) { setModalViewMonth(12); setModalViewYear(modalViewYear - 1); } 
+    else { setModalViewMonth(modalViewMonth - 1); }
+  };
+
+  const handleModalNextMonth = () => {
+    if (modalViewMonth === 12) { setModalViewMonth(1); setModalViewYear(modalViewYear + 1); } 
+    else { setModalViewMonth(modalViewMonth + 1); }
+  };
+
+  // Tính toán dữ liệu dropdown trong Modal
+  const modalSolarData = useMemo(() => {
+    return { d: modalDate.getDate(), m: modalDate.getMonth() + 1, y: modalDate.getFullYear() };
+  }, [modalDate]);
+
+  const modalLunarData = useMemo(() => {
+    const solar = Solar.fromYmd(modalSolarData.y, modalSolarData.m, modalSolarData.d);
+    const lunar = solar.getLunar() as any;
+    return { d: lunar.getDay(), m: Math.abs(lunar.getMonth()), y: lunar.getYear() };
+  }, [modalSolarData]);
+
+  // Khi thay đổi dropdown Dương Lịch
+  const handleModalSolarChange = (type: 'd' | 'm' | 'y', value: number) => {
+    let { d, m, y } = modalSolarData;
+    if (type === 'y') y = value;
+    if (type === 'm') m = value;
+    if (type === 'd') d = value;
+    
+    const maxDays = new Date(y, m, 0).getDate();
+    if (d > maxDays) d = maxDays;
+    
+    const newDate = new Date(y, m - 1, d);
+    setModalDate(newDate);
+    setModalViewMonth(m);
+    setModalViewYear(y);
+  };
+
+  // Khi thay đổi dropdown Âm Lịch
+  const handleModalLunarChange = (type: 'd' | 'm' | 'y', value: number) => {
+    let { d, m, y } = modalLunarData;
+    if (type === 'y') y = value;
+    if (type === 'm') m = value;
+    if (type === 'd') d = value;
+    
+    try {
+      const lunarObj = Lunar.fromYmd(y, m, d) as any;
+      const solarObj = lunarObj.getSolar();
+      const newDate = new Date(solarObj.getYear(), solarObj.getMonth() - 1, solarObj.getDay());
+      
+      setModalDate(newDate);
+      setModalViewMonth(newDate.getMonth() + 1);
+      setModalViewYear(newDate.getFullYear());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Dữ liệu lưới lịch thu nhỏ (Modal)
+  const miniGridDays = useMemo(() => {
+    const days = [];
+    const firstDay = new Date(modalViewYear, modalViewMonth - 1, 1);
+    const offset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - offset);
+
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const sYear = d.getFullYear();
+      const sMonth = d.getMonth() + 1;
+      const sDay = d.getDate();
+      
+      const solar = Solar.fromYmd(sYear, sMonth, sDay);
+      const lunar = solar.getLunar() as any; 
+      
+      let lunarDisplay = `${lunar.getDay()}`;
+      if (lunar.getDay() === 1 || sDay === 1) {
+        lunarDisplay = `${lunar.getDay()}/${Math.abs(lunar.getMonth())}`;
+      }
+
+      days.push({
+        dateObj: d,
+        sDay, sMonth,
+        isCurrentMonth: sMonth === modalViewMonth,
+        isSelected: d.toDateString() === modalDate.toDateString(),
+        isSunday: i % 7 === 6,
+        lunarDisplay
+      });
+    }
+    return days;
+  }, [modalViewMonth, modalViewYear, modalDate]);
+
+
+  // --- TÍNH TOÁN DỮ LIỆU LỊCH CHÍNH (Đang chọn) ---
   const topInfo = useMemo(() => {
     const sYear = selectedDate.getFullYear();
     const sMonth = selectedDate.getMonth() + 1;
     const sDay = selectedDate.getDate();
     
     const solar = Solar.fromYmd(sYear, sMonth, sDay);
-    const lunar = solar.getLunar() as any; // Ép kiểu any để tránh lỗi TS 
+    const lunar = solar.getLunar() as any;
 
     const lYearStr = translateToVN(lunar.getYearInGanZhi());
     const lMonthStr = translateToVN(lunar.getMonthInGanZhi());
     const lDayStr = translateToVN(lunar.getDayInGanZhi());
     
-    // Mệnh ngày & Tuổi xung
     const naYin = NAYIN_MAP[lunar.getDayNaYin()] || lunar.getDayNaYin();
     const xungStr = translateToVN(lunar.getDayChongDesc());
     const satStr = translateToVN(lunar.getDaySha());
 
-    // Lấy thông tin Hoàng đạo/Hắc đạo
     const dayTianShenType = typeof lunar.getDayTianShenType === 'function' ? lunar.getDayTianShenType() : '';
     const dayType = dayTianShenType === '黄道' ? 'Hoàng đạo' : (dayTianShenType === '黑道' ? 'Hắc đạo' : '');
 
-    // Tính Giờ Hoàng Đạo
     const chiNgay = translateToVN(lunar.getDayZhi());
     const hoangDaoHours = ZODIAC_HOURS[chiNgay] || [];
     const hoangDaoText = hoangDaoHours.map((chi: string) => HOUR_STRINGS[chi]).join(", ");
@@ -137,13 +238,11 @@ export default function LunisolarCalendar() {
     };
   }, [selectedDate]);
 
-
-  // --- TÍNH TOÁN LƯỚI 42 Ô (GRID) ---
+  // --- TÍNH TOÁN LƯỚI LỊCH CHÍNH (GRID) ---
   const gridDays = useMemo(() => {
     const days = [];
     const firstDay = new Date(viewYear, viewMonth - 1, 1);
-    const startDayOfWeek = firstDay.getDay(); 
-    const offset = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+    const offset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
     
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - offset);
@@ -159,25 +258,22 @@ export default function LunisolarCalendar() {
       const sDay = d.getDate();
       
       const solar = Solar.fromYmd(sYear, sMonth, sDay);
-      const lunar = solar.getLunar() as any; // Ép kiểu any để dùng các hàm mở rộng
+      const lunar = solar.getLunar() as any; 
       
       const lDay = lunar.getDay();
       const lMonth = Math.abs(lunar.getMonth());
       const lDayCanChi = translateToVN(lunar.getDayInGanZhi());
 
-      // Kiểm tra ngày Hoàng Đạo / Hắc Đạo cho ô Grid
       const dayTianShenType = typeof lunar.getDayTianShenType === 'function' ? lunar.getDayTianShenType() : '';
       const isHoangDao = dayTianShenType === '黄道';
       const isHacDao = dayTianShenType === '黑道';
 
-      // Hiển thị Lịch Âm
       let lunarDisplay = `${lDay}`;
       if (lDay === 1 || sDay === 1) {
         lunarDisplay = `${lDay}/${lMonth}`;
       }
 
-      // Xét sự kiện Dương & Âm lịch
-      let eventText = lDayCanChi; // Mặc định là Can Chi
+      let eventText = lDayCanChi; 
       let isEvent = false;
 
       const solarKey = `${sMonth.toString().padStart(2, '0')}-${sDay.toString().padStart(2, '0')}`;
@@ -212,17 +308,141 @@ export default function LunisolarCalendar() {
     return days;
   }, [viewMonth, viewYear, selectedDate]);
 
+
   return (
     <div className="max-w-4xl mx-auto font-sans bg-[#f8f9fa] shadow-lg rounded-md overflow-hidden border border-gray-200">
       
       {/* =========================================================
-                             THẺ XEM CHI TIẾT
+                             MODAL XEM NHANH
+         ========================================================= */}
+      {showQuickView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="relative bg-white w-full max-w-[360px] rounded-xl shadow-2xl p-4 sm:p-5 flex flex-col">
+            
+            {/* Nút Đóng */}
+            <button 
+              onClick={closeQuickView} 
+              className="absolute -top-3 -right-3 size-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer border border-white/20 shadow-md"
+            >
+              <X className="size-4" />
+            </button>
+
+            {/* Header Lịch thu nhỏ */}
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-800 tracking-wide uppercase">
+                Tháng {modalViewMonth.toString().padStart(2, '0')} - {modalViewYear}
+              </h3>
+              <div className="flex items-center gap-1">
+                <button onClick={handleModalPrevMonth} className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors">
+                  <ChevronLeft className="size-5" />
+                </button>
+                <button onClick={handleModalNextMonth} className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors">
+                  <ChevronRight className="size-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lưới lịch thu nhỏ */}
+            <div className="mt-4">
+              <div className="grid grid-cols-7 mb-2">
+                {MINI_WEEKDAYS.map((w, i) => (
+                  <div key={w} className={`text-center text-xs font-medium ${i === 6 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {w}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-y-1">
+                {miniGridDays.map((d, i) => (
+                  <div 
+                    key={`mini-${i}`} 
+                    onClick={() => {
+                      setModalDate(d.dateObj);
+                      setModalViewMonth(d.sMonth);
+                      setModalViewYear(d.dateObj.getFullYear());
+                    }}
+                    className={`h-11 w-full flex flex-col items-center justify-center rounded cursor-pointer transition-all ${
+                      d.isSelected 
+                        ? 'bg-[#959595] text-white shadow-inner' 
+                        : d.isCurrentMonth 
+                          ? 'hover:bg-gray-100' 
+                          : 'opacity-40 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className={`text-[15px] font-bold leading-tight ${d.isSunday && !d.isSelected ? 'text-red-600' : ''}`}>
+                      {d.sDay.toString().padStart(2, '0')}
+                    </span>
+                    <span className={`text-[10px] leading-none mt-0.5 ${d.isSelected ? 'text-gray-100' : 'text-gray-400'}`}>
+                      {d.lunarDisplay}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Form Chọn Ngày Dương */}
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <div className="flex items-center gap-1.5 mb-2 text-amber-500 font-semibold text-[15px]">
+                <Sun className="size-5 fill-amber-500" />
+                <span className="text-gray-800">Dương Lịch</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <select value={modalSolarData.d} onChange={(e) => handleModalSolarChange('d', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
+                  {Array.from({length: 31}).map((_, i) => <option key={`sd-${i+1}`} value={i+1}>Ngày {i+1}</option>)}
+                </select>
+                <select value={modalSolarData.m} onChange={(e) => handleModalSolarChange('m', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
+                  {Array.from({length: 12}).map((_, i) => <option key={`sm-${i+1}`} value={i+1}>Tháng {i+1}</option>)}
+                </select>
+                <select value={modalSolarData.y} onChange={(e) => handleModalSolarChange('y', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
+                  {Array.from({length: 101}).map((_, i) => {
+                    const y = new Date().getFullYear() - 50 + i;
+                    return <option key={`sy-${y}`} value={y}>{y}</option>
+                  })}
+                </select>
+              </div>
+            </div>
+
+            {/* Form Chọn Ngày Âm */}
+            <div className="mt-4">
+              <div className="flex items-center gap-1.5 mb-2 text-gray-400 font-semibold text-[15px]">
+                <Moon className="size-5 fill-gray-300" />
+                <span className="text-gray-800">Âm Lịch</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <select value={modalLunarData.d} onChange={(e) => handleModalLunarChange('d', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
+                  {Array.from({length: 30}).map((_, i) => <option key={`ld-${i+1}`} value={i+1}>Ngày {i+1}</option>)}
+                </select>
+                <select value={modalLunarData.m} onChange={(e) => handleModalLunarChange('m', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
+                  {Array.from({length: 12}).map((_, i) => <option key={`lm-${i+1}`} value={i+1}>Tháng {i+1}</option>)}
+                </select>
+                <select value={modalLunarData.y} onChange={(e) => handleModalLunarChange('y', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
+                  {Array.from({length: 101}).map((_, i) => {
+                    const y = new Date().getFullYear() - 50 + i;
+                    return <option key={`ly-${y}`} value={y}>{y}</option>
+                  })}
+                </select>
+              </div>
+            </div>
+
+            {/* Nút Apply */}
+            <button 
+              onClick={handleApplyQuickView}
+              className="mt-6 w-full bg-[#7bb643] hover:bg-[#689d36] text-white font-bold py-2.5 rounded text-[15px] transition-colors shadow-sm"
+            >
+              XEM
+            </button>
+
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+                             THẺ XEM CHI TIẾT (MAIN UI)
          ========================================================= */}
       <div className="bg-white">
         {/* Header Top Card */}
         <div className="bg-[#439c49] text-white px-4 py-2.5 flex justify-between items-center rounded-t-md">
           <h2 className="text-xl font-bold uppercase tracking-wide">Lịch Vạn Niên</h2>
-          <button onClick={handleToday} className="flex items-center gap-1.5 bg-[#36803b] hover:bg-[#2b6830] px-3 py-1.5 rounded text-sm transition-colors border border-[#52af58]">
+          <button onClick={openQuickView} className="flex items-center gap-1.5 bg-[#36803b] hover:bg-[#2b6830] px-3 py-1.5 rounded text-sm transition-colors border border-[#52af58]">
             <CalendarDays className="size-4" />
             <span>Xem nhanh theo ngày</span>
           </button>
@@ -318,9 +538,6 @@ export default function LunisolarCalendar() {
                 return <option key={`y-${y}`} value={y}>{y}</option>
               })}
             </select>
-            <button onClick={handleJumpToGridMonth} className="bg-[#1f6b24] text-white font-bold px-4 py-1.5 rounded hover:bg-[#154f19] transition border border-[#3b8740]">
-              XEM
-            </button>
           </div>
         </div>
 
