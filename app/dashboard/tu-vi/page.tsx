@@ -9,8 +9,21 @@ import {
   User,
   Users,
 } from "lucide-react";
+import { Lunar, Solar } from "lunar-javascript";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+// --- BỘ TỪ ĐIỂN DỊCH THUẬT CAN CHI ---
+const CAN_MAP: Record<string, string> = { '甲': 'Giáp', '乙': 'Ất', '丙': 'Bính', '丁': 'Đinh', '戊': 'Mậu', '己': 'Kỷ', '庚': 'Canh', '辛': 'Tân', '壬': 'Nhâm', '癸': 'Quý' };
+const CHI_MAP: Record<string, string> = { '子': 'Tý', '丑': 'Sửu', '寅': 'Dần', '卯': 'Mão', '辰': 'Thìn', '巳': 'Tỵ', '午': 'Ngọ', '未': 'Mùi', '申': 'Thân', '酉': 'Dậu', '戌': 'Tuất', '亥': 'Hợi' };
+
+function translateToVN(str: string) {
+  if (!str) return "";
+  let res = str;
+  Object.entries(CAN_MAP).forEach(([k, v]) => (res = res.replace(new RegExp(k, "g"), v)));
+  Object.entries(CHI_MAP).forEach(([k, v]) => (res = res.replace(new RegExp(k, "g"), v)));
+  return res;
+}
 
 // Component hỗ trợ bọc các ô Input kèm Icon
 const InputWrapper = ({
@@ -42,13 +55,40 @@ export default function TuViPage() {
     relationship: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Tự động tính toán Can Chi của Năm Sinh
+  const canChiText = useMemo(() => {
+    if (!formData.year) return "";
+
+    const y = parseInt(formData.year);
+    // Nếu chưa chọn ngày tháng thì mặc định lấy ngày 1 tháng 1 để tính Can Chi của năm đó
+    const m = formData.month ? parseInt(formData.month) : 1;
+    const d = formData.day ? parseInt(formData.day) : 1;
+
+    try {
+      let lunarObj;
+      if (formData.calendar === "Dương lịch") {
+        const solar = Solar.fromYmd(y, m, d);
+        lunarObj = solar.getLunar() as any;
+      } else {
+        lunarObj = Lunar.fromYmd(y, m, d) as any;
+      }
+      
+      const ganZhi = lunarObj.getYearInGanZhi();
+      return `Năm ${translateToVN(ganZhi)}`;
+    } catch (e) {
+      return "";
+    }
+  }, [formData.year, formData.month, formData.day, formData.calendar]);
+
   return (
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-      {/* Background Decor - Các dải màu tím mờ ảo phía sau */}
+      {/* Background Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-fuchsia-200/40 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-purple-300/30 rounded-full blur-[150px] pointer-events-none"></div>
 
@@ -81,56 +121,70 @@ export default function TuViPage() {
           </InputWrapper>
 
           {/* 2. Ngày / Tháng / Năm / Loại lịch */}
-          <InputWrapper icon={CalendarDays}>
-            <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
-              <select
-                name="day"
-                value={formData.day}
-                onChange={handleChange}
-                className="bg-transparent outline-none cursor-pointer w-full pr-2 appearance-none"
-              >
-                <option value="">Ngày</option>
-                {Array.from({ length: 31 }).map((_, i) => (
-                  <option key={i} value={i + 1}>Ngày {i + 1}</option>
-                ))}
-              </select>
-              
-              <select
-                name="month"
-                value={formData.month}
-                onChange={handleChange}
-                className="bg-transparent outline-none cursor-pointer w-full px-2 appearance-none"
-              >
-                <option value="">Tháng</option>
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <option key={i} value={i + 1}>Tháng {i + 1}</option>
-                ))}
-              </select>
-              
-              <select
-                name="year"
-                value={formData.year}
-                onChange={handleChange}
-                className="bg-transparent outline-none cursor-pointer w-full px-2 appearance-none"
-              >
-                <option value="">Năm</option>
-                {Array.from({ length: 100 }).map((_, i) => {
-                  const y = new Date().getFullYear() - i;
-                  return <option key={y} value={y}>{y}</option>;
-                })}
-              </select>
-              
-              <select
-                name="calendar"
-                value={formData.calendar}
-                onChange={handleChange}
-                className="bg-transparent outline-none cursor-pointer w-full pl-2 appearance-none text-purple-700 font-bold"
-              >
-                <option value="Dương lịch">Dương lịch</option>
-                <option value="Âm lịch">Âm lịch</option>
-              </select>
-            </div>
-          </InputWrapper>
+          <div className="relative">
+            <InputWrapper icon={CalendarDays}>
+              <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
+                <select
+                  name="day"
+                  value={formData.day}
+                  onChange={handleChange}
+                  className="bg-transparent outline-none cursor-pointer w-full pr-2 appearance-none"
+                >
+                  <option value="">Ngày</option>
+                  {Array.from({ length: 31 }).map((_, i) => (
+                    <option key={i} value={i + 1}>Ngày {i + 1}</option>
+                  ))}
+                </select>
+                
+                <select
+                  name="month"
+                  value={formData.month}
+                  onChange={handleChange}
+                  className="bg-transparent outline-none cursor-pointer w-full px-2 appearance-none"
+                >
+                  <option value="">Tháng</option>
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <option key={i} value={i + 1}>Tháng {i + 1}</option>
+                  ))}
+                </select>
+                
+                <select
+                  name="year"
+                  value={formData.year}
+                  onChange={handleChange}
+                  className="bg-transparent outline-none cursor-pointer w-full px-2 appearance-none"
+                >
+                  <option value="">Năm</option>
+                  {Array.from({ length: 100 }).map((_, i) => {
+                    const y = new Date().getFullYear() - i;
+                    return <option key={y} value={y}>{y}</option>;
+                  })}
+                </select>
+                
+                <select
+                  name="calendar"
+                  value={formData.calendar}
+                  onChange={handleChange}
+                  className="bg-transparent outline-none cursor-pointer w-full pl-2 appearance-none text-purple-700 font-bold"
+                >
+                  <option value="Dương lịch">Dương lịch</option>
+                  <option value="Âm lịch">Âm lịch</option>
+                </select>
+              </div>
+            </InputWrapper>
+
+            {/* Hiển thị Can Chi ngay bên dưới ô nhập ngày tháng */}
+            {canChiText && (
+              <div className="absolute -bottom-2 right-4 translate-y-full flex items-center justify-end pointer-events-none z-10">
+                <span className="text-[11px] sm:text-xs font-bold text-fuchsia-700 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full border border-fuchsia-200 shadow-sm shadow-fuchsia-100">
+                  {canChiText}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Spacer để bù khoảng trống cho Can Chi Label */}
+          <div className="h-4"></div>
 
           {/* 3. Giờ sinh */}
           <InputWrapper icon={Clock}>
