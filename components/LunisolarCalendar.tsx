@@ -104,7 +104,9 @@ export default function LunisolarCalendar() {
     const sDay = selectedDate.getDate();
     
     const solar = Solar.fromYmd(sYear, sMonth, sDay);
-    const lunar = solar.getLunar();
+    
+    // Khắc phục lỗi TypeScript bằng cách ép kiểu sang any
+    const lunar = solar.getLunar() as any;
 
     const lYearStr = translateToVN(lunar.getYearInGanZhi());
     const lMonthStr = translateToVN(lunar.getMonthInGanZhi());
@@ -118,7 +120,7 @@ export default function LunisolarCalendar() {
     // Tính Giờ Hoàng Đạo
     const chiNgay = translateToVN(lunar.getDayZhi());
     const hoangDaoHours = ZODIAC_HOURS[chiNgay] || [];
-    const hoangDaoText = hoangDaoHours.map(chi => HOUR_STRINGS[chi]).join(", ");
+    const hoangDaoText = hoangDaoHours.map((chi: string) => HOUR_STRINGS[chi]).join(", ");
 
     return {
       sDay, sMonth, sYear,
@@ -156,7 +158,9 @@ export default function LunisolarCalendar() {
       const sDay = d.getDate();
       
       const solar = Solar.fromYmd(sYear, sMonth, sDay);
-      const lunar = solar.getLunar();
+      
+      // Ép kiểu any tương tự ở phần Grid
+      const lunar = solar.getLunar() as any;
       
       const lDay = lunar.getDay();
       const lMonth = Math.abs(lunar.getMonth());
@@ -342,7 +346,7 @@ export default function LunisolarCalendar() {
                 {/* Ngày Dương */}
                 <div className={`text-[28px] font-bold leading-none ${day.isSunday ? 'text-[#e53e3e]' : 'text-black'}`}>
                   {day.sDay.toString().padStart(2, '0')}
-                  {/* Chấm nhỏ trang trí (Giả lập giống ảnh) */}
+                  {/* Chấm nhỏ trang trí */}
                   {(day.sDay % 2 !== 0 && !day.isWeekend) && (
                     <span className="absolute top-2.5 left-[34px] size-1.5 rounded-full bg-[#439c49]"></span>
                   )}
