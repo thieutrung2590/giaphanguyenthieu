@@ -5,12 +5,13 @@ import {
   ArrowRight,
   BarChart2,
   Cake,
+  Calendar, // Đã thêm icon Calendar cho Lịch Âm Dương
   CalendarDays,
   Database,
   Flower2,
   GitMerge,
   HeartHandshake,
-  Image as ImageIcon, // Đã thêm icon này
+  Image as ImageIcon,
   Network,
   Star,
   Users,
@@ -82,6 +83,15 @@ export default async function DashboardLaunchpad() {
     //   hoverColor: "hover:border-emerald-400 hover:shadow-emerald-100",
     // },
     {
+      title: "Lịch Âm Dương",
+      description: "Tra cứu ngày tháng và quy đổi Âm - Dương",
+      icon: <Calendar className="size-8 text-indigo-600" />,
+      href: "/dashboard/calendar",
+      bgColor: "bg-indigo-50",
+      borderColor: "border-indigo-200/60",
+      hoverColor: "hover:border-indigo-400 hover:shadow-indigo-100",
+    },
+    {
       title: "Tra cứu danh xưng",
       description: "Hệ thống gọi tên họ hàng chuẩn xác",
       icon: <GitMerge className="size-8 text-blue-600" />,
@@ -108,7 +118,6 @@ export default async function DashboardLaunchpad() {
       borderColor: "border-rose-200/60",
       hoverColor: "hover:border-rose-400 hover:shadow-rose-100",
     },
-    // Đã thêm thẻ Ảnh kỷ niệm ở đây
     {
       title: "Ảnh kỷ niệm",
       description: "Lưu giữ và chia sẻ những khoảnh khắc đáng nhớ",
