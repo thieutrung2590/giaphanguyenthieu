@@ -156,11 +156,16 @@ export default function DataImportExport() {
         );
       }
 
+      // CẬP NHẬT TẠI ĐÂY: Truyền toàn bộ 8 bảng vào hàm importData
       const result = await importData({
         persons: payload.persons,
         relationships: payload.relationships,
         person_details_private: payload.person_details_private,
         custom_events: payload.custom_events,
+        donations: payload.donations,
+        expenses: payload.expenses,
+        photos: payload.photos,
+        profiles: payload.profiles,
       });
 
       if ("error" in result) {
@@ -174,17 +179,28 @@ export default function DataImportExport() {
         return;
       }
 
+      // CẬP NHẬT TẠI ĐÂY: Xây dựng thông báo thành công cho tất cả các bảng
       const parts = [
-        `${result.imported?.persons} thành viên`,
-        `${result.imported?.relationships} quan hệ`,
+        `${result.imported?.persons || 0} thành viên`,
+        `${result.imported?.relationships || 0} quan hệ`,
       ];
       if (result.imported?.person_details_private) {
-        parts.push(
-          `${result.imported.person_details_private} thông tin riêng tư`,
-        );
+        parts.push(`${result.imported.person_details_private} thông tin riêng tư`);
       }
       if (result.imported?.custom_events) {
         parts.push(`${result.imported.custom_events} sự kiện`);
+      }
+      if (result.imported?.donations) {
+        parts.push(`${result.imported.donations} đóng góp`);
+      }
+      if (result.imported?.expenses) {
+        parts.push(`${result.imported.expenses} khoản chi`);
+      }
+      if (result.imported?.photos) {
+        parts.push(`${result.imported.photos} ảnh`);
+      }
+      if (result.imported?.profiles) {
+        parts.push(`${result.imported.profiles} hồ sơ`);
       }
 
       setImportStatus({
@@ -358,7 +374,7 @@ export default function DataImportExport() {
                   </h3>
                   <p className="text-sm text-stone-600 mt-2 leading-relaxed">
                     Hệ thống sẽ xoá{" "}
-                    <b>toàn bộ dữ liệu thành viên, mối quan hệ, thông tin riêng tư và sự kiện hiện tại</b> để
+                    <b>toàn bộ dữ liệu thành viên, bảng chi tiêu, đóng góp, hình ảnh và hồ sơ</b> để
                     thay thế bằng dữ liệu từ file{" "}
                     <span className="font-mono text-xs bg-stone-100 px-1 rounded">
                       {selectedFile?.name}
