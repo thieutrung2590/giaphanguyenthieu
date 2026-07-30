@@ -8,8 +8,7 @@ import { revalidatePath } from "next/cache";
 
 /**
  * Payload shape cho file backup JSON.
- * Các field DB-managed (created_at, updated_at) được giữ để tham khảo
- * nhưng sẽ bị loại bỏ khi import lại.
+ * Hỗ trợ toàn bộ 8 bảng trong schema public.
  */
 interface PersonExport {
   id: string;
@@ -31,7 +30,6 @@ interface PersonExport {
   other_names: string | null;
   avatar_url: string | null;
   note: string | null;
-  // DB-managed fields (kept in export for traceability, stripped on import)
   created_at?: string;
   updated_at?: string;
 }
@@ -62,6 +60,12 @@ interface CustomEventExport {
   created_by: string | null;
 }
 
+// Khai báo kiểu dữ liệu mở rộng cho 4 bảng mới
+type DonationExport = Record<string, any>;
+type ExpenseExport = Record<string, any>;
+type PhotoExport = Record<string, any>;
+type ProfileExport = Record<string, any>;
+
 interface BackupPayload {
   version: number;
   timestamp: string;
@@ -69,11 +73,14 @@ interface BackupPayload {
   relationships: RelationshipExport[];
   person_details_private?: PersonDetailsPrivateExport[];
   custom_events?: CustomEventExport[];
+  donations?: DonationExport[];
+  expenses?: ExpenseExport[];
+  photos?: PhotoExport[];
+  profiles?: ProfileExport[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Các field được phép insert vào bảng persons (loại bỏ created_at/updated_at)
 function sanitizePerson(
   p: PersonExport,
 ): Omit<PersonExport, "created_at" | "updated_at"> {
@@ -123,6 +130,12 @@ function sanitizeCustomEvent(
   };
 }
 
+// Hàm làm sạch dữ liệu chung cho các bảng mới (loại bỏ created_at và updated_at để DB tự tạo)
+function sanitizeGeneric(item: any) {
+  const { created_at, updated_at, ...rest } = item;
+  return rest;
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export async function exportData(
@@ -135,60 +148,61 @@ export async function exportData(
 
   const supabase = await getSupabase();
 
-  // Fetch ALL persons and relationships first to perform traversal in memory.
-  // This is safe since typical family trees are < 10,000 nodes, easily fitting in memory.
+  // 1. Tải dữ liệu 4 bảng cốt lõi
   const { data: allPersons, error: personsError } = await supabase
     .from("persons")
-    .select(
-      "id, full_name, gender, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased, is_in_law, birth_order, generation, other_names, avatar_url, note, created_at, updated_at",
-    )
+    .select("id, full_name, gender, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased, is_in_law, birth_order, generation, other_names, avatar_url, note, created_at, updated_at")
     .order("created_at", { ascending: true });
 
-  if (personsError)
-    return { error: "Lỗi tải dữ liệu persons: " + personsError.message };
+  if (personsError) return { error: "Lỗi tải dữ liệu persons: " + personsError.message };
 
   const { data: allRels, error: relationshipsError } = await supabase
     .from("relationships")
     .select("id, type, person_a, person_b, note, created_at, updated_at")
     .order("created_at", { ascending: true });
 
-  if (relationshipsError)
-    return {
-      error: "Lỗi tải dữ liệu relationships: " + relationshipsError.message,
-    };
+  if (relationshipsError) return { error: "Lỗi tải dữ liệu relationships: " + relationshipsError.message };
 
   const { data: allPrivateDetails, error: privateDetailsError } = await supabase
     .from("person_details_private")
     .select("person_id, phone_number, occupation, current_residence");
 
-  if (privateDetailsError)
-    return {
-      error:
-        "Lỗi tải dữ liệu person_details_private: " +
-        privateDetailsError.message,
-    };
+  if (privateDetailsError) return { error: "Lỗi tải dữ liệu person_details_private: " + privateDetailsError.message };
 
   const { data: allCustomEvents, error: customEventsError } = await supabase
     .from("custom_events")
     .select("id, name, content, event_date, location, created_by")
     .order("event_date", { ascending: true });
 
-  if (customEventsError)
-    return {
-      error: "Lỗi tải dữ liệu custom_events: " + customEventsError.message,
-    };
+  if (customEventsError) return { error: "Lỗi tải dữ liệu custom_events: " + customEventsError.message };
+
+  // 2. Tải dữ liệu 4 bảng mở rộng
+  const { data: allDonations, error: donationsError } = await supabase.from("donations").select("*");
+  if (donationsError) return { error: "Lỗi tải dữ liệu donations: " + donationsError.message };
+
+  const { data: allExpenses, error: expensesError } = await supabase.from("expenses").select("*");
+  if (expensesError) return { error: "Lỗi tải dữ liệu expenses: " + expensesError.message };
+
+  const { data: allPhotos, error: photosError } = await supabase.from("photos").select("*");
+  if (photosError) return { error: "Lỗi tải dữ liệu photos: " + photosError.message };
+
+  const { data: allProfiles, error: profilesError } = await supabase.from("profiles").select("*");
+  if (profilesError) return { error: "Lỗi tải dữ liệu profiles: " + profilesError.message };
+
 
   let exportPersons = (allPersons ?? []) as PersonExport[];
   let exportRels = (allRels ?? []) as RelationshipExport[];
-  let exportPrivateDetails = (allPrivateDetails ??
-    []) as PersonDetailsPrivateExport[];
+  let exportPrivateDetails = (allPrivateDetails ?? []) as PersonDetailsPrivateExport[];
   const exportCustomEvents = (allCustomEvents ?? []) as CustomEventExport[];
+  const exportDonations = (allDonations ?? []) as DonationExport[];
+  const exportExpenses = (allExpenses ?? []) as ExpenseExport[];
+  const exportPhotos = (allPhotos ?? []) as PhotoExport[];
+  const exportProfiles = (allProfiles ?? []) as ProfileExport[];
 
-  // If a root person is selected, filter the export to only their subtree
+  // Xử lý lọc nhánh gia đình nếu chọn exportRootId
   if (exportRootId && exportPersons.some((p) => p.id === exportRootId)) {
     const includedPersonIds = new Set<string>([exportRootId]);
 
-    // 1. Traverse biological and adopted children recursively
     const findDescendants = (parentId: string) => {
       exportRels
         .filter(
@@ -205,8 +219,7 @@ export async function exportData(
     };
     findDescendants(exportRootId);
 
-    // 2. Add spouses for everyone in the tree so far
-    const descendantsArray = Array.from(includedPersonIds); // snapshot current members
+    const descendantsArray = Array.from(includedPersonIds);
     descendantsArray.forEach((personId) => {
       exportRels
         .filter(
@@ -220,25 +233,27 @@ export async function exportData(
         });
     });
 
-    // 3. Filter the payload
     exportPersons = exportPersons.filter((p) => includedPersonIds.has(p.id));
     exportRels = exportRels.filter(
-      (r) =>
-        includedPersonIds.has(r.person_a) && includedPersonIds.has(r.person_b),
+      (r) => includedPersonIds.has(r.person_a) && includedPersonIds.has(r.person_b),
     );
     exportPrivateDetails = exportPrivateDetails.filter((d) =>
       includedPersonIds.has(d.person_id),
     );
-    // custom_events are not person-scoped, so export all when subtree is selected
+    // Các bảng như donations, expenses, photos, profiles, custom_events sẽ được xuất toàn bộ để đảm bảo an toàn.
   }
 
   return {
-    version: 3, // v3: adds death_lunar_*, person_details_private, relationship note, custom_events
+    version: 4, 
     timestamp: new Date().toISOString(),
     persons: exportPersons,
     relationships: exportRels,
     person_details_private: exportPrivateDetails,
     custom_events: exportCustomEvents,
+    donations: exportDonations,
+    expenses: exportExpenses,
+    photos: exportPhotos,
+    profiles: exportProfiles,
   };
 }
 
@@ -252,6 +267,10 @@ export async function importData(
         relationships: Relationship[];
         person_details_private?: PersonDetailsPrivateExport[];
         custom_events?: CustomEventExport[];
+        donations?: DonationExport[];
+        expenses?: ExpenseExport[];
+        photos?: PhotoExport[];
+        profiles?: ProfileExport[];
       },
 ) {
   const isAdmin = await getIsAdmin();
@@ -271,112 +290,132 @@ export async function importData(
     };
   }
 
-  // 1. Xoá custom_events
-  const { error: delEventsError } = await supabase
-    .from("custom_events")
-    .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+  // --- BƯỚC 1: XÓA DỮ LIỆU CŨ THEO THỨ TỰ (Để tránh lỗi khóa ngoại FK) ---
 
-  if (delEventsError)
-    return {
-      error: "Lỗi khi xoá custom_events cũ: " + delEventsError.message,
-    };
+  // Xóa 4 bảng mở rộng
+  const { error: delDonationsError } = await supabase.from("donations").delete().not("id", "is", null);
+  if (delDonationsError) return { error: "Lỗi khi xoá donations cũ: " + delDonationsError.message };
 
-  // 2. Xoá relationships (FK constraint)
-  const { error: delRelError } = await supabase
-    .from("relationships")
-    .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+  const { error: delExpensesError } = await supabase.from("expenses").delete().not("id", "is", null);
+  if (delExpensesError) return { error: "Lỗi khi xoá expenses cũ: " + delExpensesError.message };
 
-  if (delRelError)
-    return { error: "Lỗi khi xoá relationships cũ: " + delRelError.message };
+  const { error: delPhotosError } = await supabase.from("photos").delete().not("id", "is", null);
+  if (delPhotosError) return { error: "Lỗi khi xoá photos cũ: " + delPhotosError.message };
 
-  // 3. Xoá person_details_private (FK constraint on persons)
-  const { error: delPrivateError } = await supabase
-    .from("person_details_private")
-    .delete()
-    .neq("person_id", "00000000-0000-0000-0000-000000000000");
+  const { error: delProfilesError } = await supabase.from("profiles").delete().not("id", "is", null);
+  if (delProfilesError) return { error: "Lỗi khi xoá profiles cũ: " + delProfilesError.message };
 
-  if (delPrivateError)
-    return {
-      error:
-        "Lỗi khi xoá person_details_private cũ: " + delPrivateError.message,
-    };
+  // Xóa 4 bảng cốt lõi
+  const { error: delEventsError } = await supabase.from("custom_events").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (delEventsError) return { error: "Lỗi khi xoá custom_events cũ: " + delEventsError.message };
 
-  // 4. Xoá persons
-  const { error: delPersonsError } = await supabase
-    .from("persons")
-    .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+  const { error: delRelError } = await supabase.from("relationships").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (delRelError) return { error: "Lỗi khi xoá relationships cũ: " + delRelError.message };
 
-  if (delPersonsError)
-    return { error: "Lỗi khi xoá persons cũ: " + delPersonsError.message };
+  const { error: delPrivateError } = await supabase.from("person_details_private").delete().neq("person_id", "00000000-0000-0000-0000-000000000000");
+  if (delPrivateError) return { error: "Lỗi khi xoá person_details_private cũ: " + delPrivateError.message };
 
-  // 5. Insert persons (sanitized — chỉ giữ các field schema hiện tại)
+  const { error: delPersonsError } = await supabase.from("persons").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (delPersonsError) return { error: "Lỗi khi xoá persons cũ: " + delPersonsError.message };
+
+
+  // --- BƯỚC 2: PHỤC HỒI DỮ LIỆU ---
   const CHUNK = 200;
-  const persons = importPayload.persons.map(sanitizePerson);
 
+  // 1. Insert persons
+  const persons = importPayload.persons.map(sanitizePerson);
   for (let i = 0; i < persons.length; i += CHUNK) {
     const chunk = persons.slice(i, i + CHUNK);
     const { error } = await supabase.from("persons").insert(chunk);
-    if (error)
-      return {
-        error: `Lỗi khi import persons (chunk ${i / CHUNK + 1}): ${error.message}`,
-      };
+    if (error) return { error: `Lỗi khi import persons (chunk ${i / CHUNK + 1}): ${error.message}` };
   }
 
-  // 6. Insert relationships (stripped of id/created_at to avoid conflicts)
-  // Filter out self-relationships to avoid "no_self_relationship" constraint violation
+  // 2. Insert relationships
   const relationships = importPayload.relationships
     .filter((r) => r.person_a !== r.person_b)
     .map(sanitizeRelationship);
-
   for (let i = 0; i < relationships.length; i += CHUNK) {
     const chunk = relationships.slice(i, i + CHUNK);
     const { error } = await supabase.from("relationships").insert(chunk);
-    if (error)
-      return {
-        error: `Lỗi khi import relationships (chunk ${i / CHUNK + 1}): ${error.message}`,
-      };
+    if (error) return { error: `Lỗi khi import relationships: ${error.message}` };
   }
 
-  // 7. Insert person_details_private (if present in payload)
+  // 3. Insert person_details_private
   let privateDetailsCount = 0;
   const privateDetails = importPayload.person_details_private ?? [];
   if (privateDetails.length > 0) {
     for (let i = 0; i < privateDetails.length; i += CHUNK) {
       const chunk = privateDetails.slice(i, i + CHUNK);
-      const { error } = await supabase
-        .from("person_details_private")
-        .insert(chunk);
-      if (error)
-        return {
-          error: `Lỗi khi import person_details_private (chunk ${i / CHUNK + 1}): ${error.message}`,
-        };
+      const { error } = await supabase.from("person_details_private").insert(chunk);
+      if (error) return { error: `Lỗi khi import person_details_private: ${error.message}` };
     }
     privateDetailsCount = privateDetails.length;
   }
 
-  // 8. Insert custom_events (if present in payload, strip created_by)
+  // 4. Insert custom_events
   let customEventsCount = 0;
-  const customEvents = (importPayload.custom_events ?? []).map(
-    sanitizeCustomEvent,
-  );
+  const customEvents = (importPayload.custom_events ?? []).map(sanitizeCustomEvent);
   if (customEvents.length > 0) {
     for (let i = 0; i < customEvents.length; i += CHUNK) {
       const chunk = customEvents.slice(i, i + CHUNK);
       const { error } = await supabase.from("custom_events").insert(chunk);
-      if (error)
-        return {
-          error: `Lỗi khi import custom_events (chunk ${i / CHUNK + 1}): ${error.message}`,
-        };
+      if (error) return { error: `Lỗi khi import custom_events: ${error.message}` };
     }
     customEventsCount = customEvents.length;
+  }
+
+  // 5. Insert donations
+  let donationsCount = 0;
+  const donations = (importPayload.donations ?? []).map(sanitizeGeneric);
+  if (donations.length > 0) {
+    for (let i = 0; i < donations.length; i += CHUNK) {
+      const chunk = donations.slice(i, i + CHUNK);
+      const { error } = await supabase.from("donations").insert(chunk);
+      if (error) return { error: `Lỗi khi import donations: ${error.message}` };
+    }
+    donationsCount = donations.length;
+  }
+
+  // 6. Insert expenses
+  let expensesCount = 0;
+  const expenses = (importPayload.expenses ?? []).map(sanitizeGeneric);
+  if (expenses.length > 0) {
+    for (let i = 0; i < expenses.length; i += CHUNK) {
+      const chunk = expenses.slice(i, i + CHUNK);
+      const { error } = await supabase.from("expenses").insert(chunk);
+      if (error) return { error: `Lỗi khi import expenses: ${error.message}` };
+    }
+    expensesCount = expenses.length;
+  }
+
+  // 7. Insert photos
+  let photosCount = 0;
+  const photos = (importPayload.photos ?? []).map(sanitizeGeneric);
+  if (photos.length > 0) {
+    for (let i = 0; i < photos.length; i += CHUNK) {
+      const chunk = photos.slice(i, i + CHUNK);
+      const { error } = await supabase.from("photos").insert(chunk);
+      if (error) return { error: `Lỗi khi import photos: ${error.message}` };
+    }
+    photosCount = photos.length;
+  }
+
+  // 8. Insert profiles
+  let profilesCount = 0;
+  const profiles = (importPayload.profiles ?? []).map(sanitizeGeneric);
+  if (profiles.length > 0) {
+    for (let i = 0; i < profiles.length; i += CHUNK) {
+      const chunk = profiles.slice(i, i + CHUNK);
+      const { error } = await supabase.from("profiles").insert(chunk);
+      if (error) return { error: `Lỗi khi import profiles: ${error.message}` };
+    }
+    profilesCount = profiles.length;
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/members");
   revalidatePath("/dashboard/data");
+  revalidatePath("/dashboard/photos");
 
   return {
     success: true,
@@ -385,6 +424,10 @@ export async function importData(
       relationships: relationships.length,
       person_details_private: privateDetailsCount,
       custom_events: customEventsCount,
+      donations: donationsCount,
+      expenses: expensesCount,
+      photos: photosCount,
+      profiles: profilesCount,
     },
   };
 }
