@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
-import { Solar, Lunar } from "lunar-javascript";
+import { Solar } from "lunar-javascript";
 import { useState, useMemo } from "react";
 
 // --- BỘ TỪ ĐIỂN DỊCH THUẬT CAN CHI & MỆNH ---
@@ -94,7 +94,7 @@ export default function LunisolarCalendar() {
   };
 
   const handleJumpToGridMonth = () => {
-    // Nút XEM không cần làm gì nhiều vì state đã bind thẳng vào select
+    // Nút XEM (hiện tại gắn trực tiếp vào Select nên có thể để trống)
   };
 
   // --- TÍNH TOÁN DỮ LIỆU NGÀY ĐANG CHỌN ĐỂ HIỂN THỊ PHẦN TRÊN ---
@@ -104,9 +104,7 @@ export default function LunisolarCalendar() {
     const sDay = selectedDate.getDate();
     
     const solar = Solar.fromYmd(sYear, sMonth, sDay);
-    
-    // Khắc phục lỗi TypeScript bằng cách ép kiểu sang any
-    const lunar = solar.getLunar() as any;
+    const lunar = solar.getLunar() as any; // Ép kiểu any để tránh lỗi TS 
 
     const lYearStr = translateToVN(lunar.getYearInGanZhi());
     const lMonthStr = translateToVN(lunar.getMonthInGanZhi());
@@ -116,6 +114,10 @@ export default function LunisolarCalendar() {
     const naYin = NAYIN_MAP[lunar.getDayNaYin()] || lunar.getDayNaYin();
     const xungStr = translateToVN(lunar.getDayChongDesc());
     const satStr = translateToVN(lunar.getDaySha());
+
+    // Lấy thông tin Hoàng đạo/Hắc đạo
+    const dayTianShenType = typeof lunar.getDayTianShenType === 'function' ? lunar.getDayTianShenType() : '';
+    const dayType = dayTianShenType === '黄道' ? 'Hoàng đạo' : (dayTianShenType === '黑道' ? 'Hắc đạo' : '');
 
     // Tính Giờ Hoàng Đạo
     const chiNgay = translateToVN(lunar.getDayZhi());
@@ -130,7 +132,8 @@ export default function LunisolarCalendar() {
       lYearStr, lMonthStr, lDayStr,
       naYin,
       xungText: `${xungStr} (${satStr})`,
-      hoangDaoText
+      hoangDaoText,
+      dayType
     };
   }, [selectedDate]);
 
@@ -139,9 +142,7 @@ export default function LunisolarCalendar() {
   const gridDays = useMemo(() => {
     const days = [];
     const firstDay = new Date(viewYear, viewMonth - 1, 1);
-    const startDayOfWeek = firstDay.getDay(); // 0=Sun, 1=Mon
-    
-    // Chuyển Chủ nhật(0) thành vị trí cuối cùng (6), Thứ hai(1) thành 0
+    const startDayOfWeek = firstDay.getDay(); 
     const offset = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
     
     const startDate = new Date(firstDay);
@@ -158,21 +159,24 @@ export default function LunisolarCalendar() {
       const sDay = d.getDate();
       
       const solar = Solar.fromYmd(sYear, sMonth, sDay);
-      
-      // Ép kiểu any tương tự ở phần Grid
-      const lunar = solar.getLunar() as any;
+      const lunar = solar.getLunar() as any; // Ép kiểu any để dùng các hàm mở rộng
       
       const lDay = lunar.getDay();
       const lMonth = Math.abs(lunar.getMonth());
       const lDayCanChi = translateToVN(lunar.getDayInGanZhi());
 
-      // Hiển thị Lịch Âm: Nếu là mùng 1 Lịch Âm hoặc mùng 1 Lịch Dương thì thêm /Tháng
+      // Kiểm tra ngày Hoàng Đạo / Hắc Đạo cho ô Grid
+      const dayTianShenType = typeof lunar.getDayTianShenType === 'function' ? lunar.getDayTianShenType() : '';
+      const isHoangDao = dayTianShenType === '黄道';
+      const isHacDao = dayTianShenType === '黑道';
+
+      // Hiển thị Lịch Âm
       let lunarDisplay = `${lDay}`;
       if (lDay === 1 || sDay === 1) {
         lunarDisplay = `${lDay}/${lMonth}`;
       }
 
-      // Xét sự kiện
+      // Xét sự kiện Dương & Âm lịch
       let eventText = lDayCanChi; // Mặc định là Can Chi
       let isEvent = false;
 
@@ -200,7 +204,9 @@ export default function LunisolarCalendar() {
         lunarDisplay,
         eventText,
         isEvent,
-        lDay
+        lDay,
+        isHoangDao,
+        isHacDao
       });
     }
     return days;
@@ -225,7 +231,6 @@ export default function LunisolarCalendar() {
         {/* Cột hiển thị số lớn */}
         <div className="flex flex-col md:flex-row border-b border-gray-200 relative">
           
-          {/* Nút Prev Day (bên trái) */}
           <button onClick={handlePrevDay} className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 size-10 rounded-full border border-gray-300 items-center justify-center text-gray-500 hover:border-[#439c49] hover:text-[#439c49] bg-white z-10 transition-colors">
             <ChevronLeft className="size-6" />
           </button>
@@ -255,7 +260,6 @@ export default function LunisolarCalendar() {
             </p>
           </div>
 
-          {/* Nút Next Day (bên phải) */}
           <button onClick={handleNextDay} className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 size-10 rounded-full border border-gray-300 items-center justify-center text-gray-500 hover:border-[#439c49] hover:text-[#439c49] bg-white z-10 transition-colors">
             <ChevronRight className="size-6" />
           </button>
@@ -265,7 +269,7 @@ export default function LunisolarCalendar() {
         {/* Thông tin Chi Tiết Dưới */}
         <div className="p-5 md:px-8 text-[15px] text-gray-800 leading-relaxed bg-[#fbfbfb]">
           <p className="mb-1">
-            <span className="font-bold">Mệnh ngày:</span> {topInfo.naYin} - Ngày hoàng đạo
+            <span className="font-bold">Mệnh ngày:</span> {topInfo.naYin} {topInfo.dayType ? `- Ngày ${topInfo.dayType}` : ''}
           </p>
           <p className="mb-1">
             <span className="font-bold">Giờ hoàng đạo:</span> {topInfo.hoangDaoText}
@@ -344,11 +348,15 @@ export default function LunisolarCalendar() {
                 `}
               >
                 {/* Ngày Dương */}
-                <div className={`text-[28px] font-bold leading-none ${day.isSunday ? 'text-[#e53e3e]' : 'text-black'}`}>
+                <div className={`text-[28px] font-bold leading-none w-fit relative ${day.isSunday ? 'text-[#e53e3e]' : 'text-black'}`}>
                   {day.sDay.toString().padStart(2, '0')}
-                  {/* Chấm nhỏ trang trí */}
-                  {(day.sDay % 2 !== 0 && !day.isWeekend) && (
-                    <span className="absolute top-2.5 left-[34px] size-1.5 rounded-full bg-[#439c49]"></span>
+                  
+                  {/* Chấm Hoàng Đạo / Hắc Đạo */}
+                  {day.isHoangDao && (
+                    <span className="absolute top-1 -right-3 size-1.5 rounded-full bg-[#439c49]" title="Ngày Hoàng Đạo"></span>
+                  )}
+                  {day.isHacDao && (
+                    <span className="absolute top-1 -right-3 size-1.5 rounded-full bg-gray-800" title="Ngày Hắc Đạo"></span>
                   )}
                 </div>
 
