@@ -47,22 +47,32 @@ const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.Rea
   </div>
 );
 
-// --- ENGINE TÍNH TOÁN LÁ SỐ TỬ VI ---
+// --- ENGINE TÍNH TOÁN LÁ SỐ TỬ VI CHUYÊN SÂU ---
 const TIME_MAP: Record<string, number> = { "Tý": 1, "Sửu": 2, "Dần": 3, "Mão": 4, "Thìn": 5, "Tỵ": 6, "Ngọ": 7, "Mùi": 8, "Thân": 9, "Dậu": 10, "Tuất": 11, "Hợi": 12 };
 const HOUSES = ["Mệnh", "Phụ Mẫu", "Phúc Đức", "Điền Trạch", "Quan Lộc", "Nô Bộc", "Thiên Di", "Tật Ách", "Tài Bạch", "Tử Tức", "Phu Thê", "Huynh Đệ"];
 const CUNG_NAMES = ["Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"];
-// Mapping từ 16 ô trên màn hình vào Index của Cung (Tý = 0, Sửu = 1...)
 const GRID_TO_CUNG: Record<number, number> = { 0: 5, 1: 6, 2: 7, 3: 8, 4: 4, 7: 9, 8: 3, 11: 10, 12: 2, 13: 1, 14: 0, 15: 11 };
 
 // Bảng tính Ngũ Hành Cục
 const CAN_YEAR_MAP: Record<string, number> = { 'Giáp': 1, 'Kỷ': 1, 'Ất': 2, 'Canh': 2, 'Bính': 3, 'Tân': 3, 'Đinh': 4, 'Nhâm': 4, 'Mậu': 5, 'Quý': 5 };
 const CHI_MENH_MAP: Record<number, number> = { 0: 1, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 1, 7: 1, 8: 2, 9: 2, 10: 3, 11: 3 }; 
 const CUC_MAP: Record<number, string> = { 1: "Thủy Nhị Cục", 2: "Hỏa Lục Cục", 3: "Thổ Ngũ Cục", 4: "Kim Tứ Cục", 5: "Mộc Tam Cục" };
+const CUC_INT_MAP: Record<number, number> = { 1: 2, 2: 6, 3: 5, 4: 4, 5: 3 }; // Thủy 2, Hỏa 6, Thổ 5, Kim 4, Mộc 3
 const YANG_CANS = ["Giáp", "Bính", "Mậu", "Canh", "Nhâm"];
+const CAN_IDX_MAP = ["Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ", "Canh", "Tân", "Nhâm", "Quý"];
+
+// Vị trí các chòm sao (Offsets)
+const VT_TU_VI = [0, -1, -3, -4, -5, -8];
+const NAME_TU_VI = ["Tử Vi", "Thiên Cơ", "Thái Dương", "Vũ Khúc", "Thiên Đồng", "Liêm Trinh"];
+
+const VT_THIEN_PHU = [0, 1, 2, 3, 4, 5, 6, 10];
+const NAME_THIEN_PHU = ["Thiên Phủ", "Thái Âm", "Tham Lang", "Cự Môn", "Thiên Tướng", "Thiên Lương", "Thất Sát", "Phá Quân"];
+
+const TRIET_MAP: Record<number, number> = { 0: 8, 5: 8, 1: 6, 6: 6, 2: 4, 7: 4, 3: 2, 8: 2, 4: 0, 9: 0 }; // Triệt Lộ Không Vong
 
 export default function TuViPage() {
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu Trung",
+    name: "Nguyễn Thiệu",
     day: "25",
     month: "5",
     year: "1990",
@@ -90,7 +100,6 @@ export default function TuViPage() {
     
     setIsLoading(true);
 
-    // Tính toán lá số
     setTimeout(() => {
       try {
         const y = parseInt(formData.year);
@@ -106,38 +115,89 @@ export default function TuViPage() {
         }
 
         const lunarMonth = Math.abs(lunarObj.getMonth());
-        const timeKey = formData.time.split(" ")[0]; // Lấy chữ "Tỵ"
+        const lunarDay = lunarObj.getDay();
+        const timeKey = formData.time.split(" ")[0]; 
         const lunarHour = TIME_MAP[timeKey] || 1;
 
-        // Vị trí Cung Mệnh & Thân (0 = Tý)
+        // 1. Vị trí Cung Mệnh & Thân (Tý = 0)
         const menhIndex = (2 + (lunarMonth - 1) - (lunarHour - 1) + 12) % 12;
         const thanIndex = (2 + (lunarMonth - 1) + (lunarHour - 1)) % 12;
 
-        // Gán 12 Cung Chức
         const housesData: Record<number, any> = {};
         for (let i = 0; i < 12; i++) {
+          housesData[i] = { name: "", isThan: false, chinhTinh: [], phuTinh: [], tuanTriet: [] };
+        }
+        for (let i = 0; i < 12; i++) {
           const idx = (menhIndex + i) % 12;
-          housesData[idx] = {
-            name: HOUSES[i],
-            isThan: idx === thanIndex,
-            chinhTinh: [], 
-            phuTinh: []
-          };
+          housesData[idx].name = HOUSES[i];
+          housesData[idx].isThan = (idx === thanIndex);
         }
 
-        // Thông tin Thiên Bàn
+        // 2. Tính Ngũ Hành Cục
         const yearCanStr = translateToVN(lunarObj.getYearGan());
-        const isYang = YANG_CANS.includes(yearCanStr);
-        const amDuongStr = isYang 
-            ? (formData.gender === "Nam giới" ? "Dương Nam" : "Dương Nữ")
-            : (formData.gender === "Nam giới" ? "Âm Nam" : "Âm Nữ");
-
         const canVal = CAN_YEAR_MAP[yearCanStr] || 1;
         const chiVal = CHI_MENH_MAP[menhIndex];
         let sumVal = canVal + chiVal;
         if (sumVal > 5) sumVal -= 5;
+        
         const cucStr = CUC_MAP[sumVal];
+        const cucInt = CUC_INT_MAP[sumVal];
 
+        // 3. AN CHÍNH TINH (Thuật toán tìm sao Tử Vi)
+        const y_cuc = Math.ceil(lunarDay / cucInt);
+        const diff = y_cuc * cucInt - lunarDay;
+        const posTuVi = (diff % 2 === 0) ? (y_cuc + diff) : (y_cuc - diff);
+        const tuViIdx = (posTuVi + 1) % 12; // Tử Vi
+
+        // Thiên Phủ đối xứng Tử Vi qua trục Dần-Thân
+        const thienPhuIdx = (16 - tuViIdx) % 12;
+
+        VT_TU_VI.forEach((offset, i) => {
+          const idx = (tuViIdx + offset + 12) % 12;
+          housesData[idx].chinhTinh.push(NAME_TU_VI[i]);
+        });
+
+        VT_THIEN_PHU.forEach((offset, i) => {
+          const idx = (thienPhuIdx + offset) % 12;
+          // Loại bỏ trùng lặp nếu Tử Vi và Thiên Phủ đồng cung (Tại Dần, Thân)
+          if (!housesData[idx].chinhTinh.includes(NAME_THIEN_PHU[i])) {
+            housesData[idx].chinhTinh.push(NAME_THIEN_PHU[i]);
+          }
+        });
+
+        // 4. AN PHỤ TINH (Tả, Hữu, Xương, Khúc)
+        const taPhuIdx = (4 + lunarMonth - 1) % 12;
+        const huuBatIdx = (10 - lunarMonth + 1 + 12) % 12;
+        const vanKhucIdx = (4 + lunarHour - 1) % 12;
+        const vanXuongIdx = (10 - lunarHour + 1 + 12) % 12;
+
+        housesData[taPhuIdx].phuTinh.push("Tả Phù");
+        housesData[huuBatIdx].phuTinh.push("Hữu Bật");
+        housesData[vanKhucIdx].phuTinh.push("Văn Khúc");
+        housesData[vanXuongIdx].phuTinh.push("Văn Xương");
+
+        // 5. AN TUẦN / TRIỆT
+        const canYearIdx = CAN_IDX_MAP.indexOf(yearCanStr);
+        const chiYearIdx = CUNG_NAMES.indexOf(translateToVN(lunarObj.getYearZhi()));
+        
+        // Tuần Không
+        const tuan1 = (10 - (canYearIdx - chiYearIdx) + 12) % 12;
+        const tuan2 = (tuan1 + 1) % 12;
+        housesData[tuan1].tuanTriet.push("Tuần");
+        housesData[tuan2].tuanTriet.push("Tuần");
+
+        // Triệt Lộ
+        const triet1 = TRIET_MAP[canYearIdx];
+        const triet2 = triet1 + 1;
+        housesData[triet1].tuanTriet.push("Triệt");
+        housesData[triet2].tuanTriet.push("Triệt");
+
+
+        // Thông tin Thiên Bàn
+        const isYang = YANG_CANS.includes(yearCanStr);
+        const amDuongStr = isYang 
+            ? (formData.gender === "Nam giới" ? "Dương Nam" : "Dương Nữ")
+            : (formData.gender === "Nam giới" ? "Âm Nam" : "Âm Nữ");
         const banMenhStr = NAYIN_MAP[lunarObj.getYearNaYin()] || lunarObj.getYearNaYin();
 
         setChartData({
@@ -175,7 +235,7 @@ export default function TuViPage() {
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-fuchsia-200/40 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-purple-300/30 rounded-full blur-[150px] pointer-events-none"></div>
 
-      <div className="relative w-full max-w-4xl bg-white/70 backdrop-blur-xl border border-white/60 p-6 sm:p-10 rounded-[2.5rem] shadow-2xl shadow-purple-900/10">
+      <div className="relative w-full max-w-5xl bg-white/70 backdrop-blur-xl border border-white/60 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl shadow-purple-900/10">
         
         {!showResult ? (
           <div className="max-w-2xl mx-auto">
@@ -244,6 +304,25 @@ export default function TuViPage() {
                 </InputWrapper>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputWrapper icon={Briefcase}>
+                  <select name="job" value={formData.job} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer appearance-none">
+                    <option value="" disabled hidden>Tình trạng công việc</option>
+                    <option value="Đang đi học">Đang đi học</option>
+                    <option value="Đang đi làm">Đang đi làm</option>
+                    <option value="Kinh doanh tự do">Kinh doanh tự do</option>
+                  </select>
+                </InputWrapper>
+                <InputWrapper icon={Heart}>
+                  <select name="relationship" value={formData.relationship} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer appearance-none">
+                    <option value="" disabled hidden>Tình trạng mối quan hệ</option>
+                    <option value="Độc thân">Độc thân</option>
+                    <option value="Đang hẹn hò">Đang hẹn hò</option>
+                    <option value="Đã kết hôn">Đã kết hôn</option>
+                  </select>
+                </InputWrapper>
+              </div>
+
               <button 
                 onClick={handleSubmit} disabled={isLoading}
                 className="w-full mt-6 bg-gradient-to-r from-purple-600 to-fuchsia-500 hover:from-purple-700 hover:to-fuchsia-600 text-white font-bold text-lg py-4 rounded-2xl shadow-lg shadow-purple-200 transition-all active:scale-[0.98] flex justify-center items-center gap-2"
@@ -254,7 +333,7 @@ export default function TuViPage() {
           </div>
         ) : (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <button onClick={() => setShowResult(false)} className="flex items-center gap-2 text-stone-500 hover:text-purple-700 font-medium transition-colors bg-white px-4 py-2 rounded-xl border border-stone-200 shadow-sm">
                 <ArrowLeft className="w-4 h-4" /> Quay lại
               </button>
@@ -263,7 +342,7 @@ export default function TuViPage() {
             </div>
 
             {/* Lưới Lá Số Tử Vi */}
-            <div className="grid grid-cols-4 grid-rows-4 gap-1.5 sm:gap-2 max-w-4xl mx-auto h-[600px] sm:h-[700px] bg-stone-200/50 p-2 rounded-xl border border-stone-300">
+            <div className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
               {Array.from({ length: 16 }).map((_, i) => {
                 const isCenter = [5, 6, 9, 10].includes(i);
                 
@@ -272,13 +351,13 @@ export default function TuViPage() {
                   if (i === 5) return (
                     <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-purple-200 p-2 sm:p-4 text-center">
                       <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2 line-clamp-1">{formData.name}</h3>
-                      <p className="text-xs sm:text-sm font-semibold text-stone-700 mb-1">
+                      <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">
                         Sinh: <span className="text-purple-700">{formData.day}/{formData.month}/{formData.year}</span> ({formData.calendar})
                       </p>
-                      <p className="text-xs sm:text-sm font-semibold text-stone-700 mb-1">Giờ sinh: <span className="text-purple-700">{formData.time.split(" ")[0]}</span></p>
-                      <p className="text-xs sm:text-sm font-semibold text-stone-700 mb-4">Giới tính: <span className="text-purple-700">{formData.gender}</span></p>
+                      <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">Giờ sinh: <span className="text-purple-700">{formData.time.split(" ")[0]}</span></p>
+                      <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-4">Giới tính: <span className="text-purple-700">{formData.gender}</span></p>
                       
-                      <div className="w-full max-w-[280px] grid grid-cols-2 gap-x-2 gap-y-1 sm:gap-y-2 text-[11px] sm:text-[13px] text-left bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100">
+                      <div className="w-full max-w-[320px] grid grid-cols-2 gap-x-2 gap-y-1.5 sm:gap-y-2 text-[11px] sm:text-sm text-left bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100">
                         <p><span className="text-stone-500">Năm:</span> <strong className="text-stone-800">{chartData?.thienBan.namCanChi}</strong></p>
                         <p><span className="text-stone-500">Mệnh:</span> <strong className="text-stone-800">{chartData?.thienBan.banMenh}</strong></p>
                         <p><span className="text-stone-500">Cục:</span> <strong className="text-stone-800">{chartData?.thienBan.cuc}</strong></p>
@@ -297,25 +376,44 @@ export default function TuViPage() {
                 const isThan = house?.isThan;
 
                 return (
-                  <div key={i} className={`relative bg-white rounded-lg border ${isMenh ? 'border-red-400 bg-red-50/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : 'border-stone-200'} p-1.5 sm:p-2 flex flex-col justify-between overflow-hidden hover:border-purple-300 transition-colors cursor-pointer group`}>
-                    <div className="flex justify-between items-start border-b border-stone-100 pb-1 mb-1">
+                  <div key={i} className={`relative bg-white rounded-lg border ${isMenh ? 'border-red-400 bg-red-50/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : 'border-stone-200'} p-1.5 sm:p-2.5 flex flex-col justify-between overflow-hidden hover:border-purple-300 transition-colors cursor-pointer group`}>
+                    
+                    {/* Header Cung */}
+                    <div className="flex justify-between items-start border-b border-stone-100 pb-1 mb-1.5">
                       <span className={`text-[12px] sm:text-[15px] font-bold ${isMenh || isThan ? 'text-red-600' : 'text-stone-700'}`}>
                         {house?.name} {isThan && !isMenh ? <span className="text-[10px] sm:text-xs text-fuchsia-600 font-semibold">(Thân)</span> : ""}
                       </span>
-                      <span className="text-[10px] sm:text-xs text-stone-400 font-medium px-1 bg-stone-50 rounded">{cungName}</span>
+                      <span className="text-[10px] sm:text-xs text-stone-500 font-bold px-1.5 py-0.5 bg-stone-100 rounded">{cungName}</span>
                     </div>
 
-                    <div className="flex-1 text-[10px] sm:text-[11px] font-medium space-y-0.5 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                      {/* Vị trí để truyền thư viện hiển thị Chính Tinh (Tử Vi, Thiên Cơ, Thái Dương...) */}
-                      <p className="text-stone-400 italic">...Đang cập nhật sao</p>
+                    {/* Danh sách Sao */}
+                    <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-hide">
+                      {/* Chính tinh (In đậm, màu đỏ/xanh lá) */}
+                      {house?.chinhTinh.map((star: string, idx: number) => (
+                        <div key={idx} className="text-[11px] sm:text-[13px] font-bold text-rose-600 uppercase tracking-tight">{star}</div>
+                      ))}
+                      
+                      {/* Phụ tinh (Màu xám/đen) */}
+                      {house?.phuTinh.map((star: string, idx: number) => (
+                        <div key={idx} className="text-[11px] sm:text-[12px] font-medium text-stone-600">{star}</div>
+                      ))}
                     </div>
+
+                    {/* Vòng Tuần Triệt hiển thị góc dưới */}
+                    {house?.tuanTriet.length > 0 && (
+                      <div className="absolute bottom-1 right-1 flex gap-1">
+                        {house.tuanTriet.map((t: string, idx: number) => (
+                          <div key={idx} className="text-[9px] sm:text-[10px] font-bold text-white bg-slate-700 px-1.5 py-0.5 rounded-sm">{t}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
             
             <p className="text-center text-xs sm:text-sm text-stone-500 mt-5 font-medium">
-              * Engine đã tự động tính chính xác Mệnh, Thân, Ngũ Hành Cục và vị trí 12 Cung. Để xuất hiện 108 vì sao, bạn chỉ cần gài gói dữ liệu an sao vào mảng `chinhTinh` và `phuTinh`.
+              * Thuật toán an sao tự động (Bản tiêu chuẩn). 14 Chính tinh, Tuần Không, Triệt Lộ và Tứ Phụ tinh.
             </p>
           </div>
         )}
