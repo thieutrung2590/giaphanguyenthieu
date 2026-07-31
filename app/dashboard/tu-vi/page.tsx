@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass } from "lucide-react";
 import { useMemo, useState } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
 
-// --- BỘ TỪ ĐIỂN 60 HOA GIÁP & NGŨ HÀNH ---
 const NGU_HANH_NAP_AM: Record<string, string> = {
   "giáp tý": "Hải Trung Kim", "ất sửu": "Hải Trung Kim", "bính dần": "Lư Trung Hỏa", "đinh mão": "Lư Trung Hỏa",
   "mậu thìn": "Đại Lâm Mộc", "kỷ tỵ": "Đại Lâm Mộc", "canh ngọ": "Lộ Bàng Thổ", "tân mùi": "Lộ Bàng Thổ",
@@ -24,7 +23,6 @@ const NGU_HANH_NAP_AM: Record<string, string> = {
   "canh thân": "Thạch Lựu Mộc", "tân dậu": "Thạch Lựu Mộc", "nhâm tuất": "Đại Hải Thủy", "quý hợi": "Đại Hải Thủy"
 };
 
-// --- CÁC HÀM TÍNH TOÁN (Đã bọc chống lỗi) ---
 function getBanMenhFallback(canChi: string) {
   if (!canChi || typeof canChi !== 'string') return "Chưa xác định";
   const key = canChi.toLowerCase().replace("năm", "").trim();
@@ -70,9 +68,8 @@ const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.Rea
 const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 4: "Thìn", 7: "Dậu", 8: "Mão", 11: "Tuất", 12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" };
 
 export default function TuViPage() {
-  // Sửa giá trị minute thành "0" để khớp 100% với Option Value sinh ra
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "0", 
     gender: "Nam giới", viewYear: "2026"
@@ -81,13 +78,38 @@ export default function TuViPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [chartData, setChartData] = useState<any>(null);
+  
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("tong_quan"); // Lưu trạng thái nút đang chọn
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
     const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
     setFormData(prev => ({ ...prev, [target.name]: value }));
+  };
+
+  // Hàm gọi AI chung, hỗ trợ phân loại theo category
+  const fetchAIReading = async (cat: string, currentChartData: any) => {
+    setIsReading(true);
+    setActiveCategory(cat);
+
+    const menhCung = currentChartData.gridCung.find((c: any) => c && c.Name === "Mệnh");
+    const chinhTinhMenh = (menhCung?.ChinhTinh || []).map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
+
+    const aiPromptData = {
+      name: currentChartData.info.Name,
+      gender: formData.gender,
+      amDuong: currentChartData.info.AmDuong,
+      banMenh: currentChartData.info.BanMenh,
+      cuc: currentChartData.info.Cuc,
+      chinhTinh: chinhTinhMenh,
+      category: cat
+    };
+
+    const readingResult = await getLuangiaiAI(aiPromptData);
+    setAiReading(readingResult);
+    setIsReading(false);
   };
 
   const handleSubmit = () => {
@@ -146,23 +168,8 @@ export default function TuViPage() {
         setShowResult(true);
         setIsLoading(false);
 
-        setIsReading(true);
-
-        const menhCung = gridCacCung.find((c: any) => c && c.Name === "Mệnh");
-        const chinhTinhMenh = (menhCung?.ChinhTinh || []).map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
-
-        const aiPromptData = {
-          name: safeInfo.Name,
-          gender: formData.gender,
-          amDuong: safeInfo.AmDuong,
-          banMenh: safeInfo.BanMenh,
-          cuc: safeInfo.Cuc,
-          chinhTinh: chinhTinhMenh
-        };
-
-        const readingResult = await getLuangiaiAI(aiPromptData);
-        setAiReading(readingResult);
-        setIsReading(false);
+        // Gọi AI luận giải mặc định góc độ tổng quan
+        fetchAIReading("tong_quan", newChartData);
 
       } catch (error) {
         alert("Lỗi lập lá số, vui lòng kiểm tra lại thông tin!");
@@ -344,16 +351,48 @@ export default function TuViPage() {
               })}
             </div>
 
+            {/* AI LUẬN GIẢI KÈM CÁC NÚT CHỌN GÓC ĐỘ */}
             <div className="mt-8 max-w-5xl mx-auto bg-gradient-to-br from-purple-50 to-white p-6 sm:p-8 rounded-2xl border border-purple-200 shadow-sm">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-fuchsia-100 rounded-lg text-fuchsia-600"><Sparkles className="w-6 h-6" /></div>
-                <h3 className="text-xl font-bold text-purple-900">AI Luận Giải Lá Số</h3>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-purple-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-fuchsia-100 rounded-lg text-fuchsia-600"><Sparkles className="w-6 h-6" /></div>
+                  <h3 className="text-xl font-bold text-purple-900">AI Luận Giải Lá Số</h3>
+                </div>
+
+                {/* CÁC NÚT CHỌN GÓC ĐỘ LUẬN GIẢI */}
+                <div className="flex flex-wrap gap-2">
+                  <button 
+                    onClick={() => fetchAIReading("tong_quan", chartData)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tong_quan" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                  >
+                    <Compass className="w-3.5 h-3.5" /> Tổng quan
+                  </button>
+                  <button 
+                    onClick={() => fetchAIReading("cong_danh", chartData)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "cong_danh" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                  >
+                    <Briefcase className="w-3.5 h-3.5" /> Công danh
+                  </button>
+                  <button 
+                    onClick={() => fetchAIReading("tai_loc", chartData)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tai_loc" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                  >
+                    <Coins className="w-3.5 h-3.5" /> Tài lộc
+                  </button>
+                  <button 
+                    onClick={() => fetchAIReading("tinh_duyen", chartData)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tinh_duyen" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                  >
+                    <Heart className="w-3.5 h-3.5" /> Tình duyên
+                  </button>
+                </div>
               </div>
+
               <div className="text-stone-700 leading-relaxed min-h-[150px]">
                 {isReading ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-fuchsia-600 py-10">
                     <Loader2 className="w-8 h-8 animate-spin" />
-                    <p className="font-medium animate-pulse">Tinh tú đang hội tụ. AI đang phân tích cung mệnh...</p>
+                    <p className="font-medium animate-pulse">Tinh tú đang hội tụ. AI đang phân tích theo góc độ đã chọn...</p>
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap font-medium">{aiReading}</div>
