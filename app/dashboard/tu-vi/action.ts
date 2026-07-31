@@ -7,8 +7,9 @@ export async function getLuangiaiAI(data: {
   banMenh: string;
   cuc: string;
   chinhTinh: string;
-  tuanTriet: string; // Nhận dữ liệu Tuần/Triệt từ giao diện
+  tuanTriet?: string; 
   category?: string;
+  viewYear?: string; // Bổ sung thông tin Năm xem hạn
 }) {
   const apiKey = process.env.GROQ_API_KEY;
   
@@ -16,9 +17,9 @@ export async function getLuangiaiAI(data: {
     return "Lỗi: Không tìm thấy GROQ_API_KEY trên Vercel.";
   }
 
-  // Tùy chỉnh nội dung yêu cầu (Prompt) dựa trên nút bấm mà người dùng chọn
   let specificPrompt = "";
   const cat = data.category || "tong_quan";
+  const namXemHan = data.viewYear || "hiện tại";
 
   if (cat === "cong_danh") {
     specificPrompt = `Tập trung chuyên sâu phân tích về đường Công danh, Sự nghiệp, Quan lộc và Khả năng lãnh đạo của đương số dựa trên Mệnh cục và các chính tinh. Đưa ra lời khuyên về định hướng nghề nghiệp phù hợp.`;
@@ -27,13 +28,13 @@ export async function getLuangiaiAI(data: {
   } else if (cat === "tinh_duyen") {
     specificPrompt = `Tập trung chuyên sâu phân tích về Tình duyên, Hôn nhân, Gia đạo và các mối quan hệ tình cảm của đương số.`;
   } else if (cat === "van_han") {
-    // BỔ SUNG GÓC ĐỘ VẬN HẠN
-    specificPrompt = `Tập trung chuyên sâu phân tích về Vận hạn, những thăng trầm trong cuộc đời, các giai đoạn bĩ cực và thái lai. Đưa ra lời khuyên để đương số hóa giải hung hiểm, đón nhận cát tường.`;
+    specificPrompt = `Tập trung chuyên sâu phân tích về VẬN HẠN TRONG NĂM ${namXemHan} của đương số. Đưa ra dự đoán về những cơ hội, thách thức trong năm ${namXemHan} và lời khuyên để hóa giải hung hiểm, đón nhận cát tường.`;
   } else {
     specificPrompt = `Nhận xét tổng quan về tính cách, khí chất và định hướng cuộc đời dựa trên Bản mệnh và sao tại cung Mệnh.`;
   }
 
-  // BỔ SUNG YÊU CẦU PHÂN TÍCH TUẦN KHÔNG / TRIỆT LỘ VÀO PROMPT
+  const tuanTrietInfo = data.tuanTriet ? `- Mức độ ảnh hưởng của Tuần/Triệt: ${data.tuanTriet}` : "";
+
   const prompt = `Hãy đóng vai một bậc thầy Tử Vi Đẩu Số uyên bác. Hãy viết một bài luận giải chi tiết, mang âm hưởng huyền bí nhưng thực tế cho đương số sau:
   - Tên: ${data.name}
   - Giới tính: ${data.gender}
@@ -41,12 +42,13 @@ export async function getLuangiaiAI(data: {
   - Bản Mệnh: ${data.banMenh}
   - Cục: ${data.cuc}
   - Các sao tại cung Mệnh: ${data.chinhTinh}
-  - Mức độ ảnh hưởng của Tuần/Triệt tại cung Mệnh: ${data.tuanTriet}
+  - Năm đang xem vận hạn: ${namXemHan}
+  ${tuanTrietInfo}
 
   YÊU CẦU TRỌNG TÂM:
   ${specificPrompt}
   
-  LƯU Ý ĐẶC BIỆT: Hãy phân tích kỹ sự ảnh hưởng của Tuần Không / Triệt Lộ (nếu có) đến những khó khăn, cản trở, hoặc sự thay đổi cục diện của đương số. Không dùng định dạng quá phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng rõ ràng, độ dài khoảng 250 - 350 chữ.`;
+  LƯU Ý ĐẶC BIỆT: Nếu có thông tin Tuần/Triệt, hãy phân tích kỹ sự ảnh hưởng của Tuần Không / Triệt Lộ đến những khó khăn, cản trở của đương số. Không dùng định dạng quá phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng rõ ràng, độ dài khoảng 250 - 350 chữ.`;
 
   const modelsToTry = [
     "llama-3.3-70b-versatile",
