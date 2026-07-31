@@ -28,39 +28,55 @@ export async function getLuangiaiAI(data: {
   2. Đưa ra một vài lời khuyên trọng tâm giúp đương số phát huy điểm mạnh, hạn chế điểm yếu.
   3. Không dùng định dạng phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng. Giới hạn khoảng 250 - 300 chữ.`;
 
-  try {
-    // Gọi trực tiếp đến máy chủ của Groq (Tương thích chuẩn OpenAI)
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "llama3-70b-8192", // Mô hình LLaMA 3 70B siêu thông minh và tốc độ cực nhanh của Groq
-        messages: [
-          { role: "system", content: "Bạn là một chuyên gia Tử Vi Đẩu Số uyên bác, thông thạo văn phong và văn hóa Việt Nam." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.7, 
-        max_tokens: 1024, 
-      }),
-    });
+  // Danh sách các mô hình AI dự phòng của Groq (Tự động dò tìm phiên bản hoạt động)
+  const modelsToTry = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
+  ];
 
-    const result = await response.json();
+  let lastErrorMessage = "";
 
-    // Xử lý nếu máy chủ Groq báo lỗi (Sai key, vượt quá giới hạn...)
-    if (!response.ok) {
-      return `LỖI TỪ GROQ AI: ${result.error?.message || "Không xác định"}
-      
-      💡 GỢI Ý KHẮC PHỤC:
-      1. Đảm bảo bạn đã nhập đúng GROQ_API_KEY trên Vercel.
-      2. Nếu lỗi liên quan đến Rate Limit (Giới hạn truy cập), hãy chờ khoảng 1 phút rồi thử lại do Groq giới hạn số lần gọi trên mỗi phút cho tài khoản miễn phí.`;
+  // Tự động quét: Thử gọi từng model, nếu model nào phản hồi thành công thì trả về kết quả
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: "system", content: "Bạn là một chuyên gia Tử Vi Đẩu Số uyên bác, thông thạo văn phong và văn hóa Việt Nam." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7, 
+          max_tokens: 1024, 
+        }),
+      });
+
+      const result = await response.json();
+
+      // Nếu API trả về văn bản thành công
+      if (response.ok && result.choices && result.choices.length > 0) {
+        return result.choices[0].message.content;
+      } else {
+        // Ghi nhận lỗi nhưng không dừng, tiếp tục thử model khác trong mảng
+        lastErrorMessage = result.error?.message || "Lỗi không xác định";
+      }
+    } catch (error: any) {
+      lastErrorMessage = error.message;
     }
-
-    // Trả kết quả luận giải về màn hình
-    return result.choices[0].message.content;
-  } catch (error: any) {
-    return `LỖI KẾT NỐI MẠNG: ${error.message}`;
   }
+
+  // Nếu tất cả các mô hình đều thất bại
+  return `LỖI TỪ GROQ AI: ${lastErrorMessage}
+  
+  💡 GỢI Ý KHẮC PHỤC:
+  1. Đảm bảo GROQ_API_KEY trên Vercel là chính xác và còn hiệu lực.
+  2. Nếu lỗi liên quan đến Rate Limit, hãy chờ 1 phút rồi thử lại.`;
 }
