@@ -27,31 +27,49 @@ export async function getLuangiaiAI(data: {
   2. Đưa ra một vài lời khuyên trọng tâm giúp đương số phát huy điểm mạnh, hạn chế điểm yếu.
   3. Không dùng định dạng phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng. Giới hạn khoảng 250 - 300 chữ.`;
 
-  try {
-    // GỌI TRỰC TIẾP MÁY CHỦ GOOGLE BẰNG FETCH API (Không qua thư viện trung gian)
-    // Cố định dùng model gemini-1.5-flash mới nhất và siêu tốc độ
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    });
+  // Danh sách các mô hình AI dự phòng (Từ mới nhất đến các bản ổn định nhất)
+  const modelsToTry = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro-latest",
+    "gemini-pro"
+  ];
 
-    const result = await response.json();
+  let lastErrorMessage = "";
 
-    // Nếu Google từ chối, in thẳng lỗi ra màn hình bằng tiếng Việt
-    if (!response.ok) {
-      return `LỖI TỪ GOOGLE AI: ${result.error?.message || "Không xác định"}\n\n💡 CÁCH KHẮC PHỤC DỨT ĐIỂM:\nMã API Key hiện tại của bạn không có quyền truy cập. Bạn hãy vào https://aistudio.google.com/app/apikey, bấm nút "Create API key" để tạo một mã MỚI TINH. Sau đó dán đè mã mới lên mã cũ trong Vercel (Tab Settings -> Environment Variables) và Redeploy lại là xong!`;
+  // Tự động dò tìm: Thử gọi từng model, nếu model nào còn sống thì lấy kết quả và thoát.
+  for (const model of modelsToTry) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      const result = await response.json();
+
+      // Nếu máy chủ Google đồng ý và trả về văn bản thành công
+      if (response.ok && result.candidates && result.candidates.length > 0) {
+        return result.candidates[0].content.parts[0].text;
+      } else {
+        // Lưu lại lỗi nhưng KHÔNG dừng lại, tiếp tục vòng lặp thử model tiếp theo
+        lastErrorMessage = result.error?.message || "Lỗi không xác định";
+      }
+    } catch (error: any) {
+      lastErrorMessage = error.message;
     }
-
-    // Trả về đoạn văn bản AI đã luận giải
-    return result.candidates[0].content.parts[0].text;
-  } catch (error: any) {
-    return `LỖI KẾT NỐI: ${error.message}`;
   }
+
+  // Nếu đã chạy qua toàn bộ danh sách mà vẫn lỗi, chứng tỏ API Key của bạn có vấn đề
+  return `LỖI TỪ GOOGLE AI: Máy chủ từ chối kết nối. Lỗi cuối cùng: ${lastErrorMessage}
+  
+  💡 HƯỚNG DẪN KHẮC PHỤC DỨT ĐIỂM:
+  Mã API Key của bạn khả năng cao đã bị khóa hoặc hết hạn. Bạn hãy dùng một tài khoản Gmail KHÁC, vào https://aistudio.google.com/app/apikey tạo một mã API Key mới tinh. Dán thay thế vào Vercel và Redeploy lại là chắc chắn 100% thành công!`;
 }
