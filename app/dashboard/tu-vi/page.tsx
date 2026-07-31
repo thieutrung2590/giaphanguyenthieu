@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass } from "lucide-react";
+import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
@@ -81,7 +81,10 @@ export default function TuViPage() {
   
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("tong_quan"); // Lưu trạng thái nút đang chọn
+  const [activeCategory, setActiveCategory] = useState("tong_quan"); 
+  
+  // KHỞI TẠO BỘ NHỚ ĐỆM (CACHE)
+  const [aiCache, setAiCache] = useState<Record<string, string>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
@@ -89,13 +92,25 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
-  // Hàm gọi AI chung, hỗ trợ phân loại theo category
   const fetchAIReading = async (cat: string, currentChartData: any) => {
-    setIsReading(true);
     setActiveCategory(cat);
+
+    // BỘ NHỚ ĐỆM: Nếu đã từng luận giải góc độ này, lấy thẳng từ Cache hiển thị luôn
+    if (aiCache[cat]) {
+      setAiReading(aiCache[cat]);
+      return;
+    }
+
+    setIsReading(true);
 
     const menhCung = currentChartData.gridCung.find((c: any) => c && c.Name === "Mệnh");
     const chinhTinhMenh = (menhCung?.ChinhTinh || []).map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
+    
+    // TRÍCH XUẤT THÔNG TIN TUẦN KHÔNG / TRIỆT LỘ
+    const tuanTrietArr = [];
+    if (menhCung?.Tuan === 1) tuanTrietArr.push("Tuần Không");
+    if (menhCung?.Triet === 1) tuanTrietArr.push("Triệt Lộ");
+    const tuanTrietStr = tuanTrietArr.length > 0 ? tuanTrietArr.join(" và ") : "Cung Mệnh sáng sủa, không bị Tuần Không hay Triệt Lộ án ngữ.";
 
     const aiPromptData = {
       name: currentChartData.info.Name,
@@ -104,11 +119,16 @@ export default function TuViPage() {
       banMenh: currentChartData.info.BanMenh,
       cuc: currentChartData.info.Cuc,
       chinhTinh: chinhTinhMenh,
+      tuanTriet: tuanTrietStr,
       category: cat
     };
 
     const readingResult = await getLuangiaiAI(aiPromptData);
     setAiReading(readingResult);
+    
+    // LƯU KẾT QUẢ VÀO BỘ NHỚ ĐỆM ĐỂ LẦN SAU BẤM KHÔNG CẦN CHỜ ĐỢI
+    setAiCache(prev => ({ ...prev, [cat]: readingResult }));
+    
     setIsReading(false);
   };
 
@@ -117,6 +137,7 @@ export default function TuViPage() {
     
     setIsLoading(true);
     setAiReading("");
+    setAiCache({}); // Xóa bộ nhớ đệm cũ mỗi khi lập lá số của người mới
 
     setTimeout(async () => {
       try {
@@ -168,7 +189,6 @@ export default function TuViPage() {
         setShowResult(true);
         setIsLoading(false);
 
-        // Gọi AI luận giải mặc định góc độ tổng quan
         fetchAIReading("tong_quan", newChartData);
 
       } catch (error) {
@@ -351,7 +371,6 @@ export default function TuViPage() {
               })}
             </div>
 
-            {/* AI LUẬN GIẢI KÈM CÁC NÚT CHỌN GÓC ĐỘ */}
             <div className="mt-8 max-w-5xl mx-auto bg-gradient-to-br from-purple-50 to-white p-6 sm:p-8 rounded-2xl border border-purple-200 shadow-sm">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-purple-100 pb-4">
                 <div className="flex items-center gap-3">
@@ -359,7 +378,6 @@ export default function TuViPage() {
                   <h3 className="text-xl font-bold text-purple-900">AI Luận Giải Lá Số</h3>
                 </div>
 
-                {/* CÁC NÚT CHỌN GÓC ĐỘ LUẬN GIẢI */}
                 <div className="flex flex-wrap gap-2">
                   <button 
                     onClick={() => fetchAIReading("tong_quan", chartData)}
@@ -384,6 +402,13 @@ export default function TuViPage() {
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tinh_duyen" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
                   >
                     <Heart className="w-3.5 h-3.5" /> Tình duyên
+                  </button>
+                  {/* NÚT VẬN HẠN ĐƯỢC BỔ SUNG */}
+                  <button 
+                    onClick={() => fetchAIReading("van_han", chartData)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "van_han" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Vận hạn
                   </button>
                 </div>
               </div>
