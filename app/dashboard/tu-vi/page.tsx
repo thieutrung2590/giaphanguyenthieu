@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeft, Briefcase, CalendarDays, CalendarSearch, Clock, Heart, Loader2, Sparkles, User, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
 
-// --- BỘ TỪ ĐIỂN 60 HOA GIÁP & NGŨ HÀNH NẠP ÂM ---
+// --- BỘ TỪ ĐIỂN 60 HOA GIÁP & NGŨ HÀNH ---
 const NGU_HANH_NAP_AM: Record<string, string> = {
   "giáp tý": "Hải Trung Kim", "ất sửu": "Hải Trung Kim", "bính dần": "Lư Trung Hỏa", "đinh mão": "Lư Trung Hỏa",
   "mậu thìn": "Đại Lâm Mộc", "kỷ tỵ": "Đại Lâm Mộc", "canh ngọ": "Lộ Bàng Thổ", "tân mùi": "Lộ Bàng Thổ",
@@ -24,18 +24,20 @@ const NGU_HANH_NAP_AM: Record<string, string> = {
   "canh thân": "Thạch Lựu Mộc", "tân dậu": "Thạch Lựu Mộc", "nhâm tuất": "Đại Hải Thủy", "quý hợi": "Đại Hải Thủy"
 };
 
+// --- CÁC HÀM TÍNH TOÁN (Đã bọc chống lỗi) ---
 function getBanMenhFallback(canChi: string) {
-  if (!canChi) return "Chưa xác định";
+  if (!canChi || typeof canChi !== 'string') return "Chưa xác định";
   const key = canChi.toLowerCase().replace("năm", "").trim();
   return NGU_HANH_NAP_AM[key] || "Chưa xác định";
 }
 
 function getHourCanChiName(hourStr: string) {
-  if (hourStr === "") return "Giờ";
+  if (!hourStr) return "Giờ";
   const h = parseInt(hourStr);
+  if (isNaN(h)) return "Giờ";
   const HO_CHI = ["Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"];
   const index = Math.floor((h + 1) / 2) % 12;
-  return `Giờ ${HO_CHI[index]}`;
+  return `Giờ ${HO_CHI[index] || ""}`;
 }
 
 function getYearCanChi(yearStr: string) {
@@ -44,11 +46,11 @@ function getYearCanChi(yearStr: string) {
   if (isNaN(y)) return "";
   const CAN = ["Canh", "Tân", "Nhâm", "Quý", "Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ"];
   const CHI = ["Thân", "Dậu", "Tuất", "Hợi", "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi"];
-  return `Năm ${CAN[y % 10]} ${CHI[y % 12]}`;
+  return `Năm ${CAN[y % 10] || ""} ${CHI[y % 12] || ""}`;
 }
 
 function getElementColor(nguHanh: string, isChinhTinh: boolean = false) {
-  if (!nguHanh) return isChinhTinh ? "text-stone-800" : "text-stone-600";
+  if (!nguHanh || typeof nguHanh !== 'string') return isChinhTinh ? "text-stone-800" : "text-stone-600";
   const nh = nguHanh.toLowerCase();
   if (nh.includes("kim") || nh === "k") return "text-slate-500";
   if (nh.includes("mộc") || nh === "m" || nh.includes("moc")) return "text-emerald-600";
@@ -68,10 +70,11 @@ const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.Rea
 const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 4: "Thìn", 7: "Dậu", 8: "Mão", 11: "Tuất", 12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" };
 
 export default function TuViPage() {
+  // Sửa giá trị minute thành "0" để khớp 100% với Option Value sinh ra
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
-    hour: "10", minute: "00", 
+    hour: "10", minute: "0", 
     gender: "Nam giới", viewYear: "2026"
   });
 
@@ -84,7 +87,7 @@ export default function TuViPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
     const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
-    setFormData({ ...formData, [target.name]: value });
+    setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
   const handleSubmit = () => {
@@ -95,9 +98,11 @@ export default function TuViPage() {
 
     setTimeout(async () => {
       try {
-        const y = parseInt(formData.year), m = parseInt(formData.month || "1"), d = parseInt(formData.day || "1");
-        const h = parseInt(formData.hour);
-        const min = parseInt(formData.minute);
+        const y = parseInt(formData.year) || 1990;
+        const m = parseInt(formData.month) || 1;
+        const d = parseInt(formData.day) || 1;
+        const h = parseInt(formData.hour) || 0;
+        const min = parseInt(formData.minute) || 0;
 
         const laso = generateLaSo({
           name: formData.name,
@@ -117,7 +122,7 @@ export default function TuViPage() {
 
         const rawInfo = (laso as any).Info || (laso as any).info || {};
         
-        const namCanChi = rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || "Chưa xác định";
+        const namCanChi = rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || getYearCanChi(String(y)) || "Chưa xác định";
         const thangCanChi = rawInfo.Thang || rawInfo.thang || rawInfo.thangCanChi || "Chưa xác định";
         const ngayCanChi = rawInfo.Ngay || rawInfo.ngay || rawInfo.ngayCanChi || "Chưa xác định";
         const gioCanChi = rawInfo.Gio || rawInfo.gio || rawInfo.gioCanChi || "Chưa xác định";
@@ -144,7 +149,7 @@ export default function TuViPage() {
         setIsReading(true);
 
         const menhCung = gridCacCung.find((c: any) => c && c.Name === "Mệnh");
-        const chinhTinhMenh = menhCung?.ChinhTinh.map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
+        const chinhTinhMenh = (menhCung?.ChinhTinh || []).map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
 
         const aiPromptData = {
           name: safeInfo.Name,
@@ -188,15 +193,15 @@ export default function TuViPage() {
                   <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
                     <select name="day" value={formData.day} onChange={handleChange} className="bg-transparent outline-none w-full pr-2">
                       <option value="">Ngày</option>
-                      {Array.from({ length: 31 }).map((_, i) => <option key={i} value={String(i + 1)}>Ngày {i + 1}</option>)}
+                      {Array.from({ length: 31 }, (_, i) => String(i + 1)).map(d => <option key={d} value={d}>Ngày {d}</option>)}
                     </select>
                     <select name="month" value={formData.month} onChange={handleChange} className="bg-transparent outline-none w-full px-2">
                       <option value="">Tháng</option>
-                      {Array.from({ length: 12 }).map((_, i) => <option key={i} value={String(i + 1)}>Tháng {i + 1}</option>)}
+                      {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(m => <option key={m} value={m}>Tháng {m}</option>)}
                     </select>
                     <select name="year" value={formData.year} onChange={handleChange} className="bg-transparent outline-none w-full px-2">
                       <option value="">Năm</option>
-                      {Array.from({ length: 100 }).map((_, i) => { const y = 2030 - i; return <option key={y} value={String(y)}>{y}</option>; })}
+                      {Array.from({ length: 100 }, (_, i) => String(2030 - i)).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                     <select name="calendar" value={formData.calendar} onChange={handleChange} className="bg-transparent outline-none w-full pl-2 text-purple-700 font-bold">
                       <option value="Dương lịch">Dương lịch</option>
@@ -217,15 +222,15 @@ export default function TuViPage() {
                 <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
                   <select name="hour" value={formData.hour} onChange={handleChange} className="bg-transparent outline-none w-full pr-2 cursor-pointer">
                     <option value="">Giờ sinh</option>
-                    {Array.from({ length: 24 }).map((_, i) => (
-                      <option key={i} value={String(i)}>{i.toString().padStart(2, '0')} giờ</option>
+                    {Array.from({ length: 24 }, (_, i) => String(i)).map(h => (
+                      <option key={h} value={h}>{h.padStart(2, '0')} giờ</option>
                     ))}
                   </select>
                   
                   <select name="minute" value={formData.minute} onChange={handleChange} className="bg-transparent outline-none w-full px-2 cursor-pointer">
                     <option value="">Phút sinh</option>
-                    {Array.from({ length: 60 }).map((_, i) => (
-                      <option key={i} value={String(i)}>{i.toString().padStart(2, '0')} phút</option>
+                    {Array.from({ length: 60 }, (_, i) => String(i)).map(m => (
+                      <option key={m} value={m}>{m.padStart(2, '0')} phút</option>
                     ))}
                   </select>
                   
@@ -261,7 +266,7 @@ export default function TuViPage() {
                 if (isCenter) {
                   if (i === 5) return (
                     <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-purple-200 p-2 sm:p-4 text-center">
-                      <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info.Name}</h3>
+                      <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info?.Name || "Không rõ"}</h3>
                       <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">
                         Sinh: <span className="text-purple-700">{String(formData.hour).padStart(2, '0')}:{String(formData.minute).padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} {formData.calendar === "Âm lịch" && formData.isLeapMonth ? "(Nhuận)" : ""}</span>
                       </p>
@@ -270,26 +275,26 @@ export default function TuViPage() {
                         <div className="grid grid-cols-4 gap-1 text-[10px] sm:text-xs text-center border-b border-purple-200/60 pb-2 mb-2">
                           <div className="flex flex-col items-center">
                             <span className="text-stone-500 mb-0.5">Năm</span>
-                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info.Nam}</strong>
+                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Nam || "-"}</strong>
                           </div>
                           <div className="flex flex-col items-center">
                             <span className="text-stone-500 mb-0.5">Tháng</span>
-                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info.Thang}</strong>
+                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Thang || "-"}</strong>
                           </div>
                           <div className="flex flex-col items-center">
                             <span className="text-stone-500 mb-0.5">Ngày</span>
-                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info.Ngay}</strong>
+                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Ngay || "-"}</strong>
                           </div>
                           <div className="flex flex-col items-center">
                             <span className="text-stone-500 mb-0.5">Giờ</span>
-                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info.Gio}</strong>
+                            <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Gio || "-"}</strong>
                           </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] sm:text-sm text-left px-1">
-                          <p><span className="text-stone-500">Mệnh:</span> <strong className="text-stone-800">{chartData?.info.BanMenh}</strong></p>
-                          <p><span className="text-stone-500">Cục:</span> <strong className="text-stone-800">{chartData?.info.Cuc}</strong></p>
-                          <p className="col-span-2"><span className="text-stone-500">Âm Dương:</span> <strong className="text-stone-800">{chartData?.info.AmDuong}</strong></p>
+                          <p><span className="text-stone-500">Mệnh:</span> <strong className="text-stone-800">{chartData?.info?.BanMenh || "-"}</strong></p>
+                          <p><span className="text-stone-500">Cục:</span> <strong className="text-stone-800">{chartData?.info?.Cuc || "-"}</strong></p>
+                          <p className="col-span-2"><span className="text-stone-500">Âm Dương:</span> <strong className="text-stone-800">{chartData?.info?.AmDuong || "-"}</strong></p>
                         </div>
                       </div>
                     </div>
@@ -297,7 +302,7 @@ export default function TuViPage() {
                   return null;
                 }
 
-                const house = chartData?.gridCung[i];
+                const house = chartData?.gridCung?.[i];
                 if (!house) return <div key={i} className="bg-transparent" />;
                 const isMenh = house.Name === "Mệnh";
                 const isThan = house.Than === 1;
@@ -317,15 +322,15 @@ export default function TuViPage() {
                     
                     <div className="flex-1 overflow-y-auto space-y-0.5 flex flex-col items-center scrollbar-hide">
                       <div className="flex flex-col items-center mb-1 w-full gap-0.5">
-                        {house.ChinhTinh.map((star: any, idx: number) => (
+                        {(house.ChinhTinh || []).map((star: any, idx: number) => (
                            <div key={`ct-${idx}`} className={`text-[11px] sm:text-[12px] font-bold uppercase ${getElementColor(star.NguHanh, true)} flex gap-1`}>
                              {star.Name} {star.DacTinh && <span className="text-[9px] text-gray-400 lowercase font-normal">({star.DacTinh})</span>}
                            </div>
                         ))}
                       </div>
                       <div className="grid grid-cols-2 w-full gap-1 mt-1 border-t border-stone-50 pt-1">
-                        <div className="flex flex-col items-start">{house.Saotot.map((star: any, idx: number) => <div key={`st-${idx}`} className={`text-[10px] font-medium ${getElementColor(star.NguHanh)}`}>{star.Name}</div>)}</div>
-                        <div className="flex flex-col items-end">{house.Saoxau.map((star: any, idx: number) => <div key={`sx-${idx}`} className={`text-[10px] font-medium text-right ${getElementColor(star.NguHanh)}`}>{star.Name}</div>)}</div>
+                        <div className="flex flex-col items-start">{(house.Saotot || []).map((star: any, idx: number) => <div key={`st-${idx}`} className={`text-[10px] font-medium ${getElementColor(star.NguHanh)}`}>{star.Name}</div>)}</div>
+                        <div className="flex flex-col items-end">{(house.Saoxau || []).map((star: any, idx: number) => <div key={`sx-${idx}`} className={`text-[10px] font-medium text-right ${getElementColor(star.NguHanh)}`}>{star.Name}</div>)}</div>
                       </div>
                     </div>
                     {(house.Tuan === 1 || house.Triet === 1) && (
