@@ -20,13 +20,13 @@ export async function getLuangiaiAI(data: {
   const cat = data.category || "tong_quan";
 
   if (cat === "cong_danh") {
-    specifcPrompt = `Tập trung chuyên sâu phân tích về đường **Công danh, Sự nghiệp, Quan lộc và Khả năng lãnh đạo** của đương số dựa trên Mệnh cục và các chính tinh. Đưa ra lời khuyên về định hướng nghề nghiệp phù hợp.`;
+    specificPrompt = `Tập trung chuyên sâu phân tích về đường **Công danh, Sự nghiệp, Quan lộc và Khả năng lãnh đạo** của đương số dựa trên Mệnh cục và các chính tinh. Đưa ra lời khuyên về định hướng nghề nghiệp phù hợp.`;
   } else if (cat === "tai_loc") {
-    specifcPrompt = `Tập trung chuyên sâu phân tích về **Tài lộc, Tiền bạc, khả năng quản lý tài chính và cơ hội làm giàu** của đương số.`;
+    specificPrompt = `Tập trung chuyên sâu phân tích về **Tài lộc, Tiền bạc, khả năng quản lý tài chính và cơ hội làm giàu** của đương số.`;
   } else if (cat === "tinh_duyen") {
-    specifcPrompt = `Tập trung chuyên sâu phân tích về **Tình duyên, Hôn nhân, Gia đạo và các mối quan hệ tình cảm** của đương số.`;
+    specificPrompt = `Tập trung chuyên sâu phân tích về **Tình duyên, Hôn nhân, Gia đạo và các mối quan hệ tình cảm** của đương số.`;
   } else {
-    specifcPrompt = `Nhận xét tổng quan về tính cách, khí chất và định hướng cuộc đời dựa trên Bản mệnh và sao tại cung Mệnh.`;
+    specificPrompt = `Nhận xét tổng quan về tính cách, khí chất và định hướng cuộc đời dựa trên Bản mệnh và sao tại cung Mệnh.`;
   }
 
   const prompt = `Hãy đóng vai một bậc thầy Tử Vi Đẩu Số uyên bác. Hãy viết một bài luận giải chi tiết, mang âm hưởng huyền bí nhưng thực tế cho đương số sau:
@@ -38,7 +38,7 @@ export async function getLuangiaiAI(data: {
   - Các sao tại cung Mệnh: ${data.chinhTinh}
 
   YÊU CẦU TRỌNG TÂM:
-  ${specifcPrompt}
+  ${specificPrompt}
   
   Lưu ý: Không dùng định dạng quá phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng rõ ràng, độ dài khoảng 250 - 300 chữ.`;
 
