@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowLeft, Briefcase, CalendarDays, CalendarSearch, Clock, Heart, Loader2, Sparkles, User, Users } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
@@ -25,14 +24,12 @@ const NGU_HANH_NAP_AM: Record<string, string> = {
   "canh thân": "Thạch Lựu Mộc", "tân dậu": "Thạch Lựu Mộc", "nhâm tuất": "Đại Hải Thủy", "quý hợi": "Đại Hải Thủy"
 };
 
-// 1. Hàm tự động tính Bản Mệnh
 function getBanMenhFallback(canChi: string) {
   if (!canChi) return "Chưa xác định";
   const key = canChi.toLowerCase().replace("năm", "").trim();
   return NGU_HANH_NAP_AM[key] || "Chưa xác định";
 }
 
-// 2. Hàm tự động tính Can Chi của Giờ Sinh
 function getHourCanChiName(hourStr: string) {
   if (hourStr === "") return "Giờ";
   const h = parseInt(hourStr);
@@ -41,7 +38,6 @@ function getHourCanChiName(hourStr: string) {
   return `Giờ ${HO_CHI[index]}`;
 }
 
-// 3. Công thức toán học tính Can Chi Năm Sinh siêu nhẹ (Không cần cài thư viện)
 function getYearCanChi(yearStr: string) {
   if (!yearStr) return "";
   const y = parseInt(yearStr);
@@ -51,7 +47,6 @@ function getYearCanChi(yearStr: string) {
   return `Năm ${CAN[y % 10]} ${CHI[y % 12]}`;
 }
 
-// 4. Hàm tạo màu sắc Ngũ Hành cho các sao
 function getElementColor(nguHanh: string, isChinhTinh: boolean = false) {
   if (!nguHanh) return isChinhTinh ? "text-stone-800" : "text-stone-600";
   const nh = nguHanh.toLowerCase();
@@ -74,7 +69,7 @@ const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 
 
 export default function TuViPage() {
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "00", 
     gender: "Nam giới", viewYear: "2026"
@@ -122,7 +117,6 @@ export default function TuViPage() {
 
         const rawInfo = (laso as any).Info || (laso as any).info || {};
         
-        // Trích xuất Tứ Trụ
         const namCanChi = rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || "Chưa xác định";
         const thangCanChi = rawInfo.Thang || rawInfo.thang || rawInfo.thangCanChi || "Chưa xác định";
         const ngayCanChi = rawInfo.Ngay || rawInfo.ngay || rawInfo.ngayCanChi || "Chưa xác định";
