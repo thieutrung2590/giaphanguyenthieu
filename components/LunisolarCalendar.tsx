@@ -440,11 +440,12 @@ export default function LunisolarCalendar() {
          ========================================================= */}
       <div className="bg-white">
         {/* Header Top Card */}
-        <div className="bg-[#439c49] text-white px-4 py-2.5 flex justify-between items-center rounded-t-md">
-          <h2 className="text-xl font-bold uppercase tracking-wide">Lịch Vạn Niên</h2>
-          <button onClick={openQuickView} className="flex items-center gap-1.5 bg-[#36803b] hover:bg-[#2b6830] px-3 py-1.5 rounded text-sm transition-colors border border-[#52af58]">
+        <div className="bg-[#439c49] text-white px-3 sm:px-4 py-2 sm:py-2.5 flex justify-between items-center rounded-t-md">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-wide">Lịch Vạn Niên</h2>
+          <button onClick={openQuickView} className="flex items-center gap-1.5 bg-[#36803b] hover:bg-[#2b6830] px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm transition-colors border border-[#52af58]">
             <CalendarDays className="size-4" />
-            <span>Xem nhanh theo ngày</span>
+            <span className="hidden sm:inline">Xem nhanh theo ngày</span>
+            <span className="sm:hidden">Xem nhanh</span>
           </button>
         </div>
 
@@ -456,26 +457,26 @@ export default function LunisolarCalendar() {
           </button>
 
           {/* Dương Lịch */}
-          <div className="flex-1 p-6 md:p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-200">
-            <h3 className="text-xl font-semibold text-gray-800 mb-1">Dương Lịch</h3>
-            <div className="text-[100px] leading-[1.1] font-bold text-[#70b741] tracking-tighter">
+          <div className="flex-1 p-4 sm:p-6 md:p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-200">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-1">Dương Lịch</h3>
+            <div className="text-[60px] sm:text-[80px] md:text-[100px] leading-[1.1] font-bold text-[#70b741] tracking-tighter">
               {topInfo.sDay.toString().padStart(2, '0')}
             </div>
-            <p className="text-gray-600 text-base mt-2">
+            <p className="text-gray-600 text-sm sm:text-base mt-1 sm:mt-2">
               Tháng {topInfo.sMonth.toString().padStart(2, '0')} năm {topInfo.sYear}
             </p>
           </div>
 
           {/* Âm Lịch */}
-          <div className="flex-1 p-6 md:p-10 flex flex-col items-center justify-center">
-            <h3 className="text-xl font-semibold text-gray-800 mb-1">Âm lịch</h3>
-            <div className="text-[100px] leading-[1.1] font-bold text-[#2b7d34] tracking-tighter">
+          <div className="flex-1 p-4 sm:p-6 md:p-10 flex flex-col items-center justify-center">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-1">Âm lịch</h3>
+            <div className="text-[60px] sm:text-[80px] md:text-[100px] leading-[1.1] font-bold text-[#2b7d34] tracking-tighter">
               {topInfo.lDay}
             </div>
-            <p className="text-gray-600 text-base mt-2">
+            <p className="text-gray-600 text-sm sm:text-base mt-1 sm:mt-2">
               Tháng {topInfo.lMonth} năm {topInfo.lYearStr}
             </p>
-            <p className="text-red-600 text-sm mt-1 font-medium">
+            <p className="text-red-600 text-xs sm:text-sm mt-1 font-medium text-center">
               Ngày {topInfo.lDayStr} - Tháng {topInfo.lMonthStr}
             </p>
           </div>
@@ -487,7 +488,7 @@ export default function LunisolarCalendar() {
         </div>
 
         {/* Thông tin Chi Tiết Dưới */}
-        <div className="p-5 md:px-8 text-[15px] text-gray-800 leading-relaxed bg-[#fbfbfb]">
+        <div className="p-4 sm:p-5 md:px-8 text-sm sm:text-[15px] text-gray-800 leading-relaxed bg-[#fbfbfb]">
           <p className="mb-1">
             <span className="font-bold">Mệnh ngày:</span> {topInfo.naYin} {topInfo.dayType ? `- Ngày ${topInfo.dayType}` : ''}
           </p>
@@ -500,29 +501,29 @@ export default function LunisolarCalendar() {
         </div>
       </div>
 
-      <div className="h-4 bg-gray-100 border-t border-gray-200"></div>
+      <div className="h-2 sm:h-4 bg-gray-100 border-t border-gray-200"></div>
 
       {/* =========================================================
                              LƯỚI LỊCH (GRID)
          ========================================================= */}
       <div className="bg-white">
         {/* Header Grid */}
-        <div className="bg-[#439c49] text-white px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-3">
-          <div className="flex items-center gap-3">
-            <button onClick={handlePrevMonth} className="size-8 rounded-full bg-white text-[#439c49] flex items-center justify-center hover:bg-gray-100 shadow-sm transition">
-              <ChevronLeft className="size-5" />
+        <div className="bg-[#439c49] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={handlePrevMonth} className="size-7 sm:size-8 rounded-full bg-white text-[#439c49] flex items-center justify-center hover:bg-gray-100 shadow-sm transition">
+              <ChevronLeft className="size-4 sm:size-5" />
             </button>
-            <h2 className="text-xl font-bold uppercase tracking-wider">THÁNG {viewMonth.toString().padStart(2, '0')} - {viewYear}</h2>
-            <button onClick={handleNextMonth} className="size-8 rounded-full bg-white text-[#439c49] flex items-center justify-center hover:bg-gray-100 shadow-sm transition">
-              <ChevronRight className="size-5" />
+            <h2 className="text-base sm:text-xl font-bold uppercase tracking-wider">THÁNG {viewMonth.toString().padStart(2, '0')} - {viewYear}</h2>
+            <button onClick={handleNextMonth} className="size-7 sm:size-8 rounded-full bg-white text-[#439c49] flex items-center justify-center hover:bg-gray-100 shadow-sm transition">
+              <ChevronRight className="size-4 sm:size-5" />
             </button>
           </div>
           
-          <div className="flex items-center gap-2 text-gray-700 text-sm">
+          <div className="flex items-center gap-2 text-gray-700 text-xs sm:text-sm">
             <select 
               value={viewMonth} 
               onChange={(e) => setViewMonth(Number(e.target.value))}
-              className="px-3 py-1.5 rounded bg-white border-none outline-none font-medium cursor-pointer"
+              className="px-2 py-1 sm:px-3 sm:py-1.5 rounded bg-white border-none outline-none font-medium cursor-pointer"
             >
               {Array.from({length: 12}).map((_, i) => (
                 <option key={`m-${i+1}`} value={i+1}>Tháng {i+1}</option>
@@ -531,7 +532,7 @@ export default function LunisolarCalendar() {
             <select 
               value={viewYear} 
               onChange={(e) => setViewYear(Number(e.target.value))}
-              className="px-3 py-1.5 rounded bg-white border-none outline-none font-medium cursor-pointer w-24"
+              className="px-2 py-1 sm:px-3 sm:py-1.5 rounded bg-white border-none outline-none font-medium cursor-pointer w-20 sm:w-24"
             >
               {Array.from({length: 101}).map((_, i) => {
                 const y = new Date().getFullYear() - 50 + i;
@@ -544,8 +545,9 @@ export default function LunisolarCalendar() {
         {/* Days Header */}
         <div className="grid grid-cols-7 border-b border-gray-200">
           {WEEKDAYS.map((day, idx) => (
-            <div key={day} className={`text-center py-3 text-[15px] font-medium ${idx === 6 ? 'text-gray-700' : 'text-gray-500'}`}>
-              {day}
+            <div key={day} className={`text-center py-2 sm:py-3 text-[12px] sm:text-[15px] font-medium ${idx === 6 ? 'text-gray-700' : 'text-gray-500'}`}>
+              <span className="hidden sm:inline">{day}</span>
+              <span className="sm:hidden">{MINI_WEEKDAYS[idx]}</span>
             </div>
           ))}
         </div>
@@ -559,33 +561,33 @@ export default function LunisolarCalendar() {
               <div 
                 key={`grid-day-${i}`}
                 onClick={() => setSelectedDate(day.dateObj)}
-                className={`relative h-[110px] p-2 border-r border-b border-gray-200 cursor-pointer transition-colors
+                className={`relative h-[85px] sm:h-[110px] p-1 sm:p-2 border-r border-b border-gray-200 cursor-pointer transition-colors
                   ${day.isSelected ? 'bg-[#fff3cd]' : 'bg-white hover:bg-gray-50'}
                   ${isOpacity ? 'opacity-40' : 'opacity-100'}
                 `}
               >
                 {/* Ngày Dương */}
-                <div className={`text-[28px] font-bold leading-none w-fit relative ${day.isSunday ? 'text-[#e53e3e]' : 'text-black'}`}>
+                <div className={`text-[18px] sm:text-[28px] font-bold leading-none w-fit relative ${day.isSunday ? 'text-[#e53e3e]' : 'text-black'}`}>
                   {day.sDay.toString().padStart(2, '0')}
                   
                   {/* Chấm Hoàng Đạo / Hắc Đạo */}
                   {day.isHoangDao && (
-                    <span className="absolute top-1 -right-3 size-1.5 rounded-full bg-[#439c49]" title="Ngày Hoàng Đạo"></span>
+                    <span className="absolute top-0 sm:top-1 -right-2 sm:-right-3 size-1 sm:size-1.5 rounded-full bg-[#439c49]" title="Ngày Hoàng Đạo"></span>
                   )}
                   {day.isHacDao && (
-                    <span className="absolute top-1 -right-3 size-1.5 rounded-full bg-gray-800" title="Ngày Hắc Đạo"></span>
+                    <span className="absolute top-0 sm:top-1 -right-2 sm:-right-3 size-1 sm:size-1.5 rounded-full bg-gray-800" title="Ngày Hắc Đạo"></span>
                   )}
                 </div>
 
                 {/* Ngày Âm */}
-                <div className={`absolute top-2 right-2 text-[13px] font-medium ${
+                <div className={`absolute top-1 sm:top-2 right-1 sm:right-2 text-[10px] sm:text-[13px] font-medium ${
                   (day.lDay === 1 || day.lDay === 15 || day.isEvent) && day.isCurrentMonth ? 'text-red-600' : 'text-gray-500'
                 }`}>
                   {day.lunarDisplay}
                 </div>
 
                 {/* Chữ mô tả (Can chi hoặc Sự kiện) */}
-                <div className={`absolute bottom-2 left-0 w-full text-center text-[11px] px-1 line-clamp-2 leading-tight ${
+                <div className={`absolute bottom-1 sm:bottom-2 left-0 w-full text-center text-[9px] sm:text-[11px] px-0.5 sm:px-1 line-clamp-2 leading-tight ${
                   day.isEvent && day.isCurrentMonth ? 'text-red-600 font-medium' : 'text-gray-400'
                 }`}>
                   {day.eventText}
