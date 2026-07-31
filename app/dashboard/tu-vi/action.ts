@@ -8,11 +8,11 @@ export async function getLuangiaiAI(data: {
   cuc: string;
   chinhTinh: string;
 }) {
-  // Lấy khóa API của ChatGPT từ Vercel
-  const apiKey = process.env.OPENAI_API_KEY;
+  // Lấy khóa API của Groq từ Vercel
+  const apiKey = process.env.GROQ_API_KEY;
   
   if (!apiKey) {
-    return "Lỗi: Không tìm thấy OPENAI_API_KEY. Vui lòng thêm biến OPENAI_API_KEY vào phần Environment Variables trên Vercel.";
+    return "Lỗi: Không tìm thấy GROQ_API_KEY. Vui lòng thêm biến GROQ_API_KEY vào phần Environment Variables trên Vercel.";
   }
 
   const prompt = `Hãy đóng vai một bậc thầy Tử Vi Đẩu Số. Viết một bài luận giải chuyên sâu, mang âm hưởng huyền bí nhưng dễ hiểu cho đương số sau:
@@ -29,33 +29,33 @@ export async function getLuangiaiAI(data: {
   3. Không dùng định dạng phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng. Giới hạn khoảng 250 - 300 chữ.`;
 
   try {
-    // Gọi trực tiếp đến máy chủ của OpenAI
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Gọi trực tiếp đến máy chủ của Groq (Tương thích chuẩn OpenAI)
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", // Mô hình mới và siêu tốc của ChatGPT
+        model: "llama3-70b-8192", // Mô hình LLaMA 3 70B siêu thông minh và tốc độ cực nhanh của Groq
         messages: [
-          { role: "system", content: "Bạn là một chuyên gia Tử Vi Đẩu Số uyên bác." },
+          { role: "system", content: "Bạn là một chuyên gia Tử Vi Đẩu Số uyên bác, thông thạo văn phong và văn hóa Việt Nam." },
           { role: "user", content: prompt }
         ],
-        temperature: 0.7, // Độ sáng tạo của văn bản
-        max_tokens: 800, // Giới hạn độ dài câu trả lời
+        temperature: 0.7, 
+        max_tokens: 1024, 
       }),
     });
 
     const result = await response.json();
 
-    // Xử lý nếu máy chủ OpenAI báo lỗi (sai key, hết tiền...)
+    // Xử lý nếu máy chủ Groq báo lỗi (Sai key, vượt quá giới hạn...)
     if (!response.ok) {
-      return `LỖI TỪ OPENAI: ${result.error?.message || "Không xác định"}
+      return `LỖI TỪ GROQ AI: ${result.error?.message || "Không xác định"}
       
       💡 GỢI Ý KHẮC PHỤC:
-      1. Đảm bảo bạn đã nhập đúng OPENAI_API_KEY trên Vercel.
-      2. OpenAI yêu cầu tài khoản phải nạp sẵn tối thiểu 5$ (Credit) thì mới có thể sử dụng API. Nếu tài khoản của bạn là tài khoản miễn phí mới tạo chưa nạp thẻ, hệ thống sẽ báo lỗi "insufficient_quota".`;
+      1. Đảm bảo bạn đã nhập đúng GROQ_API_KEY trên Vercel.
+      2. Nếu lỗi liên quan đến Rate Limit (Giới hạn truy cập), hãy chờ khoảng 1 phút rồi thử lại do Groq giới hạn số lần gọi trên mỗi phút cho tài khoản miễn phí.`;
     }
 
     // Trả kết quả luận giải về màn hình
