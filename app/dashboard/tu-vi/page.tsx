@@ -37,14 +37,14 @@ function getBanMenhFallback(canChi: string) {
   return NGU_HANH_NAP_AM[key] || "Chưa xác định";
 }
 
-const TIME_OPTIONS = [
-  { label: "Tý (23:00 - 01:00)", hour: 0 }, { label: "Sửu (01:00 - 03:00)", hour: 2 },
-  { label: "Dần (03:00 - 05:00)", hour: 4 }, { label: "Mão (05:00 - 07:00)", hour: 6 },
-  { label: "Thìn (07:00 - 09:00)", hour: 8 }, { label: "Tỵ (09:00 - 11:00)", hour: 10 },
-  { label: "Ngọ (11:00 - 13:00)", hour: 12 }, { label: "Mùi (13:00 - 15:00)", hour: 14 },
-  { label: "Thân (15:00 - 17:00)", hour: 16 }, { label: "Dậu (17:00 - 19:00)", hour: 18 },
-  { label: "Tuất (19:00 - 21:00)", hour: 20 }, { label: "Hợi (21:00 - 23:00)", hour: 22 },
-];
+// Hàm tính Can Chi của Giờ dựa trên Giờ thực tế (0-23)
+function getHourCanChiName(hourStr: string) {
+  if (hourStr === "") return "Giờ";
+  const h = parseInt(hourStr);
+  const HO_CHI = ["Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"];
+  const index = Math.floor((h + 1) / 2) % 12;
+  return `Giờ ${HO_CHI[index]}`;
+}
 
 function translateToVN(str: string) {
   let res = str || "";
@@ -65,7 +65,9 @@ const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 
 
 export default function TuViPage() {
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", time: "Tỵ (09:00 - 11:00)", gender: "Nam giới", viewYear: "2026", job: "", relationship: "",
+    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    hour: "10", minute: "00", // Đã chuyển sang lấy chính xác Giờ và Phút
+    gender: "Nam giới", viewYear: "2026", job: "", relationship: "",
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -79,7 +81,7 @@ export default function TuViPage() {
   };
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.year || !formData.time) return alert("Vui lòng nhập đủ thông tin!");
+    if (!formData.name || !formData.year || formData.hour === "" || formData.minute === "") return alert("Vui lòng nhập đủ thông tin!");
     
     setIsLoading(true);
     setAiReading("");
@@ -87,13 +89,14 @@ export default function TuViPage() {
     setTimeout(async () => {
       try {
         const y = parseInt(formData.year), m = parseInt(formData.month || "1"), d = parseInt(formData.day || "1");
-        const selectedTimeObj = TIME_OPTIONS.find(t => t.label === formData.time);
-        const hour = selectedTimeObj ? selectedTimeObj.hour : 10;
+        const h = parseInt(formData.hour);
+        const min = parseInt(formData.minute);
 
+        // Gọi hàm generateLaSo với thông tin phút chính xác
         const laso = generateLaSo({
           name: formData.name,
           gender: formData.gender === "Nam giới" ? 'male' : 'female',
-          birth: { isLunar: formData.calendar === "Âm lịch", year: y, month: m, day: d, hour: hour, minute: 0 },
+          birth: { isLunar: formData.calendar === "Âm lịch", year: y, month: m, day: d, hour: h, minute: min },
         });
 
         const GRID_TO_CUNG: Record<number, number> = { 
@@ -191,13 +194,27 @@ export default function TuViPage() {
               </div>
               <div className="h-4"></div>
               
+              {/* GIAO DIỆN CHỌN GIỜ PHÚT MỚI */}
               <InputWrapper icon={Clock}>
-                <select name="time" value={formData.time} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
-                  <option value="">Giờ sinh</option>
-                  {TIME_OPTIONS.map(t => (
-                    <option key={t.label} value={t.label}>{t.label}</option>
-                  ))}
-                </select>
+                <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
+                  <select name="hour" value={formData.hour} onChange={handleChange} className="bg-transparent outline-none w-full pr-2 cursor-pointer">
+                    <option value="">Giờ sinh</option>
+                    {Array.from({ length: 24 }).map((_, i) => (
+                      <option key={i} value={i}>{i.toString().padStart(2, '0')} giờ</option>
+                    ))}
+                  </select>
+                  
+                  <select name="minute" value={formData.minute} onChange={handleChange} className="bg-transparent outline-none w-full px-2 cursor-pointer">
+                    <option value="">Phút sinh</option>
+                    {Array.from({ length: 60 }).map((_, i) => (
+                      <option key={i} value={i}>{i.toString().padStart(2, '0')} phút</option>
+                    ))}
+                  </select>
+                  
+                  <div className="w-full pl-2 text-fuchsia-600 font-bold text-center pointer-events-none">
+                    {getHourCanChiName(formData.hour)}
+                  </div>
+                </div>
               </InputWrapper>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -228,7 +245,9 @@ export default function TuViPage() {
                   if (i === 5) return (
                     <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-purple-200 p-2 sm:p-4 text-center">
                       <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info.Name}</h3>
-                      <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">Sinh: <span className="text-purple-700">{formData.day}/{formData.month}/{formData.year}</span></p>
+                      <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">
+                        Sinh: <span className="text-purple-700">{formData.hour.padStart(2, '0')}:{formData.minute.padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year}</span>
+                      </p>
                       
                       <div className="w-full max-w-[320px] grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] sm:text-sm text-left bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100 mt-4">
                         <p><span className="text-stone-500">Năm:</span> <strong className="text-stone-800">{chartData?.info.Nam}</strong></p>
