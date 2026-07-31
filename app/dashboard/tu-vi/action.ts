@@ -18,7 +18,9 @@ export async function getLuangiaiAI(data: {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    // ĐÃ SỬA LỖI: Đổi tên model từ "gemini-1.5-flash" sang "gemini-pro" để đảm bảo tương thích 100% với API Key
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = `Hãy đóng vai một bậc thầy Tử Vi Đẩu Số. Viết một bài luận giải chuyên sâu, mang âm hưởng huyền bí nhưng dễ hiểu cho đương số sau:
     - Tên: ${data.name}
@@ -36,7 +38,6 @@ export async function getLuangiaiAI(data: {
     const result = await model.generateContent(prompt);
     return result.response.text();
   } catch (error: any) {
-    // Trả về lỗi CHÍNH XÁC từ Google để bắt bệnh
     return `LỖI TỪ GOOGLE AI: ${error.message || JSON.stringify(error)}
     
     => HƯỚNG DẪN KHẮC PHỤC:
