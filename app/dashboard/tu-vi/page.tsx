@@ -11,7 +11,6 @@ import { getLuangiaiAI } from "./action";
 const CAN_MAP: Record<string, string> = { '甲': 'Giáp', '乙': 'Ất', '丙': 'Bính', '丁': 'Đinh', '戊': 'Mậu', '己': 'Kỷ', '庚': 'Canh', '辛': 'Tân', '壬': 'Nhâm', '癸': 'Quý' };
 const CHI_MAP: Record<string, string> = { '子': 'Tý', '丑': 'Sửu', '寅': 'Dần', '卯': 'Mão', '辰': 'Thìn', '巳': 'Tỵ', '午': 'Ngọ', '未': 'Mùi', '申': 'Thân', '酉': 'Dậu', '戌': 'Tuất', '亥': 'Hợi' };
 
-// --- DANH SÁCH GIỜ CHUẨN XÁC 100% (ĐÃ SỬA LỖI) ---
 const TIME_OPTIONS = [
   { label: "Tý (23:00 - 01:00)", hour: 0 },
   { label: "Sửu (01:00 - 03:00)", hour: 2 },
@@ -66,8 +65,6 @@ export default function TuViPage() {
     setTimeout(async () => {
       try {
         const y = parseInt(formData.year), m = parseInt(formData.month || "1"), d = parseInt(formData.day || "1");
-        
-        // Lấy giờ chính xác từ danh sách chuẩn
         const selectedTimeObj = TIME_OPTIONS.find(t => t.label === formData.time);
         const hour = selectedTimeObj ? selectedTimeObj.hour : 10;
 
@@ -90,7 +87,21 @@ export default function TuViPage() {
         setIsLoading(false);
 
         setIsReading(true);
-        const readingResult = await getLuangiaiAI(newChartData);
+
+        // --- TRÍCH XUẤT DỮ LIỆU ĐỂ GỬI LÊN SERVER TRÁNH LỖI SERIALIZATION ---
+        const menhCung = gridCacCung.find((c: any) => c && c.Name === "Mệnh");
+        const chinhTinhMenh = menhCung?.ChinhTinh.map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
+
+        const aiPromptData = {
+          name: formData.name,
+          gender: formData.gender,
+          amDuong: laso.Info.AmDuong,
+          banMenh: laso.Info.BanMenh,
+          cuc: laso.Info.Cuc,
+          chinhTinh: chinhTinhMenh
+        };
+
+        const readingResult = await getLuangiaiAI(aiPromptData);
         setAiReading(readingResult);
         setIsReading(false);
 
@@ -139,7 +150,6 @@ export default function TuViPage() {
               </div>
               <div className="h-4"></div>
               
-              {/* DROPDOWN GIỜ SINH ĐÃ ĐƯỢC SỬA */}
               <InputWrapper icon={Clock}>
                 <select name="time" value={formData.time} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
                   <option value="">Giờ sinh</option>
@@ -176,7 +186,7 @@ export default function TuViPage() {
                 if (isCenter) {
                   if (i === 5) return (
                     <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-purple-200 p-2 sm:p-4 text-center">
-                      <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info.Name}</h3>
+                      <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{formData.name}</h3>
                       <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">Sinh: <span className="text-purple-700">{formData.day}/{formData.month}/{formData.year}</span></p>
                       
                       <div className="w-full max-w-[320px] grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] sm:text-sm text-left bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100 mt-4">
