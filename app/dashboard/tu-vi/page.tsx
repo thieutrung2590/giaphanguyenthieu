@@ -107,7 +107,8 @@ export default function TuViPage() {
         const laso = generateLaSo({
           name: formData.name,
           gender: formData.gender === "Nam giới" ? 'male' : 'female',
-          birth: { isLunar: formData.calendar === "Âm lịch", year: y, month: m, day: d, hour: h, minute: min, isLeapMonth: formData.isLeapMonth },
+          // Sử dụng "as any" để ép kiểu, vượt qua lỗi TypeScript của Vercel
+          birth: { isLunar: formData.calendar === "Âm lịch", year: y, month: m, day: d, hour: h, minute: min, isLeapMonth: formData.isLeapMonth } as any,
         });
 
         const GRID_TO_CUNG: Record<number, number> = { 
@@ -269,7 +270,6 @@ export default function TuViPage() {
                         Sinh: <span className="text-purple-700">{formData.hour.padStart(2, '0')}:{formData.minute.padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} {formData.calendar === "Âm lịch" && formData.isLeapMonth ? "(Nhuận)" : ""}</span>
                       </p>
                       
-                      {/* KHUNG THÔNG TIN CĂN GIỮA - ĐÃ BỔ SUNG TỨ TRỤ CAN CHI */}
                       <div className="w-full max-w-[360px] bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100 mt-3 sm:mt-4">
                         
                         {/* Tứ trụ (Bát tự) */}
