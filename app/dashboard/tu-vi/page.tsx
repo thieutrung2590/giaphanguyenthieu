@@ -7,23 +7,43 @@ import { useMemo, useState } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
 
-// --- TỪ ĐIỂN ---
+// --- TỪ ĐIỂN CAN CHI ---
 const CAN_MAP: Record<string, string> = { '甲': 'Giáp', '乙': 'Ất', '丙': 'Bính', '丁': 'Đinh', '戊': 'Mậu', '己': 'Kỷ', '庚': 'Canh', '辛': 'Tân', '壬': 'Nhâm', '癸': 'Quý' };
 const CHI_MAP: Record<string, string> = { '子': 'Tý', '丑': 'Sửu', '寅': 'Dần', '卯': 'Mão', '辰': 'Thìn', '巳': 'Tỵ', '午': 'Ngọ', '未': 'Mùi', '申': 'Thân', '酉': 'Dậu', '戌': 'Tuất', '亥': 'Hợi' };
 
+// --- BỘ TỪ ĐIỂN 60 HOA GIÁP & NGŨ HÀNH NẠP ÂM (Để tự động tra cứu Bản Mệnh) ---
+const NGU_HANH_NAP_AM: Record<string, string> = {
+  "giáp tý": "Hải Trung Kim", "ất sửu": "Hải Trung Kim", "bính dần": "Lư Trung Hỏa", "đinh mão": "Lư Trung Hỏa",
+  "mậu thìn": "Đại Lâm Mộc", "kỷ tỵ": "Đại Lâm Mộc", "canh ngọ": "Lộ Bàng Thổ", "tân mùi": "Lộ Bàng Thổ",
+  "nhâm thân": "Kiếm Phong Kim", "quý dậu": "Kiếm Phong Kim", "giáp tuất": "Sơn Đầu Hỏa", "ất hợi": "Sơn Đầu Hỏa",
+  "bính tý": "Giản Hạ Thủy", "đinh sửu": "Giản Hạ Thủy", "mậu dần": "Thành Đầu Thổ", "kỷ mão": "Thành Đầu Thổ",
+  "canh thìn": "Bạch Lạp Kim", "tân tỵ": "Bạch Lạp Kim", "nhâm ngọ": "Dương Liễu Mộc", "quý mùi": "Dương Liễu Mộc",
+  "giáp thân": "Tuyền Trung Thủy", "ất dậu": "Tuyền Trung Thủy", "bính tuất": "Ốc Thượng Thổ", "đinh hợi": "Ốc Thượng Thổ",
+  "mậu tý": "Thích Lịch Hỏa", "kỷ sửu": "Thích Lịch Hỏa", "canh dần": "Tùng Bách Mộc", "tân mão": "Tùng Bách Mộc",
+  "nhâm thìn": "Trường Lưu Thủy", "quý tỵ": "Trường Lưu Thủy", "giáp ngọ": "Sa Trung Kim", "ất mùi": "Sa Trung Kim",
+  "bính thân": "Sơn Hạ Hỏa", "đinh dậu": "Sơn Hạ Hỏa", "mậu tuất": "Bình Địa Mộc", "kỷ hợi": "Bình Địa Mộc",
+  "canh tý": "Bích Thượng Thổ", "tân sửu": "Bích Thượng Thổ", "nhâm dần": "Kim Bạch Kim", "quý mão": "Kim Bạch Kim",
+  "giáp thìn": "Phú Đăng Hỏa", "ất tỵ": "Phú Đăng Hỏa", "bính ngọ": "Thiên Hà Thủy", "đinh mùi": "Thiên Hà Thủy",
+  "mậu thân": "Đại Trạch Thổ", "kỷ dậu": "Đại Trạch Thổ", "canh tuất": "Thoa Xuyến Kim", "tân hợi": "Thoa Xuyến Kim",
+  "nhâm tý": "Tang Đố Mộc", "quý sửu": "Tang Đố Mộc", "giáp dần": "Đại Khê Thủy", "ất mão": "Đại Khê Thủy",
+  "bính thìn": "Sa Trung Thổ", "đinh tỵ": "Sa Trung Thổ", "mậu ngọ": "Thiên Thượng Hỏa", "kỷ mùi": "Thiên Thượng Hỏa",
+  "canh thân": "Thạch Lựu Mộc", "tân dậu": "Thạch Lựu Mộc", "nhâm tuất": "Đại Hải Thủy", "quý hợi": "Đại Hải Thủy"
+};
+
+// Hàm dò tìm Bản Mệnh chuẩn xác 100%
+function getBanMenhFallback(canChi: string) {
+  if (!canChi) return "Chưa xác định";
+  const key = canChi.toLowerCase().replace("năm", "").trim();
+  return NGU_HANH_NAP_AM[key] || "Chưa xác định";
+}
+
 const TIME_OPTIONS = [
-  { label: "Tý (23:00 - 01:00)", hour: 0 },
-  { label: "Sửu (01:00 - 03:00)", hour: 2 },
-  { label: "Dần (03:00 - 05:00)", hour: 4 },
-  { label: "Mão (05:00 - 07:00)", hour: 6 },
-  { label: "Thìn (07:00 - 09:00)", hour: 8 },
-  { label: "Tỵ (09:00 - 11:00)", hour: 10 },
-  { label: "Ngọ (11:00 - 13:00)", hour: 12 },
-  { label: "Mùi (13:00 - 15:00)", hour: 14 },
-  { label: "Thân (15:00 - 17:00)", hour: 16 },
-  { label: "Dậu (17:00 - 19:00)", hour: 18 },
-  { label: "Tuất (19:00 - 21:00)", hour: 20 },
-  { label: "Hợi (21:00 - 23:00)", hour: 22 },
+  { label: "Tý (23:00 - 01:00)", hour: 0 }, { label: "Sửu (01:00 - 03:00)", hour: 2 },
+  { label: "Dần (03:00 - 05:00)", hour: 4 }, { label: "Mão (05:00 - 07:00)", hour: 6 },
+  { label: "Thìn (07:00 - 09:00)", hour: 8 }, { label: "Tỵ (09:00 - 11:00)", hour: 10 },
+  { label: "Ngọ (11:00 - 13:00)", hour: 12 }, { label: "Mùi (13:00 - 15:00)", hour: 14 },
+  { label: "Thân (15:00 - 17:00)", hour: 16 }, { label: "Dậu (17:00 - 19:00)", hour: 18 },
+  { label: "Tuất (19:00 - 21:00)", hour: 20 }, { label: "Hợi (21:00 - 23:00)", hour: 22 },
 ];
 
 function translateToVN(str: string) {
@@ -40,23 +60,17 @@ const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.Rea
   </div>
 );
 
-// Tên 12 cung (Địa Chi) cố định trên Lưới 16 ô
-const CHI_OF_GRID: Record<number, string> = { 
-  0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 
-  4: "Thìn", 7: "Dậu", 
-  8: "Mão", 11: "Tuất", 
-  12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" 
-};
+// Tên 12 cung Địa Chi cố định trên Lưới
+const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 4: "Thìn", 7: "Dậu", 8: "Mão", 11: "Tuất", 12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" };
 
 export default function TuViPage() {
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", time: "Tỵ (09:00 - 11:00)", gender: "Nam giới", viewYear: "2026", job: "", relationship: "",
+    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", time: "Tỵ (09:00 - 11:00)", gender: "Nam giới", viewYear: "2026", job: "", relationship: "",
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [chartData, setChartData] = useState<any>(null);
-  
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
 
@@ -82,20 +96,8 @@ export default function TuViPage() {
           birth: { isLunar: formData.calendar === "Âm lịch", year: y, month: m, day: d, hour: hour, minute: 0 },
         });
 
-        // ĐÃ SỬA LỖI: Căn chỉnh lại ánh xạ cho chuẩn xác (tuvi-neo bắt đầu từ cung Tý = Index 0)
         const GRID_TO_CUNG: Record<number, number> = { 
-          0: 5,   // Grid Tỵ -> Tỵ (Index 5)
-          1: 6,   // Grid Ngọ -> Ngọ (Index 6)
-          2: 7,   // Grid Mùi -> Mùi (Index 7)
-          3: 8,   // Grid Thân -> Thân (Index 8)
-          4: 4,   // Grid Thìn -> Thìn (Index 4)
-          7: 9,   // Grid Dậu -> Dậu (Index 9)
-          8: 3,   // Grid Mão -> Mão (Index 3)
-          11: 10, // Grid Tuất -> Tuất (Index 10)
-          12: 2,  // Grid Dần -> Dần (Index 2)
-          13: 1,  // Grid Sửu -> Sửu (Index 1)
-          14: 0,  // Grid Tý -> Tý (Index 0)
-          15: 11  // Grid Hợi -> Hợi (Index 11)
+          0: 5, 1: 6, 2: 7, 3: 8, 4: 4, 7: 9, 8: 3, 11: 10, 12: 2, 13: 1, 14: 0, 15: 11 
         };
         
         const gridCacCung = Array(16).fill(null);
@@ -106,11 +108,17 @@ export default function TuViPage() {
 
         const rawInfo = (laso as any).Info || (laso as any).info || {};
         
-        // ĐÃ SỬA LỖI: Bổ sung quét biến nguHanh để lấy đúng Bản Mệnh
+        // Lấy tên Năm (Ví dụ: Canh Ngọ)
+        const namCanChi = rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || "Chưa xác định";
+        
+        // So khớp từ điển để lấy đúng Bản Mệnh
+        const computedBanMenh = getBanMenhFallback(namCanChi);
+        const finalBanMenh = computedBanMenh !== "Chưa xác định" ? computedBanMenh : (rawInfo.nguHanh || rawInfo.NguHanh || rawInfo.ban_menh || rawInfo.BanMenh || rawInfo.menh || "Chưa xác định");
+
         const safeInfo = {
           Name: formData.name,
-          Nam: rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || "Chưa xác định",
-          BanMenh: rawInfo.nguHanh || rawInfo.NguHanh || rawInfo.ban_menh || rawInfo.BanMenh || rawInfo.menh || "Chưa xác định",
+          Nam: namCanChi,
+          BanMenh: finalBanMenh,
           Cuc: rawInfo.cuc || rawInfo.Cuc || "Chưa xác định",
           AmDuong: rawInfo.amDuong || rawInfo.AmDuong || "Chưa xác định"
         };
@@ -244,7 +252,6 @@ export default function TuViPage() {
                       <span className={`text-[12px] sm:text-[14px] font-bold ${isMenh || isThan ? 'text-red-600' : 'text-stone-700'}`}>
                         {house.Name} {isThan && !isMenh ? <span className="text-[10px] text-fuchsia-600">(Thân)</span> : ""}
                       </span>
-                      {/* Bổ sung Tên Cung Địa Chi ở góc trên bên phải */}
                       <span className="text-[10px] text-stone-400 font-semibold bg-stone-50 px-1 rounded-sm">{CHI_OF_GRID[i]}</span>
                     </div>
                     
