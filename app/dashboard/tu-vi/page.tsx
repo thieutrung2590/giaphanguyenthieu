@@ -10,7 +10,22 @@ import { getLuangiaiAI } from "./action";
 // --- TỪ ĐIỂN ---
 const CAN_MAP: Record<string, string> = { '甲': 'Giáp', '乙': 'Ất', '丙': 'Bính', '丁': 'Đinh', '戊': 'Mậu', '己': 'Kỷ', '庚': 'Canh', '辛': 'Tân', '壬': 'Nhâm', '癸': 'Quý' };
 const CHI_MAP: Record<string, string> = { '子': 'Tý', '丑': 'Sửu', '寅': 'Dần', '卯': 'Mão', '辰': 'Thìn', '巳': 'Tỵ', '午': 'Ngọ', '未': 'Mùi', '申': 'Thân', '酉': 'Dậu', '戌': 'Tuất', '亥': 'Hợi' };
-const TIME_MAP: Record<string, number> = { "Tý": 0, "Sửu": 2, "Dần": 4, "Mão": 6, "Thìn": 8, "Tỵ": 10, "Ngọ": 12, "Mùi": 14, "Thân": 16, "Dậu": 18, "Tuất": 20, "Hợi": 22 };
+
+// --- DANH SÁCH GIỜ CHUẨN XÁC 100% (ĐÃ SỬA LỖI) ---
+const TIME_OPTIONS = [
+  { label: "Tý (23:00 - 01:00)", hour: 0 },
+  { label: "Sửu (01:00 - 03:00)", hour: 2 },
+  { label: "Dần (03:00 - 05:00)", hour: 4 },
+  { label: "Mão (05:00 - 07:00)", hour: 6 },
+  { label: "Thìn (07:00 - 09:00)", hour: 8 },
+  { label: "Tỵ (09:00 - 11:00)", hour: 10 },
+  { label: "Ngọ (11:00 - 13:00)", hour: 12 },
+  { label: "Mùi (13:00 - 15:00)", hour: 14 },
+  { label: "Thân (15:00 - 17:00)", hour: 16 },
+  { label: "Dậu (17:00 - 19:00)", hour: 18 },
+  { label: "Tuất (19:00 - 21:00)", hour: 20 },
+  { label: "Hợi (21:00 - 23:00)", hour: 22 },
+];
 
 function translateToVN(str: string) {
   let res = str || "";
@@ -35,7 +50,6 @@ export default function TuViPage() {
   const [showResult, setShowResult] = useState(false);
   const [chartData, setChartData] = useState<any>(null);
   
-  // State quản lý AI Luận giải
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
 
@@ -47,12 +61,15 @@ export default function TuViPage() {
     if (!formData.name || !formData.year || !formData.time) return alert("Vui lòng nhập đủ thông tin!");
     
     setIsLoading(true);
-    setAiReading(""); // Xóa luận giải cũ
+    setAiReading("");
 
     setTimeout(async () => {
       try {
         const y = parseInt(formData.year), m = parseInt(formData.month || "1"), d = parseInt(formData.day || "1");
-        const hour = TIME_MAP[formData.time.split(" ")[0]] || 0;
+        
+        // Lấy giờ chính xác từ danh sách chuẩn
+        const selectedTimeObj = TIME_OPTIONS.find(t => t.label === formData.time);
+        const hour = selectedTimeObj ? selectedTimeObj.hour : 10;
 
         const laso = generateLaSo({
           name: formData.name,
@@ -72,7 +89,6 @@ export default function TuViPage() {
         setShowResult(true);
         setIsLoading(false);
 
-        // Bắt đầu gọi AI luận giải ngay khi hiện lá số
         setIsReading(true);
         const readingResult = await getLuangiaiAI(newChartData);
         setAiReading(readingResult);
@@ -103,13 +119,13 @@ export default function TuViPage() {
       <div className="relative w-full max-w-5xl bg-white/70 backdrop-blur-xl border border-white/60 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl shadow-purple-900/10">
         {!showResult ? (
           <div className="max-w-2xl mx-auto">
-            {/* ... Giữ nguyên Form Nhập Liệu như cũ ... */}
             <div className="text-center mb-8">
               <h1 className="text-3xl sm:text-4xl font-bold text-purple-950 mb-3 tracking-tight">Lập lá số Tử Vi</h1>
               <p className="text-purple-700/80 text-sm sm:text-base font-medium">Khám phá vận mệnh - Định hướng tương lai</p>
             </div>
             <div className="space-y-4">
               <InputWrapper icon={User}><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Họ và tên" className="w-full bg-transparent outline-none text-stone-700 font-semibold" /></InputWrapper>
+              
               <div className="relative">
                 <InputWrapper icon={CalendarDays}>
                   <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
@@ -122,7 +138,16 @@ export default function TuViPage() {
                 {canChiText && <div className="absolute -bottom-2 right-4 translate-y-full flex items-center z-10"><span className="text-xs font-bold text-fuchsia-700 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full border border-fuchsia-200">{canChiText}</span></div>}
               </div>
               <div className="h-4"></div>
-              <InputWrapper icon={Clock}><select name="time" value={formData.time} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="">Giờ sinh</option>{Object.keys(TIME_MAP).map(k => (<option key={k} value={`${k} (${(TIME_MAP[k]*2 - 1) % 24}:00 - ${TIME_MAP[k]*2 + 1}:00)`}>{`${k} (${(TIME_MAP[k]*2 - 1 === -1 ? 23 : (TIME_MAP[k]*2 - 1).toString().padStart(2, '0'))}:00 - ${(TIME_MAP[k]*2 + 1).toString().padStart(2, '0')}:00)`}</option>))}</select></InputWrapper>
+              
+              {/* DROPDOWN GIỜ SINH ĐÃ ĐƯỢC SỬA */}
+              <InputWrapper icon={Clock}>
+                <select name="time" value={formData.time} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
+                  <option value="">Giờ sinh</option>
+                  {TIME_OPTIONS.map(t => (
+                    <option key={t.label} value={t.label}>{t.label}</option>
+                  ))}
+                </select>
+              </InputWrapper>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputWrapper icon={Users}><select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="Nam giới">Nam giới</option><option value="Nữ giới">Nữ giới</option></select></InputWrapper>
@@ -144,7 +169,7 @@ export default function TuViPage() {
               <div className="w-24"></div>
             </div>
 
-            {/* Lưới Lá Số (Giữ nguyên cấu trúc GRID) */}
+            {/* Lưới Lá Số */}
             <div className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
               {Array.from({ length: 16 }).map((_, i) => {
                 const isCenter = [5, 6, 9, 10].includes(i);
@@ -197,15 +222,12 @@ export default function TuViPage() {
               })}
             </div>
 
-            {/* KHU VỰC AI LUẬN GIẢI LÁ SỐ */}
+            {/* AI LUẬN GIẢI */}
             <div className="mt-8 max-w-5xl mx-auto bg-gradient-to-br from-purple-50 to-white p-6 sm:p-8 rounded-2xl border border-purple-200 shadow-sm">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-fuchsia-100 rounded-lg text-fuchsia-600">
-                  <Sparkles className="w-6 h-6" />
-                </div>
+                <div className="p-2 bg-fuchsia-100 rounded-lg text-fuchsia-600"><Sparkles className="w-6 h-6" /></div>
                 <h3 className="text-xl font-bold text-purple-900">AI Luận Giải Lá Số</h3>
               </div>
-              
               <div className="text-stone-700 leading-relaxed min-h-[150px]">
                 {isReading ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-fuchsia-600 py-10">
