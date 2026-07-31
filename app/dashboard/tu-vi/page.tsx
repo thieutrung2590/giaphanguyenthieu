@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass, Zap, Download, History } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
 
@@ -68,23 +68,34 @@ const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.Rea
 const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 4: "Thìn", 7: "Dậu", 8: "Mão", 11: "Tuất", 12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" };
 
 export default function TuViPage() {
+  const currentYear = new Date().getFullYear();
+  
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "0", 
-    gender: "Nam giới", viewYear: "2026"
+    gender: "Nam giới", viewYear: String(currentYear)
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [chartData, setChartData] = useState<any>(null);
   
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
   const [activeCategory, setActiveCategory] = useState("tong_quan"); 
-  
-  // KHỞI TẠO BỘ NHỚ ĐỆM (CACHE)
   const [aiCache, setAiCache] = useState<Record<string, string>>({});
+  
+  const [history, setHistory] = useState<any[]>([]);
+
+  // TẢI LỊCH SỬ KHI KHỞI ĐỘNG
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('tuvi_history');
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory));
+    }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
@@ -92,10 +103,28 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
+  // CƠ CHẾ CHỤP ẢNH LÁ SỐ (Không cần cài thư viện NPM)
+  const handleDownload = () => {
+    setIsDownloading(true);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    script.onload = () => {
+      const el = document.getElementById("laso-chart");
+      if (el && (window as any).html2canvas) {
+        (window as any).html2canvas(el, { scale: 2, backgroundColor: "#ffffff" }).then((canvas: any) => {
+          const link = document.createElement("a");
+          link.download = `La-So-${formData.name.replace(/\s+/g, '-')}.png`;
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+          setIsDownloading(false);
+        });
+      }
+    };
+    document.body.appendChild(script);
+  };
+
   const fetchAIReading = async (cat: string, currentChartData: any) => {
     setActiveCategory(cat);
-
-    // BỘ NHỚ ĐỆM: Nếu đã từng luận giải góc độ này, lấy thẳng từ Cache hiển thị luôn
     if (aiCache[cat]) {
       setAiReading(aiCache[cat]);
       return;
@@ -106,7 +135,6 @@ export default function TuViPage() {
     const menhCung = currentChartData.gridCung.find((c: any) => c && c.Name === "Mệnh");
     const chinhTinhMenh = (menhCung?.ChinhTinh || []).map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
     
-    // TRÍCH XUẤT THÔNG TIN TUẦN KHÔNG / TRIỆT LỘ
     const tuanTrietArr = [];
     if (menhCung?.Tuan === 1) tuanTrietArr.push("Tuần Không");
     if (menhCung?.Triet === 1) tuanTrietArr.push("Triệt Lộ");
@@ -120,15 +148,13 @@ export default function TuViPage() {
       cuc: currentChartData.info.Cuc,
       chinhTinh: chinhTinhMenh,
       tuanTriet: tuanTrietStr,
-      category: cat
+      category: cat,
+      viewYear: formData.viewYear // Truyền năm xem hạn vào AI
     };
 
     const readingResult = await getLuangiaiAI(aiPromptData);
     setAiReading(readingResult);
-    
-    // LƯU KẾT QUẢ VÀO BỘ NHỚ ĐỆM ĐỂ LẦN SAU BẤM KHÔNG CẦN CHỜ ĐỢI
     setAiCache(prev => ({ ...prev, [cat]: readingResult }));
-    
     setIsReading(false);
   };
 
@@ -137,7 +163,12 @@ export default function TuViPage() {
     
     setIsLoading(true);
     setAiReading("");
-    setAiCache({}); // Xóa bộ nhớ đệm cũ mỗi khi lập lá số của người mới
+    setAiCache({}); 
+
+    // LƯU LỊCH SỬ TRA CỨU
+    const newHistory = [formData, ...history.filter(h => h.name !== formData.name)].slice(0, 5); // Lưu tối đa 5 người
+    setHistory(newHistory);
+    localStorage.setItem('tuvi_history', JSON.stringify(newHistory));
 
     setTimeout(async () => {
       try {
@@ -212,6 +243,7 @@ export default function TuViPage() {
               <h1 className="text-3xl sm:text-4xl font-bold text-purple-950 mb-3 tracking-tight">Lập lá số Tử Vi</h1>
               <p className="text-purple-700/80 text-sm sm:text-base font-medium">Khám phá vận mệnh - Định hướng tương lai</p>
             </div>
+            
             <div className="space-y-4">
               <InputWrapper icon={User}><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Họ và tên" className="w-full bg-transparent outline-none text-stone-700 font-semibold" /></InputWrapper>
               
@@ -228,7 +260,7 @@ export default function TuViPage() {
                     </select>
                     <select name="year" value={formData.year} onChange={handleChange} className="bg-transparent outline-none w-full px-2">
                       <option value="">Năm</option>
-                      {Array.from({ length: 100 }, (_, i) => String(2030 - i)).map(y => <option key={y} value={y}>{y}</option>)}
+                      {Array.from({ length: 100 }, (_, i) => String(currentYear - i)).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                     <select name="calendar" value={formData.calendar} onChange={handleChange} className="bg-transparent outline-none w-full pl-2 text-purple-700 font-bold">
                       <option value="Dương lịch">Dương lịch</option>
@@ -269,13 +301,40 @@ export default function TuViPage() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputWrapper icon={Users}><select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="Nam giới">Nam giới</option><option value="Nữ giới">Nữ giới</option></select></InputWrapper>
-                <InputWrapper icon={CalendarSearch}><select name="viewYear" value={formData.viewYear} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="2026">Năm xem 2026</option></select></InputWrapper>
+                <InputWrapper icon={CalendarSearch}>
+                  {/* DANH SÁCH NĂM XEM HẠN ĐỘNG (TỪ HIỆN TẠI ĐẾN 10 NĂM NỮA) */}
+                  <select name="viewYear" value={formData.viewYear} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
+                    {Array.from({ length: 11 }, (_, i) => String(currentYear + i)).map(y => (
+                      <option key={y} value={y}>Năm xem {y}</option>
+                    ))}
+                  </select>
+                </InputWrapper>
               </div>
 
               <button onClick={handleSubmit} disabled={isLoading} className="w-full mt-6 bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white font-bold text-lg py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2">
                 {isLoading ? <><Loader2 className="w-6 h-6 animate-spin" />Đang lập lá số...</> : "Xem luận giải"}
               </button>
             </div>
+
+            {/* KHU VỰC LỊCH SỬ TRA CỨU */}
+            {history.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-purple-100">
+                <div className="flex items-center gap-2 mb-3 text-purple-800 font-bold text-sm">
+                  <History className="w-4 h-4" /> Đã tra cứu gần đây:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {history.map((h, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => setFormData(h)}
+                      className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold rounded-full transition-colors"
+                    >
+                      {h.name} ({h.year})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -284,10 +343,20 @@ export default function TuViPage() {
                 <ArrowLeft className="w-4 h-4" /> Quay lại
               </button>
               <h2 className="text-2xl font-bold text-purple-900 hidden sm:block">Lá số Tử vi</h2>
-              <div className="w-24"></div>
+              
+              {/* NÚT TẢI LÁ SỐ */}
+              <button 
+                onClick={handleDownload} 
+                disabled={isDownloading}
+                className="flex items-center gap-2 text-white font-medium bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+              >
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span className="hidden sm:inline">{isDownloading ? "Đang tải..." : "Tải ảnh"}</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
+            {/* BAO BỌC ID="laso-chart" ĐỂ THƯ VIỆN BẮT ẢNH CHÍNH XÁC KHU VỰC NÀY */}
+            <div id="laso-chart" className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
               {Array.from({ length: 16 }).map((_, i) => {
                 const isCenter = [5, 6, 9, 10].includes(i);
                 if (isCenter) {
@@ -403,12 +472,11 @@ export default function TuViPage() {
                   >
                     <Heart className="w-3.5 h-3.5" /> Tình duyên
                   </button>
-                  {/* NÚT VẬN HẠN ĐƯỢC BỔ SUNG */}
                   <button 
                     onClick={() => fetchAIReading("van_han", chartData)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "van_han" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
                   >
-                    <Zap className="w-3.5 h-3.5" /> Vận hạn
+                    <Zap className="w-3.5 h-3.5" /> Vận hạn {formData.viewYear}
                   </button>
                 </div>
               </div>
