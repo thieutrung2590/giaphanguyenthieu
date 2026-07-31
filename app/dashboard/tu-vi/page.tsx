@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect } from "react";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
 
+// --- BỘ TỪ ĐIỂN 60 HOA GIÁP ---
 const NGU_HANH_NAP_AM: Record<string, string> = {
   "giáp tý": "Hải Trung Kim", "ất sửu": "Hải Trung Kim", "bính dần": "Lư Trung Hỏa", "đinh mão": "Lư Trung Hỏa",
   "mậu thìn": "Đại Lâm Mộc", "kỷ tỵ": "Đại Lâm Mộc", "canh ngọ": "Lộ Bàng Thổ", "tân mùi": "Lộ Bàng Thổ",
@@ -23,9 +24,116 @@ const NGU_HANH_NAP_AM: Record<string, string> = {
   "canh thân": "Thạch Lựu Mộc", "tân dậu": "Thạch Lựu Mộc", "nhâm tuất": "Đại Hải Thủy", "quý hợi": "Đại Hải Thủy"
 };
 
+// --- BỘ TỪ ĐIỂN CHỦ ĐỀ (THEMES) DỰA THEO NGŨ HÀNH ---
+const THEMES: Record<string, Record<string, string>> = {
+  default: {
+    glow1: "bg-fuchsia-200/40", glow2: "bg-purple-300/30", shadowBox: "shadow-purple-900/10",
+    textTitle: "text-purple-950", textSubtitle: "text-purple-700/80",
+    borderInput: "border-purple-100 focus-within:border-purple-400 focus-within:ring-purple-100",
+    iconBg: "bg-purple-50", iconText: "text-purple-600",
+    divide: "divide-purple-100", selectText: "text-purple-700",
+    checkboxRing: "text-purple-600 focus:ring-purple-500",
+    btnGradient: "from-purple-600 to-fuchsia-500",
+    historyIcon: "text-purple-800", historyBtn: "bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700",
+    btnDownload: "bg-purple-600 hover:bg-purple-700 text-white",
+    centerBoxBg: "bg-purple-50 border-purple-100", centerBoxBorder: "border-purple-200/60",
+    aiIconBg: "bg-fuchsia-100 text-fuchsia-600", aiBorder: "border-purple-100",
+    badgeActive: "bg-purple-600 text-white shadow-md border-transparent",
+    badgeInactive: "bg-white text-purple-700 border-purple-200 hover:bg-purple-50",
+    loaderText: "text-fuchsia-600", canChiBadge: "text-fuchsia-700 border-fuchsia-200",
+    hourAccent: "text-fuchsia-600"
+  },
+  kim: {
+    glow1: "bg-slate-300/40", glow2: "bg-gray-300/30", shadowBox: "shadow-slate-900/10",
+    textTitle: "text-slate-900", textSubtitle: "text-slate-600",
+    borderInput: "border-slate-200 focus-within:border-slate-400 focus-within:ring-slate-200",
+    iconBg: "bg-slate-100", iconText: "text-slate-600",
+    divide: "divide-slate-200", selectText: "text-slate-700",
+    checkboxRing: "text-slate-600 focus:ring-slate-500",
+    btnGradient: "from-slate-600 to-gray-500",
+    historyIcon: "text-slate-800", historyBtn: "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700",
+    btnDownload: "bg-slate-600 hover:bg-slate-700 text-white",
+    centerBoxBg: "bg-slate-50 border-slate-200", centerBoxBorder: "border-slate-300/60",
+    aiIconBg: "bg-gray-100 text-gray-600", aiBorder: "border-slate-200",
+    badgeActive: "bg-slate-600 text-white shadow-md border-transparent",
+    badgeInactive: "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+    loaderText: "text-gray-600", canChiBadge: "text-gray-700 border-gray-200",
+    hourAccent: "text-gray-600"
+  },
+  moc: {
+    glow1: "bg-emerald-200/40", glow2: "bg-green-300/30", shadowBox: "shadow-emerald-900/10",
+    textTitle: "text-emerald-950", textSubtitle: "text-emerald-700/80",
+    borderInput: "border-emerald-100 focus-within:border-emerald-400 focus-within:ring-emerald-100",
+    iconBg: "bg-emerald-50", iconText: "text-emerald-600",
+    divide: "divide-emerald-100", selectText: "text-emerald-700",
+    checkboxRing: "text-emerald-600 focus:ring-emerald-500",
+    btnGradient: "from-emerald-600 to-green-500",
+    historyIcon: "text-emerald-800", historyBtn: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700",
+    btnDownload: "bg-emerald-600 hover:bg-emerald-700 text-white",
+    centerBoxBg: "bg-emerald-50 border-emerald-100", centerBoxBorder: "border-emerald-200/60",
+    aiIconBg: "bg-green-100 text-green-600", aiBorder: "border-emerald-100",
+    badgeActive: "bg-emerald-600 text-white shadow-md border-transparent",
+    badgeInactive: "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50",
+    loaderText: "text-green-600", canChiBadge: "text-green-700 border-green-200",
+    hourAccent: "text-green-600"
+  },
+  thuy: {
+    glow1: "bg-blue-200/40", glow2: "bg-cyan-300/30", shadowBox: "shadow-blue-900/10",
+    textTitle: "text-blue-950", textSubtitle: "text-blue-700/80",
+    borderInput: "border-blue-100 focus-within:border-blue-400 focus-within:ring-blue-100",
+    iconBg: "bg-blue-50", iconText: "text-blue-600",
+    divide: "divide-blue-100", selectText: "text-blue-700",
+    checkboxRing: "text-blue-600 focus:ring-blue-500",
+    btnGradient: "from-blue-600 to-cyan-500",
+    historyIcon: "text-blue-800", historyBtn: "bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700",
+    btnDownload: "bg-blue-600 hover:bg-blue-700 text-white",
+    centerBoxBg: "bg-blue-50 border-blue-100", centerBoxBorder: "border-blue-200/60",
+    aiIconBg: "bg-cyan-100 text-cyan-600", aiBorder: "border-blue-100",
+    badgeActive: "bg-blue-600 text-white shadow-md border-transparent",
+    badgeInactive: "bg-white text-blue-700 border-blue-200 hover:bg-blue-50",
+    loaderText: "text-cyan-600", canChiBadge: "text-cyan-700 border-cyan-200",
+    hourAccent: "text-cyan-600"
+  },
+  hoa: {
+    glow1: "bg-red-200/40", glow2: "bg-orange-300/30", shadowBox: "shadow-red-900/10",
+    textTitle: "text-red-950", textSubtitle: "text-red-700/80",
+    borderInput: "border-red-100 focus-within:border-red-400 focus-within:ring-red-100",
+    iconBg: "bg-red-50", iconText: "text-red-600",
+    divide: "divide-red-100", selectText: "text-red-700",
+    checkboxRing: "text-red-600 focus:ring-red-500",
+    btnGradient: "from-red-600 to-orange-500",
+    historyIcon: "text-red-800", historyBtn: "bg-red-50 hover:bg-red-100 border-red-200 text-red-700",
+    btnDownload: "bg-red-600 hover:bg-red-700 text-white",
+    centerBoxBg: "bg-red-50 border-red-100", centerBoxBorder: "border-red-200/60",
+    aiIconBg: "bg-orange-100 text-orange-600", aiBorder: "border-red-100",
+    badgeActive: "bg-red-600 text-white shadow-md border-transparent",
+    badgeInactive: "bg-white text-red-700 border-red-200 hover:bg-red-50",
+    loaderText: "text-orange-600", canChiBadge: "text-orange-700 border-orange-200",
+    hourAccent: "text-orange-600"
+  },
+  tho: {
+    glow1: "bg-amber-200/40", glow2: "bg-yellow-300/30", shadowBox: "shadow-amber-900/10",
+    textTitle: "text-amber-950", textSubtitle: "text-amber-700/80",
+    borderInput: "border-amber-100 focus-within:border-amber-400 focus-within:ring-amber-100",
+    iconBg: "bg-amber-50", iconText: "text-amber-600",
+    divide: "divide-amber-100", selectText: "text-amber-700",
+    checkboxRing: "text-amber-600 focus:ring-amber-500",
+    btnGradient: "from-amber-600 to-yellow-500",
+    historyIcon: "text-amber-800", historyBtn: "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700",
+    btnDownload: "bg-amber-600 hover:bg-amber-700 text-white",
+    centerBoxBg: "bg-amber-50 border-amber-100", centerBoxBorder: "border-amber-200/60",
+    aiIconBg: "bg-yellow-100 text-yellow-600", aiBorder: "border-amber-100",
+    badgeActive: "bg-amber-600 text-white shadow-md border-transparent",
+    badgeInactive: "bg-white text-amber-700 border-amber-200 hover:bg-amber-50",
+    loaderText: "text-yellow-600", canChiBadge: "text-yellow-700 border-yellow-200",
+    hourAccent: "text-yellow-600"
+  }
+};
+
 function getBanMenhFallback(canChi: string) {
   if (!canChi || typeof canChi !== 'string') return "Chưa xác định";
-  const key = canChi.toLowerCase().replace("năm", "").trim();
+  let key = canChi.toLowerCase().replace("năm", "").trim();
+  key = key.replace(/quí/g, "quý").replace(/kỉ/g, "kỷ").replace(/\s+/g, " ").trim();
   return NGU_HANH_NAP_AM[key] || "Chưa xác định";
 }
 
@@ -58,9 +166,9 @@ function getElementColor(nguHanh: string, isChinhTinh: boolean = false) {
   return isChinhTinh ? "text-stone-800" : "text-stone-600";
 }
 
-const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.ReactNode; }) => (
-  <div className="flex items-center bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-sm border border-purple-100 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100 transition-all duration-300">
-    <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 shrink-0 ml-0.5"><Icon className="w-5 h-5" /></div>
+const InputWrapper = ({ icon: Icon, children, themeObj }: { icon: any; children: React.ReactNode, themeObj: any }) => (
+  <div className={`flex items-center bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-sm border ${themeObj.borderInput} transition-all duration-300`}>
+    <div className={`w-11 h-11 ${themeObj.iconBg} rounded-xl flex items-center justify-center ${themeObj.iconText} shrink-0 ml-0.5`}><Icon className="w-5 h-5" /></div>
     <div className="flex-1 px-3">{children}</div>
   </div>
 );
@@ -71,7 +179,7 @@ export default function TuViPage() {
   const currentYear = new Date().getFullYear();
   
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "0", 
     gender: "Nam giới", viewYear: String(currentYear)
@@ -82,6 +190,8 @@ export default function TuViPage() {
   const [showResult, setShowResult] = useState(false);
   const [chartData, setChartData] = useState<any>(null);
   
+  const [appTheme, setAppTheme] = useState("default"); // TRẠNG THÁI THEME CHÍNH
+
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
   const [activeCategory, setActiveCategory] = useState("tong_quan"); 
@@ -89,7 +199,6 @@ export default function TuViPage() {
   
   const [history, setHistory] = useState<any[]>([]);
 
-  // TẢI LỊCH SỬ KHI KHỞI ĐỘNG
   useEffect(() => {
     const savedHistory = localStorage.getItem('tuvi_history');
     if (savedHistory) {
@@ -103,7 +212,6 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
-  // CƠ CHẾ CHỤP ẢNH LÁ SỐ (Không cần cài thư viện NPM)
   const handleDownload = () => {
     setIsDownloading(true);
     const script = document.createElement("script");
@@ -149,7 +257,7 @@ export default function TuViPage() {
       chinhTinh: chinhTinhMenh,
       tuanTriet: tuanTrietStr,
       category: cat,
-      viewYear: formData.viewYear // Truyền năm xem hạn vào AI
+      viewYear: formData.viewYear 
     };
 
     const readingResult = await getLuangiaiAI(aiPromptData);
@@ -165,8 +273,7 @@ export default function TuViPage() {
     setAiReading("");
     setAiCache({}); 
 
-    // LƯU LỊCH SỬ TRA CỨU
-    const newHistory = [formData, ...history.filter(h => h.name !== formData.name)].slice(0, 5); // Lưu tối đa 5 người
+    const newHistory = [formData, ...history.filter(h => h.name !== formData.name)].slice(0, 5);
     setHistory(newHistory);
     localStorage.setItem('tuvi_history', JSON.stringify(newHistory));
 
@@ -204,6 +311,16 @@ export default function TuViPage() {
         const computedBanMenh = getBanMenhFallback(namCanChi);
         const finalBanMenh = computedBanMenh !== "Chưa xác định" ? computedBanMenh : (rawInfo.nguHanh || rawInfo.NguHanh || rawInfo.ban_menh || rawInfo.BanMenh || rawInfo.menh || "Chưa xác định");
 
+        // XÁC ĐỊNH MÀU SẮC THEME THEO BẢN MỆNH
+        let newTheme = "default";
+        const bmLower = finalBanMenh.toLowerCase();
+        if (bmLower.includes("kim")) newTheme = "kim";
+        else if (bmLower.includes("mộc") || bmLower.includes("moc")) newTheme = "moc";
+        else if (bmLower.includes("thủy") || bmLower.includes("thuy")) newTheme = "thuy";
+        else if (bmLower.includes("hỏa") || bmLower.includes("hoa")) newTheme = "hoa";
+        else if (bmLower.includes("thổ") || bmLower.includes("tho")) newTheme = "tho";
+        setAppTheme(newTheme);
+
         const safeInfo = {
           Name: formData.name,
           Nam: namCanChi,
@@ -230,26 +347,29 @@ export default function TuViPage() {
   };
 
   const canChiText = useMemo(() => getYearCanChi(formData.year), [formData.year]);
+  
+  // Trích xuất bộ màu từ Dictionary
+  const theme = THEMES[appTheme];
 
   return (
-    <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-fuchsia-200/40 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-purple-300/30 rounded-full blur-[150px] pointer-events-none"></div>
+    <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-4 sm:p-8 relative overflow-hidden transition-colors duration-1000">
+      <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] ${theme.glow1} rounded-full blur-[120px] pointer-events-none transition-colors duration-1000`}></div>
+      <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] ${theme.glow2} rounded-full blur-[150px] pointer-events-none transition-colors duration-1000`}></div>
 
-      <div className="relative w-full max-w-5xl bg-white/70 backdrop-blur-xl border border-white/60 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl shadow-purple-900/10">
+      <div className={`relative w-full max-w-5xl bg-white/80 backdrop-blur-xl border border-white/60 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl ${theme.shadowBox} transition-colors duration-1000`}>
         {!showResult ? (
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold text-purple-950 mb-3 tracking-tight">Lập lá số Tử Vi</h1>
-              <p className="text-purple-700/80 text-sm sm:text-base font-medium">Khám phá vận mệnh - Định hướng tương lai</p>
+              <h1 className={`text-3xl sm:text-4xl font-bold ${theme.textTitle} mb-3 tracking-tight`}>Lập lá số Tử Vi</h1>
+              <p className={`${theme.textSubtitle} text-sm sm:text-base font-medium`}>Khám phá vận mệnh - Định hướng tương lai</p>
             </div>
             
             <div className="space-y-4">
-              <InputWrapper icon={User}><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Họ và tên" className="w-full bg-transparent outline-none text-stone-700 font-semibold" /></InputWrapper>
+              <InputWrapper icon={User} themeObj={theme}><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Họ và tên" className="w-full bg-transparent outline-none text-stone-700 font-semibold" /></InputWrapper>
               
               <div className="relative">
-                <InputWrapper icon={CalendarDays}>
-                  <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
+                <InputWrapper icon={CalendarDays} themeObj={theme}>
+                  <div className={`flex items-center w-full text-stone-700 text-sm font-medium divide-x ${theme.divide}`}>
                     <select name="day" value={formData.day} onChange={handleChange} className="bg-transparent outline-none w-full pr-2">
                       <option value="">Ngày</option>
                       {Array.from({ length: 31 }, (_, i) => String(i + 1)).map(d => <option key={d} value={d}>Ngày {d}</option>)}
@@ -262,23 +382,23 @@ export default function TuViPage() {
                       <option value="">Năm</option>
                       {Array.from({ length: 100 }, (_, i) => String(currentYear - i)).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
-                    <select name="calendar" value={formData.calendar} onChange={handleChange} className="bg-transparent outline-none w-full pl-2 text-purple-700 font-bold">
+                    <select name="calendar" value={formData.calendar} onChange={handleChange} className={`bg-transparent outline-none w-full pl-2 font-bold ${theme.selectText}`}>
                       <option value="Dương lịch">Dương lịch</option>
                       <option value="Âm lịch">Âm lịch</option>
                     </select>
                     
-                    <div className="flex items-center gap-1.5 pl-3 border-l border-purple-100">
-                      <input type="checkbox" name="isLeapMonth" id="leapMonth" checked={formData.isLeapMonth} onChange={handleChange} disabled={formData.calendar !== "Âm lịch"} className="w-4 h-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer disabled:opacity-50" />
-                      <label htmlFor="leapMonth" className={`text-xs font-bold whitespace-nowrap ${formData.calendar === "Âm lịch" ? "text-purple-700 cursor-pointer" : "text-gray-400"}`}>Nhuận</label>
+                    <div className={`flex items-center gap-1.5 pl-3 border-l ${theme.divide}`}>
+                      <input type="checkbox" name="isLeapMonth" id="leapMonth" checked={formData.isLeapMonth} onChange={handleChange} disabled={formData.calendar !== "Âm lịch"} className={`w-4 h-4 border-gray-300 rounded cursor-pointer disabled:opacity-50 ${theme.checkboxRing}`} />
+                      <label htmlFor="leapMonth" className={`text-xs font-bold whitespace-nowrap ${formData.calendar === "Âm lịch" ? "cursor-pointer " + theme.selectText : "text-gray-400"}`}>Nhuận</label>
                     </div>
                   </div>
                 </InputWrapper>
-                {canChiText && <div className="absolute -bottom-2 right-4 translate-y-full flex items-center z-10"><span className="text-xs font-bold text-fuchsia-700 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full border border-fuchsia-200">{canChiText}</span></div>}
+                {canChiText && <div className="absolute -bottom-2 right-4 translate-y-full flex items-center z-10"><span className={`text-xs font-bold bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full border ${theme.canChiBadge}`}>{canChiText}</span></div>}
               </div>
               <div className="h-4"></div>
               
-              <InputWrapper icon={Clock}>
-                <div className="flex items-center w-full text-stone-700 text-sm font-medium divide-x divide-purple-100">
+              <InputWrapper icon={Clock} themeObj={theme}>
+                <div className={`flex items-center w-full text-stone-700 text-sm font-medium divide-x ${theme.divide}`}>
                   <select name="hour" value={formData.hour} onChange={handleChange} className="bg-transparent outline-none w-full pr-2 cursor-pointer">
                     <option value="">Giờ sinh</option>
                     {Array.from({ length: 24 }, (_, i) => String(i)).map(h => (
@@ -293,16 +413,15 @@ export default function TuViPage() {
                     ))}
                   </select>
                   
-                  <div className="w-full pl-2 text-fuchsia-600 font-bold text-center pointer-events-none">
+                  <div className={`w-full pl-2 font-bold text-center pointer-events-none ${theme.hourAccent}`}>
                     {getHourCanChiName(formData.hour)}
                   </div>
                 </div>
               </InputWrapper>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InputWrapper icon={Users}><select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="Nam giới">Nam giới</option><option value="Nữ giới">Nữ giới</option></select></InputWrapper>
-                <InputWrapper icon={CalendarSearch}>
-                  {/* DANH SÁCH NĂM XEM HẠN ĐỘNG (TỪ HIỆN TẠI ĐẾN 10 NĂM NỮA) */}
+                <InputWrapper icon={Users} themeObj={theme}><select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="Nam giới">Nam giới</option><option value="Nữ giới">Nữ giới</option></select></InputWrapper>
+                <InputWrapper icon={CalendarSearch} themeObj={theme}>
                   <select name="viewYear" value={formData.viewYear} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
                     {Array.from({ length: 11 }, (_, i) => String(currentYear + i)).map(y => (
                       <option key={y} value={y}>Năm xem {y}</option>
@@ -311,15 +430,14 @@ export default function TuViPage() {
                 </InputWrapper>
               </div>
 
-              <button onClick={handleSubmit} disabled={isLoading} className="w-full mt-6 bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white font-bold text-lg py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2">
+              <button onClick={handleSubmit} disabled={isLoading} className={`w-full mt-6 bg-gradient-to-r text-white font-bold text-lg py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 ${theme.btnGradient}`}>
                 {isLoading ? <><Loader2 className="w-6 h-6 animate-spin" />Đang lập lá số...</> : "Xem luận giải"}
               </button>
             </div>
 
-            {/* KHU VỰC LỊCH SỬ TRA CỨU */}
             {history.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-purple-100">
-                <div className="flex items-center gap-2 mb-3 text-purple-800 font-bold text-sm">
+              <div className={`mt-8 pt-6 border-t ${theme.divide}`}>
+                <div className={`flex items-center gap-2 mb-3 font-bold text-sm ${theme.historyIcon}`}>
                   <History className="w-4 h-4" /> Đã tra cứu gần đây:
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -327,7 +445,7 @@ export default function TuViPage() {
                     <button 
                       key={idx} 
                       onClick={() => setFormData(h)}
-                      className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold rounded-full transition-colors"
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors border ${theme.historyBtn}`}
                     >
                       {h.name} ({h.year})
                     </button>
@@ -339,36 +457,34 @@ export default function TuViPage() {
         ) : (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <button onClick={() => setShowResult(false)} className="flex items-center gap-2 text-stone-500 hover:text-purple-700 font-medium bg-white px-4 py-2 rounded-xl border border-stone-200">
+              <button onClick={() => setShowResult(false)} className={`flex items-center gap-2 text-stone-500 font-medium bg-white px-4 py-2 rounded-xl border border-stone-200 hover:${theme.selectText}`}>
                 <ArrowLeft className="w-4 h-4" /> Quay lại
               </button>
-              <h2 className="text-2xl font-bold text-purple-900 hidden sm:block">Lá số Tử vi</h2>
+              <h2 className={`text-2xl font-bold hidden sm:block ${theme.textTitle}`}>Lá số Tử vi</h2>
               
-              {/* NÚT TẢI LÁ SỐ */}
               <button 
                 onClick={handleDownload} 
                 disabled={isDownloading}
-                className="flex items-center gap-2 text-white font-medium bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm transition-colors disabled:opacity-50 font-medium ${theme.btnDownload}`}
               >
                 {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 <span className="hidden sm:inline">{isDownloading ? "Đang tải..." : "Tải ảnh"}</span>
               </button>
             </div>
 
-            {/* BAO BỌC ID="laso-chart" ĐỂ THƯ VIỆN BẮT ẢNH CHÍNH XÁC KHU VỰC NÀY */}
             <div id="laso-chart" className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
               {Array.from({ length: 16 }).map((_, i) => {
                 const isCenter = [5, 6, 9, 10].includes(i);
                 if (isCenter) {
                   if (i === 5) return (
-                    <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-purple-200 p-2 sm:p-4 text-center">
+                    <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-stone-200 p-2 sm:p-4 text-center">
                       <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info?.Name || "Không rõ"}</h3>
                       <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">
-                        Sinh: <span className="text-purple-700">{String(formData.hour).padStart(2, '0')}:{String(formData.minute).padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} {formData.calendar === "Âm lịch" && formData.isLeapMonth ? "(Nhuận)" : ""}</span>
+                        Sinh: <span className={theme.selectText}>{String(formData.hour).padStart(2, '0')}:{String(formData.minute).padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} {formData.calendar === "Âm lịch" && formData.isLeapMonth ? "(Nhuận)" : ""}</span>
                       </p>
                       
-                      <div className="w-full max-w-[360px] bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100 mt-3 sm:mt-4">
-                        <div className="grid grid-cols-4 gap-1 text-[10px] sm:text-xs text-center border-b border-purple-200/60 pb-2 mb-2">
+                      <div className={`w-full max-w-[360px] p-2 sm:p-3 rounded-lg border mt-3 sm:mt-4 ${theme.centerBoxBg}`}>
+                        <div className={`grid grid-cols-4 gap-1 text-[10px] sm:text-xs text-center border-b pb-2 mb-2 ${theme.centerBoxBorder}`}>
                           <div className="flex flex-col items-center">
                             <span className="text-stone-500 mb-0.5">Năm</span>
                             <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Nam || "-"}</strong>
@@ -403,6 +519,7 @@ export default function TuViPage() {
                 const isMenh = house.Name === "Mệnh";
                 const isThan = house.Than === 1;
 
+                // Mệnh và Thân luôn giữ màu đỏ/tím để dễ phân biệt, bất chấp chủ đề
                 let highlightClass = "border-stone-200 bg-white";
                 if (isMenh) highlightClass = "border-red-400 bg-red-50/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]";
                 else if (isThan) highlightClass = "border-fuchsia-400 bg-fuchsia-50/20 shadow-[inset_0_0_15px_rgba(217,70,239,0.1)]";
@@ -440,41 +557,41 @@ export default function TuViPage() {
               })}
             </div>
 
-            <div className="mt-8 max-w-5xl mx-auto bg-gradient-to-br from-purple-50 to-white p-6 sm:p-8 rounded-2xl border border-purple-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-purple-100 pb-4">
+            <div className={`mt-8 max-w-5xl mx-auto bg-white p-6 sm:p-8 rounded-2xl border shadow-sm ${theme.aiBorder}`}>
+              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b pb-4 ${theme.divide}`}>
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-fuchsia-100 rounded-lg text-fuchsia-600"><Sparkles className="w-6 h-6" /></div>
-                  <h3 className="text-xl font-bold text-purple-900">AI Luận Giải Lá Số</h3>
+                  <div className={`p-2 rounded-lg ${theme.aiIconBg}`}><Sparkles className="w-6 h-6" /></div>
+                  <h3 className={`text-xl font-bold ${theme.textTitle}`}>AI Luận Giải Lá Số</h3>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <button 
                     onClick={() => fetchAIReading("tong_quan", chartData)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tong_quan" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tong_quan" ? theme.badgeActive : theme.badgeInactive}`}
                   >
                     <Compass className="w-3.5 h-3.5" /> Tổng quan
                   </button>
                   <button 
                     onClick={() => fetchAIReading("cong_danh", chartData)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "cong_danh" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "cong_danh" ? theme.badgeActive : theme.badgeInactive}`}
                   >
                     <Briefcase className="w-3.5 h-3.5" /> Công danh
                   </button>
                   <button 
                     onClick={() => fetchAIReading("tai_loc", chartData)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tai_loc" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tai_loc" ? theme.badgeActive : theme.badgeInactive}`}
                   >
                     <Coins className="w-3.5 h-3.5" /> Tài lộc
                   </button>
                   <button 
                     onClick={() => fetchAIReading("tinh_duyen", chartData)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tinh_duyen" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "tinh_duyen" ? theme.badgeActive : theme.badgeInactive}`}
                   >
                     <Heart className="w-3.5 h-3.5" /> Tình duyên
                   </button>
                   <button 
                     onClick={() => fetchAIReading("van_han", chartData)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "van_han" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${activeCategory === "van_han" ? theme.badgeActive : theme.badgeInactive}`}
                   >
                     <Zap className="w-3.5 h-3.5" /> Vận hạn {formData.viewYear}
                   </button>
@@ -483,9 +600,9 @@ export default function TuViPage() {
 
               <div className="text-stone-700 leading-relaxed min-h-[150px]">
                 {isReading ? (
-                  <div className="flex flex-col items-center justify-center h-full gap-3 text-fuchsia-600 py-10">
+                  <div className={`flex flex-col items-center justify-center h-full gap-3 py-10 ${theme.loaderText}`}>
                     <Loader2 className="w-8 h-8 animate-spin" />
-                    <p className="font-medium animate-pulse">Tinh tú đang hội tụ. AI đang phân tích theo góc độ đã chọn...</p>
+                    <p className="font-medium animate-pulse">Tinh tú đang hội tụ. AI đang phân tích...</p>
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap font-medium">{aiReading}</div>
