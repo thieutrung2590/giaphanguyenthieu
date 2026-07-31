@@ -40,9 +40,17 @@ const InputWrapper = ({ icon: Icon, children }: { icon: any; children: React.Rea
   </div>
 );
 
+// Tên 12 cung (Địa Chi) cố định trên Lưới 16 ô
+const CHI_OF_GRID: Record<number, string> = { 
+  0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 
+  4: "Thìn", 7: "Dậu", 
+  8: "Mão", 11: "Tuất", 
+  12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" 
+};
+
 export default function TuViPage() {
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", time: "Tỵ (09:00 - 11:00)", gender: "Nam giới", viewYear: "2026", job: "", relationship: "",
+    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", time: "Tỵ (09:00 - 11:00)", gender: "Nam giới", viewYear: "2026", job: "", relationship: "",
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -74,21 +82,37 @@ export default function TuViPage() {
           birth: { isLunar: formData.calendar === "Âm lịch", year: y, month: m, day: d, hour: hour, minute: 0 },
         });
 
-        const GRID_TO_CUNG: Record<number, number> = { 0:3, 1:4, 2:5, 3:6, 4:2, 7:7, 8:1, 11:8, 12:0, 13:11, 14:10, 15:9 };
+        // ĐÃ SỬA LỖI: Căn chỉnh lại ánh xạ cho chuẩn xác (tuvi-neo bắt đầu từ cung Tý = Index 0)
+        const GRID_TO_CUNG: Record<number, number> = { 
+          0: 5,   // Grid Tỵ -> Tỵ (Index 5)
+          1: 6,   // Grid Ngọ -> Ngọ (Index 6)
+          2: 7,   // Grid Mùi -> Mùi (Index 7)
+          3: 8,   // Grid Thân -> Thân (Index 8)
+          4: 4,   // Grid Thìn -> Thìn (Index 4)
+          7: 9,   // Grid Dậu -> Dậu (Index 9)
+          8: 3,   // Grid Mão -> Mão (Index 3)
+          11: 10, // Grid Tuất -> Tuất (Index 10)
+          12: 2,  // Grid Dần -> Dần (Index 2)
+          13: 1,  // Grid Sửu -> Sửu (Index 1)
+          14: 0,  // Grid Tý -> Tý (Index 0)
+          15: 11  // Grid Hợi -> Hợi (Index 11)
+        };
+        
         const gridCacCung = Array(16).fill(null);
         Object.keys(GRID_TO_CUNG).forEach((str) => {
             const gridIdx = parseInt(str);
             gridCacCung[gridIdx] = laso.Cac_cung[GRID_TO_CUNG[gridIdx]];
         });
 
-        // Ép kiểu (any) và tạo một đối tượng safeInfo để vượt qua lỗi TypeScript
         const rawInfo = (laso as any).Info || (laso as any).info || {};
+        
+        // ĐÃ SỬA LỖI: Bổ sung quét biến nguHanh để lấy đúng Bản Mệnh
         const safeInfo = {
           Name: formData.name,
           Nam: rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || "Chưa xác định",
-          BanMenh: rawInfo.BanMenh || rawInfo.banMenh || rawInfo.menh || "Chưa xác định",
-          Cuc: rawInfo.Cuc || rawInfo.cuc || "Chưa xác định",
-          AmDuong: rawInfo.AmDuong || rawInfo.amDuong || "Chưa xác định"
+          BanMenh: rawInfo.nguHanh || rawInfo.NguHanh || rawInfo.ban_menh || rawInfo.BanMenh || rawInfo.menh || "Chưa xác định",
+          Cuc: rawInfo.cuc || rawInfo.Cuc || "Chưa xác định",
+          AmDuong: rawInfo.amDuong || rawInfo.AmDuong || "Chưa xác định"
         };
 
         const newChartData = { info: safeInfo, gridCung: gridCacCung };
@@ -217,8 +241,13 @@ export default function TuViPage() {
                 return (
                   <div key={i} className={`relative bg-white rounded-lg border ${isMenh ? 'border-red-400 bg-red-50/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : 'border-stone-200'} p-1.5 flex flex-col justify-between overflow-hidden`}>
                     <div className="flex justify-between items-start border-b border-stone-100 pb-1 mb-1">
-                      <span className={`text-[12px] sm:text-[14px] font-bold ${isMenh || isThan ? 'text-red-600' : 'text-stone-700'}`}>{house.Name} {isThan && !isMenh ? <span className="text-[10px] text-fuchsia-600">(Thân)</span> : ""}</span>
+                      <span className={`text-[12px] sm:text-[14px] font-bold ${isMenh || isThan ? 'text-red-600' : 'text-stone-700'}`}>
+                        {house.Name} {isThan && !isMenh ? <span className="text-[10px] text-fuchsia-600">(Thân)</span> : ""}
+                      </span>
+                      {/* Bổ sung Tên Cung Địa Chi ở góc trên bên phải */}
+                      <span className="text-[10px] text-stone-400 font-semibold bg-stone-50 px-1 rounded-sm">{CHI_OF_GRID[i]}</span>
                     </div>
+                    
                     <div className="flex-1 overflow-y-auto space-y-0.5 flex flex-col items-center scrollbar-hide">
                       <div className="flex flex-col items-center mb-1 w-full gap-0.5">
                         {house.ChinhTinh.map((star: any, idx: number) => (
