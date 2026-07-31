@@ -81,23 +81,32 @@ export default function TuViPage() {
             gridCacCung[gridIdx] = laso.Cac_cung[GRID_TO_CUNG[gridIdx]];
         });
 
-        const newChartData = { info: laso.Info, gridCung: gridCacCung };
+        // Ép kiểu (any) và tạo một đối tượng safeInfo để vượt qua lỗi TypeScript
+        const rawInfo = (laso as any).Info || (laso as any).info || {};
+        const safeInfo = {
+          Name: formData.name,
+          Nam: rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || "Chưa xác định",
+          BanMenh: rawInfo.BanMenh || rawInfo.banMenh || rawInfo.menh || "Chưa xác định",
+          Cuc: rawInfo.Cuc || rawInfo.cuc || "Chưa xác định",
+          AmDuong: rawInfo.AmDuong || rawInfo.amDuong || "Chưa xác định"
+        };
+
+        const newChartData = { info: safeInfo, gridCung: gridCacCung };
         setChartData(newChartData);
         setShowResult(true);
         setIsLoading(false);
 
         setIsReading(true);
 
-        // --- TRÍCH XUẤT DỮ LIỆU ĐỂ GỬI LÊN SERVER TRÁNH LỖI SERIALIZATION ---
         const menhCung = gridCacCung.find((c: any) => c && c.Name === "Mệnh");
         const chinhTinhMenh = menhCung?.ChinhTinh.map((s: any) => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
 
         const aiPromptData = {
-          name: formData.name,
+          name: safeInfo.Name,
           gender: formData.gender,
-          amDuong: laso.Info.AmDuong,
-          banMenh: laso.Info.BanMenh,
-          cuc: laso.Info.Cuc,
+          amDuong: safeInfo.AmDuong,
+          banMenh: safeInfo.BanMenh,
+          cuc: safeInfo.Cuc,
           chinhTinh: chinhTinhMenh
         };
 
@@ -186,7 +195,7 @@ export default function TuViPage() {
                 if (isCenter) {
                   if (i === 5) return (
                     <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-purple-200 p-2 sm:p-4 text-center">
-                      <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{formData.name}</h3>
+                      <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info.Name}</h3>
                       <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">Sinh: <span className="text-purple-700">{formData.day}/{formData.month}/{formData.year}</span></p>
                       
                       <div className="w-full max-w-[320px] grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] sm:text-sm text-left bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-100 mt-4">
