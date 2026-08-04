@@ -7,12 +7,11 @@ function removeAccents(str: string) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
 }
 
-// 2. Hàm ép JSON sang CSV TỐI ƯU CỰC HẠN (Bỏ qua các giá trị null/rỗng hoàn toàn)
+// 2. Hàm ép JSON sang CSV TỐI ƯU CỰC HẠN
 function jsonToCsv(items: any[]) {
   if (!items || items.length === 0) return '';
   const keySet = new Set<string>();
   
-  // Chỉ lấy những cột thực sự có dữ liệu
   items.forEach(item => {
     Object.keys(item).forEach(key => {
       if (item[key] !== null && item[key] !== '') keySet.add(key);
@@ -32,7 +31,6 @@ function jsonToCsv(items: any[]) {
       }
       return strVal;
     });
-    // Không thêm dòng nếu toàn bộ là dữ liệu rỗng
     if (values.some(v => v !== '')) csvRows.push(values.join(','));
   }
   return csvRows.join('\n');
@@ -56,7 +54,7 @@ export async function POST(req: Request) {
     const lowerMsg = message.toLowerCase();
     const unaccentedMsg = removeAccents(lowerMsg);
     
-    // ĐỊNH TUYẾN Ý ĐỊNH (INTENT DETECTION) - Chìa khóa để tiết kiệm token
+    // ĐỊNH TUYẾN Ý ĐỊNH (INTENT DETECTION)
     const isEventQuery = /(su kien|gio|hop|le|ngay|ky niem|sap toi)/.test(unaccentedMsg);
     const isFinanceQuery = /(quy|tien|dong gop|ung ho|chi tieu|thu chi)/.test(unaccentedMsg);
     const isCountQuery = /(bao nhieu|tong so)/.test(unaccentedMsg);
@@ -68,18 +66,15 @@ export async function POST(req: Request) {
     
     // TẢI DỮ LIỆU TÙY THEO Ý ĐỊNH
     if (isEventQuery) {
-      // Nhánh 1: Nếu hỏi về sự kiện, CHỈ lấy bảng custom_events
       const { data: events } = await supabase.from('custom_events').select('title, event_date, description, location').limit(10);
       if (events && events.length > 0) {
         systemContext += `\nDỮ LIỆU SỰ KIỆN (CSV):\n${jsonToCsv(events)}\n`;
       }
     } 
     else if (isFinanceQuery) {
-      // Nhánh 2: Nếu hỏi về tiền bạc (Sau này bạn có bảng donations, expenses thì móc vào đây)
       systemContext += `\nHệ thống hiện tại chưa kết nối bảng tài chính. Hãy báo người dùng "Tính năng đang được phát triển".\n`;
     }
     else {
-      // Nhánh 3: Nhánh mặc định - Hỏi về thông tin con người
       const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(1500);
       const totalMembers = count || (allPersons ? allPersons.length : 0);
       systemContext += `\n- Tổng số thành viên gia phả: ${totalMembers} người.\n`;
@@ -98,7 +93,6 @@ export async function POST(req: Request) {
             return { ...p, _matchScore: score };
           });
 
-          // Tối ưu: Chỉ lấy 7 người sát nhất để chừa token cho các mối quan hệ
           mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 7); 
         } else {
           mainPersons = mainPersons.slice(0, 7);
@@ -113,7 +107,7 @@ export async function POST(req: Request) {
               .from('relationships')
               .select('person_id, related_person_id, relationship_type')
               .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
-              .limit(50); // Giới hạn số mối quan hệ lấy về
+              .limit(50);
 
             if (rels && rels.length > 0) {
               relationshipsData = rels;
@@ -133,20 +127,17 @@ export async function POST(req: Request) {
         }
       }
 
-      // Dọn dẹp dữ liệu thừa trước khi tạo CSV
       const uniquePersons = Array.from(new Map(finalPersons.map(p => [p.id, p])).values());
       const cleanPersons = uniquePersons.map((p: any) => {
         const clean: any = { id: p.id };
         for (const key in p) {
           const lowerKey = key.toLowerCase();
-          // Cắt tỉa: Xóa các cột vô giá trị với AI để trống Token
           if (['created_at', 'updated_at', 'avatar_url', 'image', 'photo', 'uuid', '_matchscore'].includes(lowerKey)) continue;
           if (p[key] !== null && p[key] !== '') clean[key] = p[key];
         }
         return clean;
       });
 
-      // Dịch mối quan hệ thành văn bản tĩnh
       const translatedRelationships = relationshipsData.map((r: any) => {
         const p1 = uniquePersons.find(p => p.id === r.person_id);
         const p2 = uniquePersons.find(p => p.id === r.related_person_id);
@@ -164,15 +155,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // TỔNG HỢP PROMPT CHUẨN XÁC VÀ SIÊU NHẸ
     const systemPrompt = `Bạn là Trợ lý Gia Phả dòng họ Nguyễn Thiệu. Nguyên tắc: CHÍNH XÁC, không bịa đặt.
 Nếu không có thông tin, hãy trả lời: "Không đủ thông tin để kết luận".
 ${systemContext}
 HƯỚNG DẪN TRÌNH BÀY:
 1. NẾU HỎI VỀ SỰ KIỆN: Liệt kê rõ ràng ngày, tên sự kiện, địa điểm.
-2. NẾU HỎI VỀ GIA ĐÌNH: BẮT BUỘC liệt kê bằng gạch đầu dòng (KHÔNG DÙNG BẢNG). Chỉ hiển thị Bố, Mẹ, Vợ, Chồng, Con, Anh/Chị/Em ruột. Tuyệt đối loại bỏ họ hàng xa. Không hiển thị số ID.`;
+2. NẾU HỎI VỀ GIA ĐÌNH: BẮT BUỘC liệt kê bằng gạch đầu dòng (KHÔNG DÙNG BẢNG). Chỉ hiển thị Bố, Mẹ, Vợ, Chồng, Con, Anh/Chị/Em ruột. Tuyệt đối loại bỏ họ hàng xa. Không hiển thị số ID.
+3. CHÈN LIÊN KẾT HỒ SƠ: Khi bạn cung cấp thông tin về một cá nhân cụ thể, hãy kiểm tra cột "id" của người đó trong dữ liệu CSV và bắt buộc nối thêm một đường dẫn Markdown ở cuối cùng của câu trả lời theo đúng định dạng sau:
+[Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/thanh-vien/{id})
+Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} bằng chuỗi ID chính xác của người đó.`;
 
-    // Gọi API GROQ
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
