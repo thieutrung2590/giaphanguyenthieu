@@ -22,10 +22,10 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Lấy toàn bộ dữ liệu để biết tổng số thành viên (Sẽ không gửi tất cả cho AI)
     const { data: persons, error: supabaseError } = await supabase
       .from('persons')
-      .select('*');
+      .select('*')
+      .limit(500);
 
     if (supabaseError) {
       return NextResponse.json({ reply: `Lỗi truy xuất CSDL: ${supabaseError.message}` }, { status: 500 });
@@ -38,36 +38,36 @@ export async function POST(req: Request) {
     const totalMembers = persons.length;
 
     // =========================================================================
-    // THUẬT TOÁN BỘ LỌC THÔNG MINH NHẰM TRÁNH LỖI QUÁ TẢI TOKEN CỦA GROQ
+    // NÂNG CẤP BỘ LỌC THÔNG MINH: TÌM CHÍNH XÁC TÊN, TRÁNH LẪN LỘN
     // =========================================================================
     
     const lowerMsg = message.toLowerCase();
-    // Tách các từ trong câu hỏi có độ dài > 2 ký tự làm từ khóa tìm kiếm
-    const keywords = lowerMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 2); 
+    
+    // 1. Loại bỏ các từ khóa thừa để AI chỉ tập trung vào cụm Danh Từ (Tên người)
+    let cleanMsg = lowerMsg.replace(/(thông tin|cho biết|hỏi về|ai là|tìm|về|của|những|người|tên)/g, ' ').trim();
+    const keywords = cleanMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 1); 
 
     let relevantPersons = persons;
     
-    // Nếu câu hỏi không mang tính chất đếm tổng quát, tiến hành lọc dữ liệu
+    // 2. Đổi thuật toán sang 'every' (Bắt buộc dữ liệu phải chứa TẤT CẢ các chữ trong tên)
     if (keywords.length > 0 && !lowerMsg.includes('bao nhiêu') && !lowerMsg.includes('tổng số') && !lowerMsg.includes('tất cả')) {
         relevantPersons = persons.filter((p: any) => {
             const personStr = JSON.stringify(p).toLowerCase();
-            // Chỉ giữ lại những người có chứa từ khóa trong câu hỏi
-            return keywords.some((kw: string) => personStr.includes(kw));
+            // Ví dụ: Gõ "Nguyễn Thiệu Dũng", bắt buộc chuỗi JSON phải có đủ "nguyễn", "thiệu", "dũng"
+            return keywords.every((kw: string) => personStr.includes(kw));
         });
     }
 
-    // CẮT GIẢM DỮ LIỆU: Chỉ gửi tối đa 10 kết quả phù hợp nhất lên AI
+    // Chỉ gửi tối đa 10 kết quả phù hợp nhất
     relevantPersons = relevantPersons.slice(0, 10);
 
-    // DỌN RÁC JSON: Xóa bỏ các cột làm tốn token vô ích
+    // Dọn dẹp JSON
     const cleanPersons = relevantPersons.map((p: any) => {
         const clean: any = {};
         for (const key in p) {
             const lowerKey = key.toLowerCase();
-            // Loại bỏ ID, Link ảnh, ngày tạo, ngày sửa
             if (['id', 'created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo'].includes(lowerKey)) continue;
             
-            // Chỉ giữ lại trường có giá trị
             if (p[key] !== null && p[key] !== '') {
                 clean[key] = p[key];
             }
@@ -78,15 +78,18 @@ export async function POST(req: Request) {
     const contextData = JSON.stringify(cleanPersons);
 
     const systemPrompt = `Bạn là một trợ lý AI quản lý gia phả dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc của bạn là ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. 
-Chỉ cung cấp thông tin dựa trên dữ liệu gia phả được cung cấp dưới đây. Tuyệt đối không suy đoán, không bịa đặt, không tự tạo thông tin. Nếu dữ liệu không đủ, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
+Chỉ cung cấp thông tin dựa trên danh sách dữ liệu gia phả (định dạng JSON) được cung cấp dưới đây. Hãy tự động nhận diện các trường như tên, tuổi, giới tính, tiểu sử dựa vào dữ liệu JSON. 
+
+LƯU Ý QUAN TRỌNG VỀ ĐÍCH DANH: Phải đọc thật kỹ và đối chiếu chính xác HỌ TÊN người dùng hỏi với dữ liệu JSON. Tuyệt đối không nhầm lẫn các tên gần giống nhau (Ví dụ: Dũng và Dung, Trọng và Trung).
+Tuyệt đối không suy đoán, không bịa đặt, không tự tạo thông tin. Nếu dữ liệu JSON cung cấp là mảng rỗng [] hoặc không có thông tin khớp với yêu cầu, hãy trả lời đúng nguyên văn: "Không đủ thông tin để kết luận".
 
 THÔNG TIN TỔNG QUAN:
 - Gia phả hiện tại có tổng cộng: ${totalMembers} thành viên.
 
-DỮ LIỆU THÀNH VIÊN LIÊN QUAN (Định dạng JSON - Đã giới hạn hiển thị):
+DỮ LIỆU THÀNH VIÊN LIÊN QUAN (Định dạng JSON):
 ${contextData}`;
 
-    // 2. Gọi Groq API với gói dữ liệu đã được tối ưu siêu nhẹ
+    // 3. Gọi Groq API
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -99,7 +102,7 @@ ${contextData}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ],
-        temperature: 0.1, // Khóa chặt trí tưởng tượng của AI
+        temperature: 0.1, // Khóa chặt tính sáng tạo để chống bịa đặt
       }),
     });
 
