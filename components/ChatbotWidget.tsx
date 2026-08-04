@@ -1,6 +1,12 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// Khởi tạo Supabase client để kiểm tra trạng thái đăng nhập
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type ChatMessage = {
   role: 'user' | 'bot';
@@ -8,12 +14,35 @@ type ChatMessage = {
 };
 
 export default function ChatbotWidget() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 1. Kiểm tra trạng thái đăng nhập của người dùng
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsAuthenticated(!!data.session);
+    };
+    
+    checkAuth();
+
+    // Lắng nghe sự kiện đăng nhập/đăng xuất để cập nhật widget ngay lập tức
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+      // Nếu đăng xuất thì tự động đóng cửa sổ chat
+      if (!session) setIsOpen(false);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // 2. Tự động cuộn xuống tin nhắn mới nhất
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -52,10 +81,17 @@ export default function ChatbotWidget() {
     }
   };
 
+  // NẾU CHƯA ĐĂNG NHẬP -> KHÔNG HIỂN THỊ GÌ CẢ
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  // ĐÃ ĐĂNG NHẬP -> HIỂN THỊ WIDGET (Đã dời vị trí lên bottom-[100px] để tránh đè Zalo)
   return (
-    <div className="fixed bottom-6 right-6 z-50 font-sans">
+    <div className="fixed bottom-[100px] right-6 z-50 font-sans">
       {isOpen ? (
         <div className="bg-white rounded-xl shadow-2xl w-[350px] h-[500px] flex flex-col border border-gray-200 overflow-hidden">
+          {/* Header */}
           <div className="bg-slate-800 text-white p-4 flex justify-between items-center shadow-sm">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -71,6 +107,7 @@ export default function ChatbotWidget() {
             </button>
           </div>
 
+          {/* Body / Chat History */}
           <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col gap-3">
             {chatHistory.length === 0 && (
               <div className="text-center text-slate-500 text-xs mt-4">
@@ -101,6 +138,7 @@ export default function ChatbotWidget() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Footer / Input */}
           <div className="p-3 bg-white border-t border-gray-100 flex gap-2">
             <input
               type="text"
