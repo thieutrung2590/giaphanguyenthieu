@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Thuật toán lột bỏ dấu tiếng Việt để phục vụ Fuzzy Search
+function removeAccents(str: string) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
@@ -13,83 +23,156 @@ export async function POST(req: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!groqApiKey) {
-      return NextResponse.json({ reply: 'Lỗi: Chưa cấu hình GROQ_API_KEY trên Vercel.' }, { status: 500 });
-    }
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ reply: 'Lỗi: Chưa cấu hình biến môi trường Supabase trên Vercel.' }, { status: 500 });
+    if (!groqApiKey || !supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ reply: 'Lỗi: Chưa cấu hình đủ biến môi trường (GROQ_API_KEY hoặc SUPABASE_KEY) trên Vercel.' }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { data: persons, error: supabaseError } = await supabase
-      .from('persons')
-      .select('*')
-      .limit(500);
-
-    if (supabaseError) {
-      return NextResponse.json({ reply: `Lỗi truy xuất CSDL: ${supabaseError.message}` }, { status: 500 });
-    }
-
-    if (!persons || persons.length === 0) {
-      return NextResponse.json({ reply: 'Hệ thống thông báo: Đã kết nối thành công nhưng bảng "persons" hiện chưa có dữ liệu.' }, { status: 200 });
-    }
-
-    const totalMembers = persons.length;
-
-    // =========================================================================
-    // NÂNG CẤP BỘ LỌC THÔNG MINH: TÌM CHÍNH XÁC TÊN, TRÁNH LẪN LỘN
-    // =========================================================================
-    
+    // 1. CHUẨN BỊ TỪ KHÓA TÌM KIẾM (FUZZY SEARCH)
     const lowerMsg = message.toLowerCase();
+    const unaccentedMsg = removeAccents(lowerMsg);
     
-    // 1. Loại bỏ các từ khóa thừa để AI chỉ tập trung vào cụm Danh Từ (Tên người)
-    let cleanMsg = lowerMsg.replace(/(thông tin|cho biết|hỏi về|ai là|tìm|về|của|những|người|tên)/g, ' ').trim();
-    const keywords = cleanMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 1); 
+    // Bỏ các từ thừa tiếng Việt (đã bỏ dấu) để tập trung tìm đích danh
+    let cleanMsg = unaccentedMsg.replace(/(thong tin|cho biet|hoi ve|ai la|tim|ve|cua|nhung|nguoi|ten|cha|me|vo|chong|con|cai|gia|pha|ban|su kien|gio|hop|ngay)/g, ' ').trim();
+    const keywords = cleanMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 1);
 
-    let relevantPersons = persons;
+    // 2. TÍCH HỢP TÌM KIẾM SỰ KIỆN (custom_events)
+    let eventsData: any[] = [];
+    const isEventQuery = /(su kien|gio|hop|le|ngay|ky niem)/.test(unaccentedMsg);
     
-    // 2. Đổi thuật toán sang 'every' (Bắt buộc dữ liệu phải chứa TẤT CẢ các chữ trong tên)
-    if (keywords.length > 0 && !lowerMsg.includes('bao nhiêu') && !lowerMsg.includes('tổng số') && !lowerMsg.includes('tất cả')) {
-        relevantPersons = persons.filter((p: any) => {
-            const personStr = JSON.stringify(p).toLowerCase();
-            // Ví dụ: Gõ "Nguyễn Thiệu Dũng", bắt buộc chuỗi JSON phải có đủ "nguyễn", "thiệu", "dũng"
-            return keywords.every((kw: string) => personStr.includes(kw));
+    if (isEventQuery) {
+      const { data: events, error: eventError } = await supabase
+        .from('custom_events')
+        .select('*')
+        .limit(20); // Lấy 20 sự kiện gần nhất
+        
+      if (!eventError && events) {
+        eventsData = events.map((e: any) => {
+          const clean: any = {};
+          for (const key in e) {
+            if (!['created_at', 'updated_at'].includes(key.toLowerCase()) && e[key] !== null) {
+              clean[key] = e[key];
+            }
+          }
+          return clean;
         });
+      }
     }
 
-    // Chỉ gửi tối đa 10 kết quả phù hợp nhất
-    relevantPersons = relevantPersons.slice(0, 10);
+    // 3. TRUY XUẤT VÀ LỌC THÀNH VIÊN GIA PHẢ BẰNG FUZZY SEARCH
+    const { data: allPersons, error: personError, count } = await supabase
+      .from('persons')
+      .select('*', { count: 'exact' })
+      .limit(1500); // Lấy số lượng lớn vào RAM để xử lý lọc không dấu
 
-    // Dọn dẹp JSON
-    const cleanPersons = relevantPersons.map((p: any) => {
-        const clean: any = {};
-        for (const key in p) {
-            const lowerKey = key.toLowerCase();
-            if (['id', 'created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo'].includes(lowerKey)) continue;
-            
-            if (p[key] !== null && p[key] !== '') {
-                clean[key] = p[key];
+    if (personError) {
+      return NextResponse.json({ reply: `Lỗi truy xuất bảng persons: ${personError.message}` }, { status: 500 });
+    }
+
+    const totalMembers = count || (allPersons ? allPersons.length : 0);
+    let finalPersons: any[] = [];
+    let relationshipsData: any[] = [];
+
+    if (allPersons && allPersons.length > 0) {
+      let mainPersons = allPersons;
+
+      // Áp dụng thuật toán tìm kiếm không dấu
+      if (keywords.length > 0 && !unaccentedMsg.includes('bao nhieu') && !unaccentedMsg.includes('tong so')) {
+        mainPersons = allPersons.filter((p: any) => {
+          const rawName = p.full_name || p.name || p.ho_ten || p.title || '';
+          const nameStr = removeAccents(rawName.toLowerCase());
+          return keywords.every((kw: string) => nameStr.includes(kw)); // Khớp tuyệt đối mọi từ khóa nhưng không cần dấu
+        });
+      }
+
+      mainPersons = mainPersons.slice(0, 5); // Giới hạn 5 người khớp nhất để tiết kiệm Token
+      finalPersons = [...mainPersons];
+
+      // 4. TRUY XUẤT BẢNG MỐI QUAN HỆ (Relationships)
+      if (mainPersons.length > 0) {
+        const mainIds = mainPersons.map(p => p.id).filter(Boolean);
+
+        if (mainIds.length > 0) {
+          const { data: rels } = await supabase
+            .from('relationships')
+            .select('*')
+            .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
+            .limit(50);
+
+          if (rels && rels.length > 0) {
+            relationshipsData = rels;
+
+            // Tìm những người thân chưa có trong mảng finalPersons
+            const relativeIds = new Set<string>();
+            rels.forEach(r => {
+              if (r.person_id && !mainIds.includes(r.person_id)) relativeIds.add(r.person_id);
+              if (r.related_person_id && !mainIds.includes(r.related_person_id)) relativeIds.add(r.related_person_id);
+            });
+
+            const relIdsArray = Array.from(relativeIds);
+            if (relIdsArray.length > 0) {
+              // Tìm trực tiếp trong bộ nhớ RAM (allPersons) trước để tiết kiệm số lần gọi Database
+              const foundRelatives = allPersons.filter(p => relIdsArray.includes(p.id));
+              finalPersons = [...finalPersons, ...foundRelatives];
+              
+              // Nếu RAM chưa đủ (do limit 1500), gọi thêm DB để lấy nốt người thiếu
+              const foundIds = foundRelatives.map(p => p.id);
+              const missingIds = relIdsArray.filter(id => !foundIds.includes(id));
+              
+              if (missingIds.length > 0) {
+                 const { data: extraRelatives } = await supabase.from('persons').select('*').in('id', missingIds);
+                 if (extraRelatives) finalPersons = [...finalPersons, ...extraRelatives];
+              }
             }
+          }
         }
-        return clean;
+      }
+    }
+
+    // Lọc trùng lặp & Dọn dẹp JSON
+    const uniquePersons = Array.from(new Map(finalPersons.map(p => [p.id, p])).values());
+    const cleanPersons = uniquePersons.map((p: any) => {
+      const clean: any = {};
+      for (const key in p) {
+        const lowerKey = key.toLowerCase();
+        if (['created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo'].includes(lowerKey)) continue;
+        if (p[key] !== null && p[key] !== '') clean[key] = p[key];
+      }
+      return clean;
     });
 
-    const contextData = JSON.stringify(cleanPersons);
+    const cleanRels = relationshipsData.map((r: any) => {
+      const clean: any = {};
+      for (const key in r) {
+        if (!['created_at', 'updated_at'].includes(key.toLowerCase()) && r[key] !== null) clean[key] = r[key];
+      }
+      return clean;
+    });
 
-    const systemPrompt = `Bạn là một trợ lý AI quản lý gia phả dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc của bạn là ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. 
-Chỉ cung cấp thông tin dựa trên danh sách dữ liệu gia phả (định dạng JSON) được cung cấp dưới đây. Hãy tự động nhận diện các trường như tên, tuổi, giới tính, tiểu sử dựa vào dữ liệu JSON. 
-
-LƯU Ý QUAN TRỌNG VỀ ĐÍCH DANH: Phải đọc thật kỹ và đối chiếu chính xác HỌ TÊN người dùng hỏi với dữ liệu JSON. Tuyệt đối không nhầm lẫn các tên gần giống nhau (Ví dụ: Dũng và Dung, Trọng và Trung).
-Tuyệt đối không suy đoán, không bịa đặt, không tự tạo thông tin. Nếu dữ liệu JSON cung cấp là mảng rỗng [] hoặc không có thông tin khớp với yêu cầu, hãy trả lời đúng nguyên văn: "Không đủ thông tin để kết luận".
+    // 5. XÂY DỰNG PROMPT THÔNG MINH CHO GROQ AI
+    const systemPrompt = `Bạn là "Trợ lý Gia Phả" của dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc: Ưu tiên tuyệt đối tính CHÍNH XÁC, không suy đoán hay bịa đặt thông tin. Xưng hô là "Trợ lý Gia Phả" và gọi người dùng là "bạn" hoặc "thành viên".
+Nếu không có dữ liệu để kết luận, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
 
 THÔNG TIN TỔNG QUAN:
 - Gia phả hiện tại có tổng cộng: ${totalMembers} thành viên.
 
-DỮ LIỆU THÀNH VIÊN LIÊN QUAN (Định dạng JSON):
-${contextData}`;
+DỮ LIỆU THÀNH VIÊN (Kèm ID):
+${JSON.stringify(cleanPersons)}
 
-    // 3. Gọi Groq API
+DỮ LIỆU MỐI QUAN HỆ (Bảng Liên Kết):
+${JSON.stringify(cleanRels)}
+
+DỮ LIỆU SỰ KIỆN SẮP TỚI (Nếu có):
+${JSON.stringify(eventsData)}
+
+HƯỚNG DẪN TRÌNH BÀY (QUAN TRỌNG TỐI THƯỢNG):
+1. Đối chiếu chính xác ID giữa bảng THÀNH VIÊN và MỐI QUAN HỆ để biết ai là cha, mẹ, vợ, chồng, con. Không hiển thị dãy số ID ra màn hình.
+2. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: BẮT BUỘC phải nhóm danh sách người thân (đặc biệt là con cái) và xuất ra dưới dạng BẢNG (Table Markdown) thật đẹp mắt.
+- Cấu trúc cột của bảng phải bao gồm: | Họ tên | Giới tính | Ngày sinh | Mối quan hệ |
+3. NẾU CÓ DỮ LIỆU SỰ KIỆN: Hãy trình bày lịch sự, gạch đầu dòng rõ ràng ngày tháng và nội dung sự kiện.`;
+
+    // 6. GỌI API LLaMA 3.1 CỦA GROQ
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -102,7 +185,7 @@ ${contextData}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ],
-        temperature: 0.1, // Khóa chặt tính sáng tạo để chống bịa đặt
+        temperature: 0.1, // Khóa chặt để tuân thủ luật Markdown
       }),
     });
 
