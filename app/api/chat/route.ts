@@ -9,7 +9,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: 'Vui lòng nhập câu hỏi.' }, { status: 400 });
     }
 
-    // 1. API BÂY GIỜ CHỈ CẦN KEY CỦA GEMINI, HOÀN TOÀN KHÔNG CẦN SUPABASE
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ reply: 'Lỗi máy chủ: Chưa nhận được biến môi trường GEMINI_API_KEY trên Vercel.' }, { status: 500 });
@@ -17,17 +16,24 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // 2. Tự động tìm mô hình Gemini
+    // Tự động tìm mô hình Gemini nhưng ưu tiên bản ổn định 1.5
     let selectedModel = 'gemini-1.5-flash';
     try {
       const modelRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (modelRes.ok) {
         const modelData = await modelRes.json();
-        const validModels = (modelData.models || []).filter((m: any) => 
-          m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini')
+        const availableModels = modelData.models || [];
+        
+        // Lọc các mô hình hỗ trợ generateContent và BỎ QUA các mô hình 2.5 đang bị lỗi cho user mới
+        const validModels = availableModels.filter((m: any) => 
+          m.supportedGenerationMethods?.includes('generateContent') && 
+          m.name.includes('gemini') &&
+          !m.name.includes('2.5') // Loại trừ phiên bản 2.5
         );
+        
         if (validModels.length > 0) {
-          const flashModel = validModels.find((m: any) => m.name.includes('flash'));
+          // Ưu tiên tìm chính xác bản 1.5-flash trước
+          const flashModel = validModels.find((m: any) => m.name.includes('1.5-flash')) || validModels.find((m: any) => m.name.includes('flash'));
           const chosen = flashModel || validModels[0];
           selectedModel = chosen.name.replace('models/', '');
         }
@@ -36,7 +42,6 @@ export async function POST(req: Request) {
       console.error('Lỗi check model:', e);
     }
 
-    // 3. Xây dựng Prompt với dữ liệu gia phả (contextData) được Frontend gửi lên
     const prompt = `Bạn là một trợ lý AI quản lý gia phả dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc của bạn là ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. 
 Chỉ cung cấp thông tin dựa trên dữ liệu gia phả được cung cấp dưới đây. Tuyệt đối không suy đoán, không bịa đặt, không tự tạo thông tin. Nếu dữ liệu dưới đây không có hoặc không đủ để trả lời câu hỏi của người dùng, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
 
@@ -46,7 +51,6 @@ ${contextData || 'Không có dữ liệu.'}
 CÂU HỎI CỦA NGƯỜI DÙNG: 
 ${message}`;
 
-    // 4. Gọi Gemini API
     const model = genAI.getGenerativeModel({ model: selectedModel });
     const result = await model.generateContent(prompt);
 
