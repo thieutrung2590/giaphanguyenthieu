@@ -212,7 +212,7 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
-  // ĐÃ SỬA LỖI: Cập nhật toàn bộ hàm handleDownload kèm Try/Catch và bắt lỗi Promise
+  // ĐÃ SỬA LỖI: Cập nhật cơ chế Tải ảnh chống Crash, loại bỏ Shadow-Inset
   const handleDownload = () => {
     if (isDownloading) return;
     setIsDownloading(true);
@@ -221,7 +221,7 @@ export default function TuViPage() {
       const el = document.getElementById("laso-chart");
       if (!el || !(window as any).html2canvas) {
         setIsDownloading(false);
-        alert("Lỗi: Không tìm thấy lá số để tải!");
+        alert("Lỗi: Không tìm thấy khung lá số để tải!");
         return;
       }
       
@@ -229,7 +229,7 @@ export default function TuViPage() {
         scale: 2, 
         backgroundColor: "#ffffff",
         useCORS: true,
-        allowTaint: true
+        logging: false
       }).then((canvas: any) => {
         const link = document.createElement("a");
         link.download = `La-So-${formData.name.replace(/\s+/g, '-')}.png`;
@@ -239,11 +239,10 @@ export default function TuViPage() {
       }).catch((err: any) => {
         console.error("Lỗi khi tải ảnh:", err);
         setIsDownloading(false);
-        alert("Có lỗi xảy ra khi tạo ảnh lá số!");
+        alert("Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại!");
       });
     };
 
-    // Kiểm tra xem html2canvas đã được tải chưa
     if ((window as any).html2canvas) {
       executeCapture();
     } else {
@@ -252,7 +251,7 @@ export default function TuViPage() {
       script.onload = executeCapture;
       script.onerror = () => {
         setIsDownloading(false);
-        alert("Không thể tải thư viện hỗ trợ chụp ảnh. Hãy kiểm tra kết nối mạng!");
+        alert("Không thể tải công cụ hỗ trợ chụp ảnh. Hãy kiểm tra kết nối mạng!");
       };
       document.body.appendChild(script);
     }
@@ -514,7 +513,7 @@ export default function TuViPage() {
                 const isCenter = [5, 6, 9, 10].includes(i);
                 if (isCenter) {
                   if (i === 5) return (
-                    <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg shadow-inner flex flex-col items-center justify-center border-2 border-stone-200 p-2 sm:p-4 text-center">
+                    <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg flex flex-col items-center justify-center border-2 border-stone-200 p-2 sm:p-4 text-center">
                       <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info?.Name || "Không rõ"}</h3>
                       <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">
                         Sinh: <span className={theme.selectText}>{String(formData.hour).padStart(2, '0')}:{String(formData.minute).padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} {formData.calendar === "Âm lịch" && formData.isLeapMonth ? "(Nhuận)" : ""}</span>
@@ -556,12 +555,12 @@ export default function TuViPage() {
                 const isMenh = house.Name === "Mệnh";
                 const isThan = house.Than === 1;
 
-                let highlightClass = "border-stone-200 bg-white";
-                if (isMenh) highlightClass = "border-red-400 bg-red-50/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]";
-                else if (isThan) highlightClass = "border-fuchsia-400 bg-fuchsia-50/20 shadow-[inset_0_0_15px_rgba(217,70,239,0.1)]";
+                let highlightClass = "border border-stone-200 bg-white";
+                if (isMenh) highlightClass = "border-[2px] border-red-400 bg-red-50";
+                else if (isThan) highlightClass = "border-[2px] border-fuchsia-400 bg-fuchsia-50";
 
                 return (
-                  <div key={i} className={`relative rounded-lg border p-1.5 flex flex-col justify-between overflow-hidden ${highlightClass}`}>
+                  <div key={i} className={`relative rounded-lg p-1.5 flex flex-col justify-between overflow-hidden ${highlightClass}`}>
                     <div className="flex justify-between items-start border-b border-stone-100 pb-1 mb-1">
                       <span className={`text-[12px] sm:text-[14px] font-bold ${isMenh ? 'text-red-600' : isThan ? 'text-fuchsia-700' : 'text-stone-700'}`}>
                         {house.Name} {isThan && !isMenh ? <span className="text-[10px] text-fuchsia-600">(Thân)</span> : ""}
