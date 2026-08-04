@@ -29,7 +29,7 @@ ${contextData || 'Không có dữ liệu.'}`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192', // Sử dụng mô hình LLaMA 3 8B của Groq (Rất nhanh và ổn định)
+        model: 'llama-3.1-8b-instant', // Đã cập nhật sang mô hình mới nhất được Groq hỗ trợ
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -56,6 +56,8 @@ ${contextData || 'Không có dữ liệu.'}`;
         errorMessage = 'Hệ thống Groq đang nhận quá nhiều yêu cầu, vui lòng thử lại sau vài giây.';
     } else if (errorMessage.includes('Invalid API Key')) {
         errorMessage = 'Khóa API Groq không hợp lệ. Vui lòng kiểm tra lại cấu hình trên Vercel.';
+    } else if (errorMessage.includes('decommissioned')) {
+        errorMessage = 'Mô hình AI này đã bị Groq ngừng hỗ trợ, cần cập nhật mã nguồn sang mô hình mới.';
     }
 
     return NextResponse.json({ reply: `Hệ thống AI gián đoạn: ${errorMessage}` }, { status: 500 });
