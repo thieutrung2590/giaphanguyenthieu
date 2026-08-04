@@ -78,6 +78,43 @@ export default function ChatbotWidget() {
     }
   };
 
+  // Hàm quét và chuyển đổi Markdown Link thành thẻ Link HTML click được
+  const formatText = (text: string, role: string) => {
+    return text.split('\n').map((line, lineIndex) => {
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const parts = [];
+      let lastIndex = 0;
+      let match;
+
+      while ((match = linkRegex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(line.substring(lastIndex, match.index));
+        }
+        parts.push(
+          <a
+            key={match.index}
+            href={match[2]}
+            // Thiết lập màu xanh lam đậm, gạch chân để giống với một link chuyên nghiệp
+            className={role === 'user' ? 'underline font-semibold text-white' : 'underline font-bold text-blue-600 hover:text-blue-800'}
+          >
+            {match[1]}
+          </a>
+        );
+        lastIndex = linkRegex.lastIndex;
+      }
+
+      if (lastIndex < line.length) {
+        parts.push(line.substring(lastIndex));
+      }
+
+      return (
+        <span key={lineIndex} className="block mb-1">
+          {parts.length > 0 ? parts : line}
+        </span>
+      );
+    });
+  };
+
   return (
     <div className="fixed bottom-[100px] right-6 z-50 font-sans">
       {isOpen ? (
@@ -124,7 +161,8 @@ export default function ChatbotWidget() {
                     : 'bg-white text-stone-800 self-start border border-amber-100 shadow-sm rounded-tl-sm'
                 }`}
               >
-                {chat.text}
+                {/* Sử dụng hàm formatText để render nội dung có chứa link */}
+                {formatText(chat.text, chat.role)}
               </div>
             ))}
             
