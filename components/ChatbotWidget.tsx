@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
 
 type ChatMessage = {
   role: 'user' | 'bot';
@@ -9,44 +8,13 @@ type ChatMessage = {
 };
 
 export default function ChatbotWidget() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Kiểm tra trạng thái đăng nhập và khởi tạo Supabase (Chỉ chạy trên Client)
-  useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('Đang build hoặc thiếu biến môi trường Supabase.');
-      return;
-    }
-
-    // Đưa việc khởi tạo vào trong useEffect để tránh lỗi prerender của Vercel
-    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
-
-    const checkAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(!!data.session);
-    };
-    
-    checkAuth();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session);
-      if (!session) setIsOpen(false);
-    });
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  // 2. Khôi phục lịch sử chat từ Local Storage khi vừa tải trang
+  // 1. Khôi phục lịch sử chat từ Local Storage khi vừa tải trang
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
     if (savedChat) {
@@ -58,7 +26,7 @@ export default function ChatbotWidget() {
     }
   }, []);
 
-  // 3. Lưu lịch sử chat vào Local Storage mỗi khi có tin nhắn mới và cuộn xuống cuối
+  // 2. Lưu lịch sử chat vào Local Storage mỗi khi có tin nhắn mới và cuộn xuống cuối
   useEffect(() => {
     if (chatHistory.length > 0) {
       localStorage.setItem('giapha_chat_history', JSON.stringify(chatHistory));
@@ -105,10 +73,6 @@ export default function ChatbotWidget() {
       localStorage.removeItem('giapha_chat_history');
     }
   };
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   return (
     <div className="fixed bottom-[100px] right-6 z-50 font-sans">
