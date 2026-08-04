@@ -162,7 +162,7 @@ HƯỚNG DẪN TRÌNH BÀY:
 1. NẾU HỎI VỀ SỰ KIỆN: Liệt kê rõ ràng ngày, tên sự kiện, địa điểm.
 2. NẾU HỎI VỀ GIA ĐÌNH: BẮT BUỘC liệt kê bằng gạch đầu dòng (KHÔNG DÙNG BẢNG). Chỉ hiển thị Bố, Mẹ, Vợ, Chồng, Con, Anh/Chị/Em ruột. Tuyệt đối loại bỏ họ hàng xa. Không hiển thị số ID.
 3. CHÈN LIÊN KẾT HỒ SƠ: Khi bạn cung cấp thông tin về một cá nhân cụ thể, hãy kiểm tra cột "id" của người đó trong dữ liệu CSV và bắt buộc nối thêm một đường dẫn Markdown ở cuối cùng của câu trả lời theo đúng định dạng sau:
-[Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/thanh-vien/{id})
+[Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/dashboard/members?memberModalId={id})
 Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} bằng chuỗi ID chính xác của người đó.`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
