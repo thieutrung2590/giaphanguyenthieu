@@ -31,7 +31,7 @@ const THEMES: Record<string, Record<string, string>> = {
     textTitle: "text-purple-950", textSubtitle: "text-purple-700/80",
     borderInput: "border-purple-100 focus-within:border-purple-400 focus-within:ring-purple-100",
     iconBg: "bg-purple-50", iconText: "text-purple-600",
-    divide: "divide-purple-100", selectText: "text-purple-700",
+    divide: "border-purple-100 sm:divide-purple-100", selectText: "text-purple-700",
     checkboxRing: "text-purple-600 focus:ring-purple-500",
     btnGradient: "from-purple-600 to-fuchsia-500",
     historyIcon: "text-purple-800", historyBtn: "bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700",
@@ -48,7 +48,7 @@ const THEMES: Record<string, Record<string, string>> = {
     textTitle: "text-slate-900", textSubtitle: "text-slate-600",
     borderInput: "border-slate-200 focus-within:border-slate-400 focus-within:ring-slate-200",
     iconBg: "bg-slate-100", iconText: "text-slate-600",
-    divide: "divide-slate-200", selectText: "text-slate-700",
+    divide: "border-slate-200 sm:divide-slate-200", selectText: "text-slate-700",
     checkboxRing: "text-slate-600 focus:ring-slate-500",
     btnGradient: "from-slate-600 to-gray-500",
     historyIcon: "text-slate-800", historyBtn: "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700",
@@ -65,7 +65,7 @@ const THEMES: Record<string, Record<string, string>> = {
     textTitle: "text-emerald-950", textSubtitle: "text-emerald-700/80",
     borderInput: "border-emerald-100 focus-within:border-emerald-400 focus-within:ring-emerald-100",
     iconBg: "bg-emerald-50", iconText: "text-emerald-600",
-    divide: "divide-emerald-100", selectText: "text-emerald-700",
+    divide: "border-emerald-100 sm:divide-emerald-100", selectText: "text-emerald-700",
     checkboxRing: "text-emerald-600 focus:ring-emerald-500",
     btnGradient: "from-emerald-600 to-green-500",
     historyIcon: "text-emerald-800", historyBtn: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700",
@@ -82,7 +82,7 @@ const THEMES: Record<string, Record<string, string>> = {
     textTitle: "text-blue-950", textSubtitle: "text-blue-700/80",
     borderInput: "border-blue-100 focus-within:border-blue-400 focus-within:ring-blue-100",
     iconBg: "bg-blue-50", iconText: "text-blue-600",
-    divide: "divide-blue-100", selectText: "text-blue-700",
+    divide: "border-blue-100 sm:divide-blue-100", selectText: "text-blue-700",
     checkboxRing: "text-blue-600 focus:ring-blue-500",
     btnGradient: "from-blue-600 to-cyan-500",
     historyIcon: "text-blue-800", historyBtn: "bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700",
@@ -99,7 +99,7 @@ const THEMES: Record<string, Record<string, string>> = {
     textTitle: "text-red-950", textSubtitle: "text-red-700/80",
     borderInput: "border-red-100 focus-within:border-red-400 focus-within:ring-red-100",
     iconBg: "bg-red-50", iconText: "text-red-600",
-    divide: "divide-red-100", selectText: "text-red-700",
+    divide: "border-red-100 sm:divide-red-100", selectText: "text-red-700",
     checkboxRing: "text-red-600 focus:ring-red-500",
     btnGradient: "from-red-600 to-orange-500",
     historyIcon: "text-red-800", historyBtn: "bg-red-50 hover:bg-red-100 border-red-200 text-red-700",
@@ -116,7 +116,7 @@ const THEMES: Record<string, Record<string, string>> = {
     textTitle: "text-amber-950", textSubtitle: "text-amber-700/80",
     borderInput: "border-amber-100 focus-within:border-amber-400 focus-within:ring-amber-100",
     iconBg: "bg-amber-50", iconText: "text-amber-600",
-    divide: "divide-amber-100", selectText: "text-amber-700",
+    divide: "border-amber-100 sm:divide-amber-100", selectText: "text-amber-700",
     checkboxRing: "text-amber-600 focus:ring-amber-500",
     btnGradient: "from-amber-600 to-yellow-500",
     historyIcon: "text-amber-800", historyBtn: "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700",
@@ -167,9 +167,9 @@ function getElementColor(nguHanh: string, isChinhTinh: boolean = false) {
 }
 
 const InputWrapper = ({ icon: Icon, children, themeObj }: { icon: any; children: React.ReactNode, themeObj: any }) => (
-  <div className={`flex items-center bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-sm border ${themeObj.borderInput} transition-all duration-300`}>
-    <div className={`w-11 h-11 ${themeObj.iconBg} rounded-xl flex items-center justify-center ${themeObj.iconText} shrink-0 ml-0.5`}><Icon className="w-5 h-5" /></div>
-    <div className="flex-1 px-3">{children}</div>
+  <div className={`flex items-start sm:items-center bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-sm border ${themeObj.borderInput} transition-all duration-300`}>
+    <div className={`w-11 h-11 ${themeObj.iconBg} rounded-xl flex items-center justify-center ${themeObj.iconText} shrink-0 ml-0.5 mt-1 sm:mt-0`}><Icon className="w-5 h-5" /></div>
+    <div className="flex-1 px-2 sm:px-3 w-full overflow-hidden">{children}</div>
   </div>
 );
 
@@ -179,7 +179,7 @@ export default function TuViPage() {
   const currentYear = new Date().getFullYear();
   
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "0", 
     gender: "Nam giới", viewYear: String(currentYear)
@@ -190,7 +190,7 @@ export default function TuViPage() {
   const [showResult, setShowResult] = useState(false);
   const [chartData, setChartData] = useState<any>(null);
   
-  const [appTheme, setAppTheme] = useState("default"); // TRẠNG THÁI THEME CHÍNH
+  const [appTheme, setAppTheme] = useState("default"); 
 
   const [aiReading, setAiReading] = useState("");
   const [isReading, setIsReading] = useState(false);
@@ -311,7 +311,6 @@ export default function TuViPage() {
         const computedBanMenh = getBanMenhFallback(namCanChi);
         const finalBanMenh = computedBanMenh !== "Chưa xác định" ? computedBanMenh : (rawInfo.nguHanh || rawInfo.NguHanh || rawInfo.ban_menh || rawInfo.BanMenh || rawInfo.menh || "Chưa xác định");
 
-        // XÁC ĐỊNH MÀU SẮC THEME THEO BẢN MỆNH
         let newTheme = "default";
         const bmLower = finalBanMenh.toLowerCase();
         if (bmLower.includes("kim")) newTheme = "kim";
@@ -347,8 +346,6 @@ export default function TuViPage() {
   };
 
   const canChiText = useMemo(() => getYearCanChi(formData.year), [formData.year]);
-  
-  // Trích xuất bộ màu từ Dictionary
   const theme = THEMES[appTheme];
 
   return (
@@ -356,7 +353,7 @@ export default function TuViPage() {
       <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] ${theme.glow1} rounded-full blur-[120px] pointer-events-none transition-colors duration-1000`}></div>
       <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] ${theme.glow2} rounded-full blur-[150px] pointer-events-none transition-colors duration-1000`}></div>
 
-      <div className={`relative w-full max-w-5xl bg-white/80 backdrop-blur-xl border border-white/60 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl ${theme.shadowBox} transition-colors duration-1000`}>
+      <div className={`relative w-full max-w-5xl bg-white/80 backdrop-blur-xl border border-white/60 p-5 sm:p-8 rounded-[2.5rem] shadow-2xl ${theme.shadowBox} transition-colors duration-1000`}>
         {!showResult ? (
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
@@ -365,29 +362,37 @@ export default function TuViPage() {
             </div>
             
             <div className="space-y-4">
-              <InputWrapper icon={User} themeObj={theme}><input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Họ và tên" className="w-full bg-transparent outline-none text-stone-700 font-semibold" /></InputWrapper>
+              <InputWrapper icon={User} themeObj={theme}>
+                <div className="h-10 sm:h-11 flex items-center">
+                   <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Họ và tên" className="w-full bg-transparent outline-none text-stone-700 font-semibold" />
+                </div>
+              </InputWrapper>
               
               <div className="relative">
                 <InputWrapper icon={CalendarDays} themeObj={theme}>
-                  <div className={`flex items-center w-full text-stone-700 text-sm font-medium divide-x ${theme.divide}`}>
-                    <select name="day" value={formData.day} onChange={handleChange} className="bg-transparent outline-none w-full pr-2">
+                  {/* BỐ CỤC CHỐNG "XÍT" CHỮ CHO MOBILE: Sử dụng Grid để ngắt 2 dòng */}
+                  <div className={`grid grid-cols-6 sm:flex sm:items-center w-full text-stone-700 text-[13.5px] sm:text-sm font-medium py-2 sm:py-0 gap-y-2.5 sm:gap-y-0 sm:divide-x ${theme.divide}`}>
+                    <select name="day" value={formData.day} onChange={handleChange} className="col-span-2 bg-transparent outline-none w-full pr-1">
                       <option value="">Ngày</option>
                       {Array.from({ length: 31 }, (_, i) => String(i + 1)).map(d => <option key={d} value={d}>Ngày {d}</option>)}
                     </select>
-                    <select name="month" value={formData.month} onChange={handleChange} className="bg-transparent outline-none w-full px-2">
+                    
+                    <select name="month" value={formData.month} onChange={handleChange} className={`col-span-2 bg-transparent outline-none w-full px-1 border-l sm:border-l-0 ${theme.divide}`}>
                       <option value="">Tháng</option>
                       {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(m => <option key={m} value={m}>Tháng {m}</option>)}
                     </select>
-                    <select name="year" value={formData.year} onChange={handleChange} className="bg-transparent outline-none w-full px-2">
+                    
+                    <select name="year" value={formData.year} onChange={handleChange} className={`col-span-2 bg-transparent outline-none w-full pl-1 sm:px-2 border-l sm:border-l-0 ${theme.divide}`}>
                       <option value="">Năm</option>
                       {Array.from({ length: 100 }, (_, i) => String(currentYear - i)).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
-                    <select name="calendar" value={formData.calendar} onChange={handleChange} className={`bg-transparent outline-none w-full pl-2 font-bold ${theme.selectText}`}>
+                    
+                    <select name="calendar" value={formData.calendar} onChange={handleChange} className={`col-span-4 bg-transparent outline-none w-full pr-1 sm:px-2 pt-2 sm:pt-0 border-t sm:border-t-0 font-bold ${theme.selectText} ${theme.divide}`}>
                       <option value="Dương lịch">Dương lịch</option>
                       <option value="Âm lịch">Âm lịch</option>
                     </select>
                     
-                    <div className={`flex items-center gap-1.5 pl-3 border-l ${theme.divide}`}>
+                    <div className={`col-span-2 flex items-center justify-center sm:justify-start gap-1.5 pl-1 sm:pl-3 border-t sm:border-t-0 border-l sm:border-l-0 pt-2 sm:pt-0 ${theme.divide}`}>
                       <input type="checkbox" name="isLeapMonth" id="leapMonth" checked={formData.isLeapMonth} onChange={handleChange} disabled={formData.calendar !== "Âm lịch"} className={`w-4 h-4 border-gray-300 rounded cursor-pointer disabled:opacity-50 ${theme.checkboxRing}`} />
                       <label htmlFor="leapMonth" className={`text-xs font-bold whitespace-nowrap ${formData.calendar === "Âm lịch" ? "cursor-pointer " + theme.selectText : "text-gray-400"}`}>Nhuận</label>
                     </div>
@@ -398,35 +403,42 @@ export default function TuViPage() {
               <div className="h-4"></div>
               
               <InputWrapper icon={Clock} themeObj={theme}>
-                <div className={`flex items-center w-full text-stone-700 text-sm font-medium divide-x ${theme.divide}`}>
-                  <select name="hour" value={formData.hour} onChange={handleChange} className="bg-transparent outline-none w-full pr-2 cursor-pointer">
+                 {/* BỐ CỤC CHỐNG "XÍT" GIỜ SINH: Ngắt 2 dòng trên mobile */}
+                <div className={`grid grid-cols-2 sm:flex sm:items-center w-full text-stone-700 text-sm font-medium py-2 sm:py-0 gap-y-2.5 sm:gap-y-0 sm:divide-x ${theme.divide}`}>
+                  <select name="hour" value={formData.hour} onChange={handleChange} className="bg-transparent outline-none w-full pr-1 sm:pr-2 cursor-pointer">
                     <option value="">Giờ sinh</option>
                     {Array.from({ length: 24 }, (_, i) => String(i)).map(h => (
                       <option key={h} value={h}>{h.padStart(2, '0')} giờ</option>
                     ))}
                   </select>
                   
-                  <select name="minute" value={formData.minute} onChange={handleChange} className="bg-transparent outline-none w-full px-2 cursor-pointer">
+                  <select name="minute" value={formData.minute} onChange={handleChange} className={`bg-transparent outline-none w-full px-1 sm:px-2 border-l sm:border-l-0 ${theme.divide} cursor-pointer`}>
                     <option value="">Phút sinh</option>
                     {Array.from({ length: 60 }, (_, i) => String(i)).map(m => (
                       <option key={m} value={m}>{m.padStart(2, '0')} phút</option>
                     ))}
                   </select>
                   
-                  <div className={`w-full pl-2 font-bold text-center pointer-events-none ${theme.hourAccent}`}>
+                  <div className={`col-span-2 w-full pt-2 sm:pt-0 sm:pl-2 font-bold text-center sm:text-left border-t sm:border-t-0 pointer-events-none ${theme.hourAccent} ${theme.divide}`}>
                     {getHourCanChiName(formData.hour)}
                   </div>
                 </div>
               </InputWrapper>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InputWrapper icon={Users} themeObj={theme}><select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="Nam giới">Nam giới</option><option value="Nữ giới">Nữ giới</option></select></InputWrapper>
+                <InputWrapper icon={Users} themeObj={theme}>
+                  <div className="h-10 sm:h-11 flex items-center">
+                    <select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold"><option value="Nam giới">Nam giới</option><option value="Nữ giới">Nữ giới</option></select>
+                  </div>
+                </InputWrapper>
                 <InputWrapper icon={CalendarSearch} themeObj={theme}>
-                  <select name="viewYear" value={formData.viewYear} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
-                    {Array.from({ length: 11 }, (_, i) => String(currentYear + i)).map(y => (
-                      <option key={y} value={y}>Năm xem {y}</option>
-                    ))}
-                  </select>
+                  <div className="h-10 sm:h-11 flex items-center">
+                    <select name="viewYear" value={formData.viewYear} onChange={handleChange} className="w-full bg-transparent outline-none text-stone-700 font-semibold cursor-pointer">
+                      {Array.from({ length: 11 }, (_, i) => String(currentYear + i)).map(y => (
+                        <option key={y} value={y}>Năm xem {y}</option>
+                      ))}
+                    </select>
+                  </div>
                 </InputWrapper>
               </div>
 
@@ -436,7 +448,7 @@ export default function TuViPage() {
             </div>
 
             {history.length > 0 && (
-              <div className={`mt-8 pt-6 border-t ${theme.divide}`}>
+              <div className={`mt-8 pt-6 border-t sm:border-t-0 sm:pt-0 ${theme.divide}`}>
                 <div className={`flex items-center gap-2 mb-3 font-bold text-sm ${theme.historyIcon}`}>
                   <History className="w-4 h-4" /> Đã tra cứu gần đây:
                 </div>
@@ -519,7 +531,6 @@ export default function TuViPage() {
                 const isMenh = house.Name === "Mệnh";
                 const isThan = house.Than === 1;
 
-                // Mệnh và Thân luôn giữ màu đỏ/tím để dễ phân biệt, bất chấp chủ đề
                 let highlightClass = "border-stone-200 bg-white";
                 if (isMenh) highlightClass = "border-red-400 bg-red-50/20 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]";
                 else if (isThan) highlightClass = "border-fuchsia-400 bg-fuchsia-50/20 shadow-[inset_0_0_15px_rgba(217,70,239,0.1)]";
@@ -557,8 +568,8 @@ export default function TuViPage() {
               })}
             </div>
 
-            <div className={`mt-8 max-w-5xl mx-auto bg-white p-6 sm:p-8 rounded-2xl border shadow-sm ${theme.aiBorder}`}>
-              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b pb-4 ${theme.divide}`}>
+            <div className={`mt-8 max-w-5xl mx-auto bg-white p-5 sm:p-8 rounded-2xl border shadow-sm ${theme.aiBorder}`}>
+              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b pb-4 ${theme.centerBoxBorder}`}>
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${theme.aiIconBg}`}><Sparkles className="w-6 h-6" /></div>
                   <h3 className={`text-xl font-bold ${theme.textTitle}`}>AI Luận Giải Lá Số</h3>
@@ -602,7 +613,7 @@ export default function TuViPage() {
                 {isReading ? (
                   <div className={`flex flex-col items-center justify-center h-full gap-3 py-10 ${theme.loaderText}`}>
                     <Loader2 className="w-8 h-8 animate-spin" />
-                    <p className="font-medium animate-pulse">Tinh tú đang hội tụ. AI đang phân tích...</p>
+                    <p className="font-medium animate-pulse text-center px-4">Tinh tú đang hội tụ. AI đang phân tích...</p>
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap font-medium">{aiReading}</div>
