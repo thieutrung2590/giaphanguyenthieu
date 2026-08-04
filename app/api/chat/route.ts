@@ -95,7 +95,6 @@ export async function POST(req: Request) {
           return { ...p, _matchScore: score };
         });
 
-        // Chỉ lấy 15 người gần nhất để tránh làm AI bị ngợp dữ liệu quan hệ
         mainPersons = scoredPersons
           .filter((p: any) => p._matchScore > 0) 
           .sort((a: any, b: any) => b._matchScore - a._matchScore)
@@ -145,7 +144,7 @@ export async function POST(req: Request) {
 
     const uniquePersons = Array.from(new Map(finalPersons.map(p => [p.id, p])).values());
     const cleanPersons = uniquePersons.map((p: any) => {
-      const clean: any = { id: p.id }; // Giữ lại ID để phân biệt người trùng tên
+      const clean: any = { id: p.id };
       for (const key in p) {
         const lowerKey = key.toLowerCase();
         if (['created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo', '_matchscore'].includes(lowerKey)) continue;
@@ -154,9 +153,6 @@ export async function POST(req: Request) {
       return clean;
     });
 
-    // =========================================================================
-    // GIẢI PHÁP TRIỆT ĐỂ: Dịch mối quan hệ thành văn bản rõ ràng trước khi gửi
-    // =========================================================================
     const translatedRelationships = relationshipsData.map((r: any) => {
       const p1 = uniquePersons.find(p => p.id === r.person_id);
       const p2 = uniquePersons.find(p => p.id === r.related_person_id);
@@ -177,7 +173,6 @@ export async function POST(req: Request) {
 
     const systemPrompt = `Bạn là "Trợ lý Gia Phả" của dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc: Ưu tiên tuyệt đối tính CHÍNH XÁC, không suy đoán hay bịa đặt.
 Nếu không có dữ liệu để kết luận, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
-LƯU Ý: Chú ý kỹ ID của từng người vì gia phả có thể có nhiều người trùng tên. Chỉ thống kê người thân của đúng người mà người dùng đang hỏi.
 
 THÔNG TIN TỔNG QUAN:
 - Gia phả hiện tại có tổng cộng: ${totalMembers} thành viên.
@@ -192,9 +187,10 @@ DỮ LIỆU SỰ KIỆN SẮP TỚI:
 ${csvEvents || 'Không có sự kiện.'}
 
 HƯỚNG DẪN TRÌNH BÀY:
-1. Đọc kỹ mục "DỮ LIỆU MỐI QUAN HỆ" để biết ai là người thân của ai. Tuyệt đối không nhầm lẫn họ hàng của người khác vào người đang được hỏi.
-2. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: BẮT BUỘC trình bày danh sách người thân dưới dạng BẢNG Markdown.
-3. Trong bảng không hiển thị dãy số ID. Cấu trúc bảng: | Họ tên | Giới tính | Ngày sinh | Mối quan hệ |`;
+1. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: TUYỆT ĐỐI KHÔNG SỬ DỤNG BẢNG (TABLE). Hãy trình bày bằng danh sách gạch đầu dòng rõ ràng, mạch lạc.
+2. BỘ LỌC QUAN HỆ CỐT LÕI: Bạn CHỈ ĐƯỢC PHÉP liệt kê những người có mối quan hệ trực tiếp sau đây: Bố (Cha), Mẹ, Vợ, Chồng, Con cái, Anh ruột, Chị ruột, Em ruột. 
+3. TUYỆT ĐỐI BỎ QUA VÀ KHÔNG LIỆT KÊ các mối quan hệ họ hàng xa (như: ông nội, bà nội, chú rể, bác, cô, cậu, mợ, anh họ, em họ, cháu...).
+4. Đọc kỹ mục "DỮ LIỆU MỐI QUAN HỆ". Không bao giờ hiển thị dãy số ID cho người dùng xem.`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
