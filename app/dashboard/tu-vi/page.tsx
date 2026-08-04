@@ -212,46 +212,55 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
-  // ĐÃ SỬA LỖI: Cập nhật cơ chế Tải ảnh chống Crash, loại bỏ Shadow-Inset
+  // ĐÃ SỬA LỖI: Cơ chế bọc try-catch, tự động Fallback sang tính năng In PDF nếu bị chặn
   const handleDownload = () => {
     if (isDownloading) return;
     setIsDownloading(true);
 
-    const executeCapture = () => {
-      const el = document.getElementById("laso-chart");
-      if (!el || !(window as any).html2canvas) {
-        setIsDownloading(false);
-        alert("Lỗi: Không tìm thấy khung lá số để tải!");
-        return;
-      }
-      
-      (window as any).html2canvas(el, { 
-        scale: 2, 
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false
-      }).then((canvas: any) => {
+    const executeCapture = async () => {
+      try {
+        const el = document.getElementById("laso-chart");
+        if (!el) throw new Error("Không tìm thấy lá số");
+        
+        // Đợi 0.5s để web load xong hoàn toàn CSS/Font chữ
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const canvas = await (window as any).html2canvas(el, { 
+          scale: 2, 
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          logging: false
+        });
+
+        const dataUrl = canvas.toDataURL("image/png");
         const link = document.createElement("a");
         link.download = `La-So-${formData.name.replace(/\s+/g, '-')}.png`;
-        link.href = canvas.toDataURL("image/png");
+        link.href = dataUrl;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
+        
         setIsDownloading(false);
-      }).catch((err: any) => {
-        console.error("Lỗi khi tải ảnh:", err);
+      } catch (err) {
+        console.error("Lỗi html2canvas:", err);
         setIsDownloading(false);
-        alert("Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại!");
-      });
+        // Bắt lỗi thành công -> Mở hộp thoại In PDF
+        const usePdf = confirm("Trình duyệt của bạn đang chặn tạo ảnh tự động (Bảo mật). Bạn có muốn dùng tính năng In (Lưu thành PDF chất lượng cao) để thay thế không?");
+        if (usePdf) {
+          window.print();
+        }
+      }
     };
 
     if ((window as any).html2canvas) {
       executeCapture();
     } else {
       const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.src = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
       script.onload = executeCapture;
       script.onerror = () => {
         setIsDownloading(false);
-        alert("Không thể tải công cụ hỗ trợ chụp ảnh. Hãy kiểm tra kết nối mạng!");
+        alert("Lỗi mạng: Không thể tải thư viện hỗ trợ chụp ảnh.");
       };
       document.body.appendChild(script);
     }
@@ -376,12 +385,13 @@ export default function TuViPage() {
 
   return (
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-4 sm:p-8 relative overflow-hidden transition-colors duration-1000">
-      <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] ${theme.glow1} rounded-full blur-[120px] pointer-events-none transition-colors duration-1000`}></div>
-      <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] ${theme.glow2} rounded-full blur-[150px] pointer-events-none transition-colors duration-1000`}></div>
+      {/* Ẩn các bóng mờ khi chuyển sang chế độ in PDF để tiết kiệm mực */}
+      <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] ${theme.glow1} rounded-full blur-[120px] pointer-events-none transition-colors duration-1000 print:hidden`}></div>
+      <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] ${theme.glow2} rounded-full blur-[150px] pointer-events-none transition-colors duration-1000 print:hidden`}></div>
 
-      <div className={`relative w-full max-w-5xl bg-white/80 backdrop-blur-xl border border-white/60 p-5 sm:p-8 rounded-[2.5rem] shadow-2xl ${theme.shadowBox} transition-colors duration-1000`}>
+      <div className={`relative w-full max-w-5xl bg-white/80 backdrop-blur-xl border border-white/60 p-5 sm:p-8 rounded-[2.5rem] shadow-2xl ${theme.shadowBox} transition-colors duration-1000 print:border-none print:shadow-none print:bg-white print:p-0`}>
         {!showResult ? (
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto print:hidden">
             <div className="text-center mb-8">
               <h1 className={`text-3xl sm:text-4xl font-bold ${theme.textTitle} mb-3 tracking-tight`}>Lập lá số Tử Vi</h1>
               <p className={`${theme.textSubtitle} text-sm sm:text-base font-medium`}>Khám phá vận mệnh - Định hướng tương lai</p>
@@ -492,7 +502,8 @@ export default function TuViPage() {
           </div>
         ) : (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
+            {/* Ẩn phần menu điều hướng khi in PDF */}
+            <div className="flex items-center justify-between mb-4 sm:mb-6 print:hidden">
               <button onClick={() => setShowResult(false)} className={`flex items-center gap-2 text-stone-500 font-medium bg-white px-4 py-2 rounded-xl border border-stone-200 hover:${theme.selectText}`}>
                 <ArrowLeft className="w-4 h-4" /> Quay lại
               </button>
@@ -504,10 +515,11 @@ export default function TuViPage() {
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm transition-colors disabled:opacity-50 font-medium ${theme.btnDownload}`}
               >
                 {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                <span className="hidden sm:inline">{isDownloading ? "Đang tải..." : "Tải ảnh"}</span>
+                <span className="hidden sm:inline">{isDownloading ? "Đang tải..." : "Tải ảnh (hoặc PDF)"}</span>
               </button>
             </div>
 
+            {/* VÙNG LÁ SỐ CẦN GIỮ ĐỂ IN */}
             <div id="laso-chart" className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
               {Array.from({ length: 16 }).map((_, i) => {
                 const isCenter = [5, 6, 9, 10].includes(i);
@@ -593,7 +605,8 @@ export default function TuViPage() {
             </div>
 
             <div className={`mt-8 max-w-5xl mx-auto bg-white p-5 sm:p-8 rounded-2xl border shadow-sm ${theme.aiBorder}`}>
-              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b pb-4 ${theme.centerBoxBorder}`}>
+              {/* Ẩn các nút điều khiển AI khi in PDF */}
+              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b pb-4 print:hidden ${theme.centerBoxBorder}`}>
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${theme.aiIconBg}`}><Sparkles className="w-6 h-6" /></div>
                   <h3 className={`text-xl font-bold ${theme.textTitle}`}>AI Luận Giải Lá Số</h3>
@@ -633,6 +646,7 @@ export default function TuViPage() {
                 </div>
               </div>
 
+              {/* Phần nội dung Luận giải sẽ vẫn hiện khi in PDF */}
               <div className="text-stone-700 leading-relaxed min-h-[150px]">
                 {isReading ? (
                   <div className={`flex flex-col items-center justify-center h-full gap-3 py-10 ${theme.loaderText}`}>
