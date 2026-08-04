@@ -14,7 +14,6 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Khôi phục lịch sử chat từ Local Storage khi vừa tải trang
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
     if (savedChat) {
@@ -26,7 +25,6 @@ export default function ChatbotWidget() {
     }
   }, []);
 
-  // 2. Lưu lịch sử chat vào Local Storage mỗi khi có tin nhắn mới và cuộn xuống cuối
   useEffect(() => {
     if (chatHistory.length > 0) {
       localStorage.setItem('giapha_chat_history', JSON.stringify(chatHistory));
@@ -51,22 +49,30 @@ export default function ChatbotWidget() {
         body: JSON.stringify({ message: userMsg }),
       });
 
+      // Kiểm tra xem phản hồi có phải là JSON không (Đề phòng bị Middleware chuyển hướng ra trang HTML)
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+         throw new Error("Bị chặn truy cập. Có thể do Middleware yêu cầu đăng nhập.");
+      }
+
       const data = await res.json();
       
-      if (!res.ok) throw new Error(data.reply || 'Có lỗi xảy ra');
+      if (!res.ok) {
+        throw new Error(data.reply || 'Máy chủ trả về lỗi không xác định.');
+      }
 
       setChatHistory((prev) => [...prev, { role: 'bot', text: data.reply }]);
     } catch (error: any) {
+      // Đã sửa: In thẳng lỗi thật ra màn hình để biết chính xác hệ thống đang vướng ở đâu
       setChatHistory((prev) => [
         ...prev,
-        { role: 'bot', text: 'Lỗi kết nối đến máy chủ. Vui lòng thử lại.' },
+        { role: 'bot', text: `Chi tiết lỗi: ${error.message}` },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Nút xoá lịch sử chat
   const clearHistory = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện?')) {
       setChatHistory([]);
@@ -78,7 +84,6 @@ export default function ChatbotWidget() {
     <div className="fixed bottom-[100px] right-6 z-50 font-sans">
       {isOpen ? (
         <div className="bg-[#fcfaf8] rounded-xl shadow-2xl w-[350px] h-[500px] flex flex-col border border-amber-200 overflow-hidden">
-          {/* Header */}
           <div className="bg-amber-700 text-white p-4 flex justify-between items-center shadow-sm">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -105,7 +110,6 @@ export default function ChatbotWidget() {
             </div>
           </div>
 
-          {/* Body / Chat History */}
           <div className="flex-1 p-4 overflow-y-auto bg-[#faf8f5] flex flex-col gap-3">
             {chatHistory.length === 0 && (
               <div className="text-center text-amber-700/70 text-xs mt-4">
@@ -136,7 +140,6 @@ export default function ChatbotWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Footer / Input */}
           <div className="p-3 bg-white border-t border-amber-100 flex gap-2">
             <input
               type="text"
