@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 
 type ChatMessage = {
   role: 'user' | 'bot';
@@ -13,6 +14,10 @@ export default function ChatbotWidget() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
@@ -43,13 +48,27 @@ export default function ChatbotWidget() {
     setIsLoading(true);
 
     try {
+      const { data: members, error: supabaseError } = await supabase
+        .from('members')
+        .select('id, full_name, gender, birth_date, death_date, biography')
+        .limit(100);
+
+      if (supabaseError) {
+        throw new Error(`Lỗi lấy dữ liệu gia phả: ${supabaseError.message}`);
+      }
+
+      const contextData = members && members.length > 0
+        ? members.map((m: any) => 
+            `- Họ tên: ${m.full_name || 'Không rõ'}, Giới tính: ${m.gender || 'Không rõ'}, Ngày sinh: ${m.birth_date || 'Không rõ'}, Ngày mất: ${m.death_date || 'Không rõ'}, Tiểu sử/Ghi chú: ${m.biography || 'Không có'}`
+          ).join('\n')
+        : 'Hiện tại chưa có dữ liệu thành viên nào trong gia phả.';
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ message: userMsg, contextData }),
       });
 
-      // Kiểm tra xem phản hồi có phải là JSON không (Đề phòng bị Middleware chuyển hướng ra trang HTML)
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
          throw new Error("Bị chặn truy cập. Có thể do Middleware yêu cầu đăng nhập.");
@@ -63,7 +82,6 @@ export default function ChatbotWidget() {
 
       setChatHistory((prev) => [...prev, { role: 'bot', text: data.reply }]);
     } catch (error: any) {
-      // Đã sửa: In thẳng lỗi thật ra màn hình để biết chính xác hệ thống đang vướng ở đâu
       setChatHistory((prev) => [
         ...prev,
         { role: 'bot', text: `Chi tiết lỗi: ${error.message}` },
