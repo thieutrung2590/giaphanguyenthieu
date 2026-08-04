@@ -29,12 +29,12 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. CHUẨN BỊ TỪ KHÓA TÌM KIẾM (FUZZY SEARCH)
+    // 1. CHUẨN BỊ TỪ KHÓA TÌM KIẾM (FUZZY SEARCH CẢI TIẾN)
     const lowerMsg = message.toLowerCase();
     const unaccentedMsg = removeAccents(lowerMsg);
     
-    // Bỏ các từ thừa tiếng Việt (đã bỏ dấu) để tập trung tìm đích danh
-    let cleanMsg = unaccentedMsg.replace(/(thong tin|cho biet|hoi ve|ai la|tim|ve|cua|nhung|nguoi|ten|cha|me|vo|chong|con|cai|gia|pha|ban|su kien|gio|hop|ngay)/g, ' ').trim();
+    // Bổ sung thêm các danh xưng phổ biến vào danh sách từ thừa để bộ lọc sạch hơn
+    let cleanMsg = unaccentedMsg.replace(/(thong tin|cho biet|hoi ve|ai la|tim|ve|cua|nhung|nguoi|ten|cha|me|vo|chong|con|cai|gia|pha|ban|su kien|gio|hop|ngay|ong|ba|anh|chi|em|bac|chu|co|di|cau|mo|thim)/g, ' ').trim();
     const keywords = cleanMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 1);
 
     // 2. TÍCH HỢP TÌM KIẾM SỰ KIỆN (custom_events)
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       const { data: events, error: eventError } = await supabase
         .from('custom_events')
         .select('*')
-        .limit(20); // Lấy 20 sự kiện gần nhất
+        .limit(20);
         
       if (!eventError && events) {
         eventsData = events.map((e: any) => {
@@ -60,11 +60,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. TRUY XUẤT VÀ LỌC THÀNH VIÊN GIA PHẢ BẰNG FUZZY SEARCH
+    // 3. TRUY XUẤT VÀ LỌC THÀNH VIÊN GIA PHẢ BẰNG THUẬT TOÁN CHẤM ĐIỂM (SCORING)
     const { data: allPersons, error: personError, count } = await supabase
       .from('persons')
       .select('*', { count: 'exact' })
-      .limit(1500); // Lấy số lượng lớn vào RAM để xử lý lọc không dấu
+      .limit(1500);
 
     if (personError) {
       return NextResponse.json({ reply: `Lỗi truy xuất bảng persons: ${personError.message}` }, { status: 500 });
@@ -77,16 +77,28 @@ export async function POST(req: Request) {
     if (allPersons && allPersons.length > 0) {
       let mainPersons = allPersons;
 
-      // Áp dụng thuật toán tìm kiếm không dấu
       if (keywords.length > 0 && !unaccentedMsg.includes('bao nhieu') && !unaccentedMsg.includes('tong so')) {
-        mainPersons = allPersons.filter((p: any) => {
+        // Áp dụng thuật toán tính điểm: Ai khớp nhiều từ khóa trong tên nhất sẽ được điểm cao nhất
+        const scoredPersons = allPersons.map((p: any) => {
           const rawName = p.full_name || p.name || p.ho_ten || p.title || '';
           const nameStr = removeAccents(rawName.toLowerCase());
-          return keywords.every((kw: string) => nameStr.includes(kw)); // Khớp tuyệt đối mọi từ khóa nhưng không cần dấu
+          
+          let score = 0;
+          keywords.forEach((kw: string) => {
+            if (nameStr.includes(kw)) score += 1;
+          });
+          
+          return { ...p, _matchScore: score };
         });
+
+        mainPersons = scoredPersons
+          .filter((p: any) => p._matchScore > 0) // Lọc bỏ những người 0 điểm (không khớp chữ nào)
+          .sort((a: any, b: any) => b._matchScore - a._matchScore) // Xếp người điểm cao nhất lên đầu
+          .slice(0, 10); // Lấy top 10 người khả nghi nhất để gửi cho AI
+      } else {
+        mainPersons = mainPersons.slice(0, 10);
       }
 
-      mainPersons = mainPersons.slice(0, 5); // Giới hạn 5 người khớp nhất để tiết kiệm Token
       finalPersons = [...mainPersons];
 
       // 4. TRUY XUẤT BẢNG MỐI QUAN HỆ (Relationships)
@@ -103,7 +115,6 @@ export async function POST(req: Request) {
           if (rels && rels.length > 0) {
             relationshipsData = rels;
 
-            // Tìm những người thân chưa có trong mảng finalPersons
             const relativeIds = new Set<string>();
             rels.forEach(r => {
               if (r.person_id && !mainIds.includes(r.person_id)) relativeIds.add(r.person_id);
@@ -112,11 +123,9 @@ export async function POST(req: Request) {
 
             const relIdsArray = Array.from(relativeIds);
             if (relIdsArray.length > 0) {
-              // Tìm trực tiếp trong bộ nhớ RAM (allPersons) trước để tiết kiệm số lần gọi Database
               const foundRelatives = allPersons.filter(p => relIdsArray.includes(p.id));
               finalPersons = [...finalPersons, ...foundRelatives];
               
-              // Nếu RAM chưa đủ (do limit 1500), gọi thêm DB để lấy nốt người thiếu
               const foundIds = foundRelatives.map(p => p.id);
               const missingIds = relIdsArray.filter(id => !foundIds.includes(id));
               
@@ -136,7 +145,7 @@ export async function POST(req: Request) {
       const clean: any = {};
       for (const key in p) {
         const lowerKey = key.toLowerCase();
-        if (['created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo'].includes(lowerKey)) continue;
+        if (['created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo', '_matchscore'].includes(lowerKey)) continue;
         if (p[key] !== null && p[key] !== '') clean[key] = p[key];
       }
       return clean;
