@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 type ChatMessage = {
   role: 'user' | 'bot';
@@ -16,17 +16,15 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Kiểm tra trạng thái đăng nhập và khởi tạo Supabase
-  useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('Đang build hoặc thiếu biến môi trường Supabase.');
-      return;
-    }
+  // 1. Khởi tạo Supabase Browser Client để tự động đọc Cookie đăng nhập
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  
+  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  // 2. Kiểm tra trạng thái đăng nhập
+  useEffect(() => {
+    if (!supabaseUrl || !supabaseAnonKey) return;
 
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
@@ -35,6 +33,7 @@ export default function ChatbotWidget() {
     
     checkAuth();
 
+    // Lắng nghe sự kiện đăng nhập/đăng xuất
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
       if (!session) setIsOpen(false);
@@ -43,9 +42,9 @@ export default function ChatbotWidget() {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase, supabaseUrl, supabaseAnonKey]);
 
-  // 2. Khôi phục lịch sử chat từ Local Storage khi vừa tải trang
+  // 3. Khôi phục lịch sử chat từ Local Storage
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
     if (savedChat) {
@@ -57,7 +56,7 @@ export default function ChatbotWidget() {
     }
   }, []);
 
-  // 3. Lưu lịch sử chat vào Local Storage mỗi khi có tin nhắn mới và cuộn xuống cuối
+  // 4. Lưu lịch sử chat vào Local Storage và cuộn xuống
   useEffect(() => {
     if (chatHistory.length > 0) {
       localStorage.setItem('giapha_chat_history', JSON.stringify(chatHistory));
@@ -97,7 +96,6 @@ export default function ChatbotWidget() {
     }
   };
 
-  // Nút xoá lịch sử chat
   const clearHistory = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện?')) {
       setChatHistory([]);
@@ -105,6 +103,7 @@ export default function ChatbotWidget() {
     }
   };
 
+  // NẾU CHƯA ĐĂNG NHẬP -> ẨN CHATBOT
   if (!isAuthenticated) {
     return null;
   }
