@@ -3,11 +3,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Khởi tạo Supabase client để kiểm tra trạng thái đăng nhập
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 type ChatMessage = {
   role: 'user' | 'bot';
   text: string;
@@ -21,8 +16,18 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Kiểm tra trạng thái đăng nhập của người dùng
+  // 1. Kiểm tra trạng thái đăng nhập và khởi tạo Supabase
   useEffect(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn('Đang build hoặc thiếu biến môi trường Supabase.');
+      return;
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       setIsAuthenticated(!!data.session);
@@ -30,25 +35,36 @@ export default function ChatbotWidget() {
     
     checkAuth();
 
-    // Lắng nghe sự kiện đăng nhập/đăng xuất để cập nhật widget ngay lập tức
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
-      // Nếu đăng xuất thì tự động đóng cửa sổ chat
       if (!session) setIsOpen(false);
     });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      authListener?.subscription.unsubscribe();
     };
   }, []);
 
-  // 2. Tự động cuộn xuống tin nhắn mới nhất
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // 2. Khôi phục lịch sử chat từ Local Storage khi vừa tải trang
   useEffect(() => {
-    scrollToBottom();
+    const savedChat = localStorage.getItem('giapha_chat_history');
+    if (savedChat) {
+      try {
+        setChatHistory(JSON.parse(savedChat));
+      } catch (error) {
+        console.error('Lỗi khi đọc lịch sử chat:', error);
+      }
+    }
+  }, []);
+
+  // 3. Lưu lịch sử chat vào Local Storage mỗi khi có tin nhắn mới và cuộn xuống cuối
+  useEffect(() => {
+    if (chatHistory.length > 0) {
+      localStorage.setItem('giapha_chat_history', JSON.stringify(chatHistory));
+    } else {
+      localStorage.removeItem('giapha_chat_history');
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isLoading]);
 
   const sendMessage = async () => {
@@ -81,36 +97,53 @@ export default function ChatbotWidget() {
     }
   };
 
-  // NẾU CHƯA ĐĂNG NHẬP -> KHÔNG HIỂN THỊ GÌ CẢ
+  // Nút xoá lịch sử chat
+  const clearHistory = () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện?')) {
+      setChatHistory([]);
+      localStorage.removeItem('giapha_chat_history');
+    }
+  };
+
   if (!isAuthenticated) {
     return null;
   }
 
-  // ĐÃ ĐĂNG NHẬP -> HIỂN THỊ WIDGET (Đã dời vị trí lên bottom-[100px] để tránh đè Zalo)
   return (
     <div className="fixed bottom-[100px] right-6 z-50 font-sans">
       {isOpen ? (
-        <div className="bg-white rounded-xl shadow-2xl w-[350px] h-[500px] flex flex-col border border-gray-200 overflow-hidden">
+        <div className="bg-[#fcfaf8] rounded-xl shadow-2xl w-[350px] h-[500px] flex flex-col border border-amber-200 overflow-hidden">
           {/* Header */}
-          <div className="bg-slate-800 text-white p-4 flex justify-between items-center shadow-sm">
+          <div className="bg-amber-700 text-white p-4 flex justify-between items-center shadow-sm">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <h3 className="font-semibold text-sm">Trợ lý Gia Phả</h3>
+              <h3 className="font-semibold text-sm tracking-wide">Trợ lý Gia Phả</h3>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-300 hover:text-white transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-3">
+              {chatHistory.length > 0 && (
+                <button
+                  onClick={clearHistory}
+                  className="text-amber-200 hover:text-white transition-colors text-xs font-medium"
+                  title="Xóa lịch sử"
+                >
+                  Xóa
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-amber-200 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Body / Chat History */}
-          <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col gap-3">
+          <div className="flex-1 p-4 overflow-y-auto bg-[#faf8f5] flex flex-col gap-3">
             {chatHistory.length === 0 && (
-              <div className="text-center text-slate-500 text-xs mt-4">
+              <div className="text-center text-amber-700/70 text-xs mt-4">
                 Xin chào! Tôi có thể giúp bạn tìm kiếm thông tin về các thành viên trong gia phả.
               </div>
             )}
@@ -120,8 +153,8 @@ export default function ChatbotWidget() {
                 key={index}
                 className={`max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed ${
                   chat.role === 'user'
-                    ? 'bg-blue-600 text-white self-end rounded-tr-sm'
-                    : 'bg-white text-slate-800 self-start border border-gray-100 shadow-sm rounded-tl-sm'
+                    ? 'bg-amber-600 text-white self-end rounded-tr-sm shadow-md'
+                    : 'bg-white text-stone-800 self-start border border-amber-100 shadow-sm rounded-tl-sm'
                 }`}
               >
                 {chat.text}
@@ -129,20 +162,20 @@ export default function ChatbotWidget() {
             ))}
             
             {isLoading && (
-              <div className="bg-white text-slate-800 self-start max-w-[85%] rounded-2xl rounded-tl-sm p-3 border border-gray-100 shadow-sm flex gap-1 items-center">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+              <div className="bg-white text-stone-800 self-start max-w-[85%] rounded-2xl rounded-tl-sm p-3 border border-amber-100 shadow-sm flex gap-1 items-center">
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce delay-100"></div>
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce delay-200"></div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
           {/* Footer / Input */}
-          <div className="p-3 bg-white border-t border-gray-100 flex gap-2">
+          <div className="p-3 bg-white border-t border-amber-100 flex gap-2">
             <input
               type="text"
-              className="flex-1 bg-slate-100 text-slate-800 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              className="flex-1 bg-amber-50/50 text-stone-800 rounded-full px-4 py-2 text-sm border border-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-600/50 transition-all placeholder-amber-700/40"
               placeholder="Hỏi về thành viên..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -152,7 +185,7 @@ export default function ChatbotWidget() {
             <button
               onClick={sendMessage}
               disabled={isLoading || !message.trim()}
-              className="bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="bg-amber-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
             >
               <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -163,7 +196,7 @@ export default function ChatbotWidget() {
       ) : (
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-slate-800 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:bg-slate-700 transition-transform transform hover:-translate-y-1"
+          className="bg-amber-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-xl hover:bg-amber-800 transition-transform transform hover:-translate-y-1 border-2 border-white/20"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
