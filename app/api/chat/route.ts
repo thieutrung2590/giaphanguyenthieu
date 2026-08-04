@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// 1. Thuật toán lột bỏ dấu tiếng Việt để phục vụ Fuzzy Search
 function removeAccents(str: string) {
   if (!str) return '';
   return str
@@ -11,24 +10,18 @@ function removeAccents(str: string) {
     .replace(/Đ/g, 'D');
 }
 
-// 2. Thuật toán chuyển đổi JSON sang CSV siêu gọn nhẹ
 function jsonToCsv(items: any[]) {
   if (!items || items.length === 0) return '';
-  
-  // Lấy tất cả các tên cột (keys) có trong mảng dữ liệu
   const keySet = new Set<string>();
   items.forEach(item => Object.keys(item).forEach(key => keySet.add(key)));
   const headers = Array.from(keySet);
-
-  const csvRows = [headers.join(',')]; // Dòng đầu tiên là tiêu đề cột
+  const csvRows = [headers.join(',')];
 
   for (const row of items) {
     const values = headers.map(header => {
       let val = row[header];
       if (val === null || val === undefined) val = '';
-      
       const strVal = String(val);
-      // Xử lý an toàn: Nếu văn bản chứa dấu phẩy, ngoặc kép hoặc xuống dòng thì bọc trong ngoặc kép
       if (strVal.includes(',') || strVal.includes('\n') || strVal.includes('"')) {
         return `"${strVal.replace(/"/g, '""')}"`;
       }
@@ -36,7 +29,6 @@ function jsonToCsv(items: any[]) {
     });
     csvRows.push(values.join(','));
   }
-  
   return csvRows.join('\n');
 }
 
@@ -53,42 +45,31 @@ export async function POST(req: Request) {
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!groqApiKey || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ reply: 'Lỗi: Chưa cấu hình đủ biến môi trường (GROQ_API_KEY hoặc SUPABASE_KEY) trên Vercel.' }, { status: 500 });
+      return NextResponse.json({ reply: 'Lỗi: Chưa cấu hình đủ biến môi trường trên Vercel.' }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // CHUẨN BỊ TỪ KHÓA TÌM KIẾM (FUZZY SEARCH)
     const lowerMsg = message.toLowerCase();
     const unaccentedMsg = removeAccents(lowerMsg);
     
     let cleanMsg = unaccentedMsg.replace(/(thong tin|cho biet|hoi ve|ai la|tim|ve|cua|nhung|nguoi|ten|cha|me|vo|chong|con|cai|gia|pha|ban|su kien|gio|hop|ngay|ong|ba|anh|chi|em|bac|chu|co|di|cau|mo|thim)/g, ' ').trim();
     const keywords = cleanMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 1);
 
-    // TÍCH HỢP TÌM KIẾM SỰ KIỆN (custom_events)
     let eventsData: any[] = [];
-    const isEventQuery = /(su kien|gio|hop|le|ngay|ky niem)/.test(unaccentedMsg);
-    
-    if (isEventQuery) {
-      const { data: events, error: eventError } = await supabase
-        .from('custom_events')
-        .select('*')
-        .limit(20);
-        
-      if (!eventError && events) {
+    if (/(su kien|gio|hop|le|ngay|ky niem)/.test(unaccentedMsg)) {
+      const { data: events } = await supabase.from('custom_events').select('*').limit(20);
+      if (events) {
         eventsData = events.map((e: any) => {
           const clean: any = {};
           for (const key in e) {
-            if (!['created_at', 'updated_at'].includes(key.toLowerCase()) && e[key] !== null) {
-              clean[key] = e[key];
-            }
+            if (!['created_at', 'updated_at'].includes(key.toLowerCase()) && e[key] !== null) clean[key] = e[key];
           }
           return clean;
         });
       }
     }
 
-    // TRUY XUẤT VÀ LỌC THÀNH VIÊN GIA PHẢ
     const { data: allPersons, error: personError, count } = await supabase
       .from('persons')
       .select('*', { count: 'exact' })
@@ -106,30 +87,25 @@ export async function POST(req: Request) {
       let mainPersons = allPersons;
 
       if (keywords.length > 0 && !unaccentedMsg.includes('bao nhieu') && !unaccentedMsg.includes('tong so')) {
-        // Chấm điểm mức độ liên quan dựa trên từ khóa
         const scoredPersons = allPersons.map((p: any) => {
           const rawName = p.full_name || p.name || p.ho_ten || p.title || '';
           const nameStr = removeAccents(rawName.toLowerCase());
-          
           let score = 0;
-          keywords.forEach((kw: string) => {
-            if (nameStr.includes(kw)) score += 1;
-          });
-          
+          keywords.forEach((kw: string) => { if (nameStr.includes(kw)) score += 1; });
           return { ...p, _matchScore: score };
         });
 
+        // Chỉ lấy 15 người gần nhất để tránh làm AI bị ngợp dữ liệu quan hệ
         mainPersons = scoredPersons
           .filter((p: any) => p._matchScore > 0) 
           .sort((a: any, b: any) => b._matchScore - a._matchScore)
-          .slice(0, 30); // TĂNG LÊN 30 NGƯỜI LIÊN QUAN NHẤT
+          .slice(0, 15); 
       } else {
-        mainPersons = mainPersons.slice(0, 30);
+        mainPersons = mainPersons.slice(0, 15);
       }
 
       finalPersons = [...mainPersons];
 
-      // TRUY XUẤT BẢNG MỐI QUAN HỆ (Relationships)
       if (mainPersons.length > 0) {
         const mainIds = mainPersons.map(p => p.id).filter(Boolean);
 
@@ -167,10 +143,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // DỌN DẸP DỮ LIỆU CHUẨN BỊ CHUYỂN SANG CSV
     const uniquePersons = Array.from(new Map(finalPersons.map(p => [p.id, p])).values());
     const cleanPersons = uniquePersons.map((p: any) => {
-      const clean: any = {};
+      const clean: any = { id: p.id }; // Giữ lại ID để phân biệt người trùng tên
       for (const key in p) {
         const lowerKey = key.toLowerCase();
         if (['created_at', 'updated_at', 'avatar_url', 'image', 'uuid', 'photo', '_matchscore'].includes(lowerKey)) continue;
@@ -179,40 +154,47 @@ export async function POST(req: Request) {
       return clean;
     });
 
-    const cleanRels = relationshipsData.map((r: any) => {
-      const clean: any = {};
-      for (const key in r) {
-        if (!['created_at', 'updated_at'].includes(key.toLowerCase()) && r[key] !== null) clean[key] = r[key];
+    // =========================================================================
+    // GIẢI PHÁP TRIỆT ĐỂ: Dịch mối quan hệ thành văn bản rõ ràng trước khi gửi
+    // =========================================================================
+    const translatedRelationships = relationshipsData.map((r: any) => {
+      const p1 = uniquePersons.find(p => p.id === r.person_id);
+      const p2 = uniquePersons.find(p => p.id === r.related_person_id);
+      
+      if (p1 && p2) {
+        const name1 = p1.full_name || p1.name || p1.ho_ten || 'Không rõ';
+        const name2 = p2.full_name || p2.name || p2.ho_ten || 'Không rõ';
+        const type = r.relationship_type || r.type || r.quan_he || 'người thân';
+        
+        return `- ${name1} (ID: ${p1.id}) <--> Quan hệ là "${type}" với <--> ${name2} (ID: ${p2.id})`;
       }
-      return clean;
-    });
+      return null;
+    }).filter(Boolean);
 
-    // ÉP SANG ĐỊNH DẠNG CSV ĐỂ TIẾT KIỆM TOKEN
+    const relsText = translatedRelationships.join('\n');
     const csvPersons = jsonToCsv(cleanPersons);
-    const csvRels = jsonToCsv(cleanRels);
     const csvEvents = jsonToCsv(eventsData);
 
-    // XÂY DỰNG PROMPT CHO GROQ AI
     const systemPrompt = `Bạn là "Trợ lý Gia Phả" của dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc: Ưu tiên tuyệt đối tính CHÍNH XÁC, không suy đoán hay bịa đặt.
 Nếu không có dữ liệu để kết luận, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
-Dữ liệu dưới đây được cung cấp dưới định dạng CSV (Các cột cách nhau bằng dấu phẩy).
+LƯU Ý: Chú ý kỹ ID của từng người vì gia phả có thể có nhiều người trùng tên. Chỉ thống kê người thân của đúng người mà người dùng đang hỏi.
 
 THÔNG TIN TỔNG QUAN:
 - Gia phả hiện tại có tổng cộng: ${totalMembers} thành viên.
 
-DỮ LIỆU THÀNH VIÊN (CSV):
+DỮ LIỆU THÀNH VIÊN (Định dạng CSV):
 ${csvPersons}
 
-DỮ LIỆU MỐI QUAN HỆ (CSV):
-${csvRels}
+DỮ LIỆU MỐI QUAN HỆ (Đã được giải mã trực tiếp từ Database):
+${relsText || 'Không có dữ liệu mối quan hệ.'}
 
-DỮ LIỆU SỰ KIỆN SẮP TỚI (CSV):
-${csvEvents}
+DỮ LIỆU SỰ KIỆN SẮP TỚI:
+${csvEvents || 'Không có sự kiện.'}
 
 HƯỚNG DẪN TRÌNH BÀY:
-1. Đối chiếu cột ID giữa bảng THÀNH VIÊN và MỐI QUAN HỆ để xác định cha, mẹ, vợ, chồng, con. Không in ID ra màn hình.
-2. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: BẮT BUỘC trình bày danh sách người thân dưới dạng BẢNG Markdown đẹp mắt (Cột: Họ tên | Giới tính | Ngày sinh | Mối quan hệ).
-3. NẾU CÓ SỰ KIỆN: Trình bày gạch đầu dòng rõ ràng.`;
+1. Đọc kỹ mục "DỮ LIỆU MỐI QUAN HỆ" để biết ai là người thân của ai. Tuyệt đối không nhầm lẫn họ hàng của người khác vào người đang được hỏi.
+2. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: BẮT BUỘC trình bày danh sách người thân dưới dạng BẢNG Markdown.
+3. Trong bảng không hiển thị dãy số ID. Cấu trúc bảng: | Họ tên | Giới tính | Ngày sinh | Mối quan hệ |`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
