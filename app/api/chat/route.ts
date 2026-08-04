@@ -7,7 +7,7 @@ function removeAccents(str: string) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
 }
 
-// 2. Hàm ép JSON sang CSV TỐI ƯU CỰC HẠN
+// 2. Hàm ép JSON sang CSV giữ lại đầy đủ thông tin chi tiết
 function jsonToCsv(items: any[]) {
   if (!items || items.length === 0) return '';
   const keySet = new Set<string>();
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     
     // TẢI DỮ LIỆU TÙY THEO Ý ĐỊNH
     if (isEventQuery) {
-      const { data: events } = await supabase.from('custom_events').select('title, event_date, description, location').limit(10);
+      const { data: events } = await supabase.from('custom_events').select('*').limit(20);
       if (events && events.length > 0) {
         systemContext += `\nDỮ LIỆU SỰ KIỆN (CSV):\n${jsonToCsv(events)}\n`;
       }
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       systemContext += `\nHệ thống hiện tại chưa kết nối bảng tài chính. Hãy báo người dùng "Tính năng đang được phát triển".\n`;
     }
     else {
-      const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(1500);
+      const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(2000);
       const totalMembers = count || (allPersons ? allPersons.length : 0);
       systemContext += `\n- Tổng số thành viên gia phả: ${totalMembers} người.\n`;
 
@@ -93,9 +93,10 @@ export async function POST(req: Request) {
             return { ...p, _matchScore: score };
           });
 
-          mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 7); 
+          // NÂNG LÊN 15 NGƯỜI ĐỂ ĐẠT NGƯỠNG 2000 - 3000 TOKENS INPUT
+          mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 15); 
         } else {
-          mainPersons = mainPersons.slice(0, 7);
+          mainPersons = mainPersons.slice(0, 15);
         }
 
         finalPersons = [...mainPersons];
@@ -105,9 +106,9 @@ export async function POST(req: Request) {
           if (mainIds.length > 0) {
             const { data: rels } = await supabase
               .from('relationships')
-              .select('person_id, related_person_id, relationship_type')
+              .select('*')
               .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
-              .limit(50);
+              .limit(100);
 
             if (rels && rels.length > 0) {
               relationshipsData = rels;
@@ -132,6 +133,7 @@ export async function POST(req: Request) {
         const clean: any = { id: p.id };
         for (const key in p) {
           const lowerKey = key.toLowerCase();
+          // Chỉ loại bỏ các khóa hệ thống không cần thiết, giữ lại toàn bộ tiểu sử và chi tiết cá nhân để làm giàu token
           if (['created_at', 'updated_at', 'avatar_url', 'image', 'photo', 'uuid', '_matchscore'].includes(lowerKey)) continue;
           if (p[key] !== null && p[key] !== '') clean[key] = p[key];
         }
