@@ -15,10 +15,6 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
-
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
     if (savedChat) {
@@ -48,6 +44,17 @@ export default function ChatbotWidget() {
     setIsLoading(true);
 
     try {
+      // ĐƯA KHỞI TẠO SUPABASE VÀO ĐÂY ĐỂ TRÁNH LỖI KHI VERCEL BUILD
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Chưa cấu hình biến môi trường Supabase trên Vercel.');
+      }
+
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+
+      // FRONTEND TỰ LẤY DỮ LIỆU SUPABASE
       const { data: members, error: supabaseError } = await supabase
         .from('members')
         .select('id, full_name, gender, birth_date, death_date, biography')
@@ -63,6 +70,7 @@ export default function ChatbotWidget() {
           ).join('\n')
         : 'Hiện tại chưa có dữ liệu thành viên nào trong gia phả.';
 
+      // GỬI DỮ LIỆU ĐÃ LẤY CHO API
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
