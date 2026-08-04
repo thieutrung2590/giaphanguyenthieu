@@ -2,17 +2,28 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Khởi tạo Supabase client (Dữ liệu lấy từ biến môi trường trên Vercel)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Khởi tạo Gemini client (API Key lấy từ biến môi trường trên Vercel)
-const apiKey = process.env.GEMINI_API_KEY!;
-const genAI = new GoogleGenerativeAI(apiKey);
-
 export async function POST(req: Request) {
   try {
+    // Khởi tạo Supabase client bên trong function để tránh lỗi khi build trên Vercel
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Thiếu cấu hình biến môi trường Supabase');
+      return NextResponse.json({ reply: 'Hệ thống chưa được cấu hình đầy đủ biến môi trường Supabase.' }, { status: 500 });
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Khởi tạo Gemini client bên trong function
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      console.error('Thiếu cấu hình biến môi trường GEMINI_API_KEY');
+      return NextResponse.json({ reply: 'Hệ thống chưa cấu hình Gemini API.' }, { status: 500 });
+    }
+    
+    const genAI = new GoogleGenerativeAI(apiKey);
+
     const { message } = await req.json();
 
     if (!message) {
@@ -22,7 +33,6 @@ export async function POST(req: Request) {
     // 1. Tự động lấy danh sách mô hình Gemini được hỗ trợ qua REST API
     let selectedModel = 'gemini-1.5-flash'; // Mặc định an toàn
     try {
-      // Fetch models sử dụng apiKey từ Vercel
       const modelRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (modelRes.ok) {
         const modelData = await modelRes.json();
