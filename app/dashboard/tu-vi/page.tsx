@@ -179,7 +179,7 @@ export default function TuViPage() {
   const currentYear = new Date().getFullYear();
   
   const [formData, setFormData] = useState({
-    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "0", 
     gender: "Nam giới", viewYear: String(currentYear)
@@ -212,23 +212,50 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
+  // ĐÃ SỬA LỖI: Cập nhật toàn bộ hàm handleDownload kèm Try/Catch và bắt lỗi Promise
   const handleDownload = () => {
+    if (isDownloading) return;
     setIsDownloading(true);
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    script.onload = () => {
+
+    const executeCapture = () => {
       const el = document.getElementById("laso-chart");
-      if (el && (window as any).html2canvas) {
-        (window as any).html2canvas(el, { scale: 2, backgroundColor: "#ffffff" }).then((canvas: any) => {
-          const link = document.createElement("a");
-          link.download = `La-So-${formData.name.replace(/\s+/g, '-')}.png`;
-          link.href = canvas.toDataURL("image/png");
-          link.click();
-          setIsDownloading(false);
-        });
+      if (!el || !(window as any).html2canvas) {
+        setIsDownloading(false);
+        alert("Lỗi: Không tìm thấy lá số để tải!");
+        return;
       }
+      
+      (window as any).html2canvas(el, { 
+        scale: 2, 
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        allowTaint: true
+      }).then((canvas: any) => {
+        const link = document.createElement("a");
+        link.download = `La-So-${formData.name.replace(/\s+/g, '-')}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+        setIsDownloading(false);
+      }).catch((err: any) => {
+        console.error("Lỗi khi tải ảnh:", err);
+        setIsDownloading(false);
+        alert("Có lỗi xảy ra khi tạo ảnh lá số!");
+      });
     };
-    document.body.appendChild(script);
+
+    // Kiểm tra xem html2canvas đã được tải chưa
+    if ((window as any).html2canvas) {
+      executeCapture();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload = executeCapture;
+      script.onerror = () => {
+        setIsDownloading(false);
+        alert("Không thể tải thư viện hỗ trợ chụp ảnh. Hãy kiểm tra kết nối mạng!");
+      };
+      document.body.appendChild(script);
+    }
   };
 
   const fetchAIReading = async (cat: string, currentChartData: any) => {
@@ -370,7 +397,6 @@ export default function TuViPage() {
               
               <div className="relative">
                 <InputWrapper icon={CalendarDays} themeObj={theme}>
-                  {/* BỐ CỤC CHỐNG "XÍT" CHỮ CHO MOBILE: Sử dụng Grid để ngắt 2 dòng */}
                   <div className={`grid grid-cols-6 sm:flex sm:items-center w-full text-stone-700 text-[13.5px] sm:text-sm font-medium py-2 sm:py-0 gap-y-2.5 sm:gap-y-0 sm:divide-x ${theme.divide}`}>
                     <select name="day" value={formData.day} onChange={handleChange} className="col-span-2 bg-transparent outline-none w-full pr-1">
                       <option value="">Ngày</option>
@@ -403,7 +429,6 @@ export default function TuViPage() {
               <div className="h-4"></div>
               
               <InputWrapper icon={Clock} themeObj={theme}>
-                 {/* BỐ CỤC CHỐNG "XÍT" GIỜ SINH: Ngắt 2 dòng trên mobile */}
                 <div className={`grid grid-cols-2 sm:flex sm:items-center w-full text-stone-700 text-sm font-medium py-2 sm:py-0 gap-y-2.5 sm:gap-y-0 sm:divide-x ${theme.divide}`}>
                   <select name="hour" value={formData.hour} onChange={handleChange} className="bg-transparent outline-none w-full pr-1 sm:pr-2 cursor-pointer">
                     <option value="">Giờ sinh</option>
