@@ -11,7 +11,6 @@ export async function POST(req: Request) {
 
     const groqApiKey = process.env.GROQ_API_KEY;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    // Ưu tiên dùng SERVICE_ROLE_KEY để vượt qua RLS nếu có
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!groqApiKey) {
@@ -23,25 +22,31 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // BƯỚC 1: ĐỌC DỮ LIỆU TỪ SUPABASE TẠI BACKEND
-    const { data: members, error: supabaseError } = await supabase
-      .from('members') // Đảm bảo tên bảng trong Supabase chính xác là 'members'
-      .select('id, full_name, gender, birth_date, death_date, biography')
+    // BƯỚC 1: Lấy dữ liệu từ bảng persons
+    // Dùng select('*') để lấy toàn bộ cột, tránh lỗi "Could not find column"
+    const { data: persons, error: supabaseError } = await supabase
+      .from('persons')
+      .select('*')
       .limit(100);
 
     if (supabaseError) {
       return NextResponse.json({ reply: `Lỗi truy xuất CSDL: ${supabaseError.message}` }, { status: 500 });
     }
 
-    // NẾU DỮ LIỆU RỖNG BÁO NGAY RA MÀN HÌNH ĐỂ DEBUG
-    if (!members || members.length === 0) {
-      return NextResponse.json({ reply: 'Hệ thống thông báo: Đã kết nối Supabase thành công nhưng bảng "members" đang rỗng hoặc bị chặn đọc bởi RLS (Row Level Security). Vui lòng vào Supabase tắt RLS hoặc kiểm tra lại tên bảng.' }, { status: 200 });
+    if (!persons || persons.length === 0) {
+      return NextResponse.json({ reply: 'Hệ thống thông báo: Đã kết nối thành công nhưng bảng "persons" hiện chưa có dữ liệu.' }, { status: 200 });
     }
 
-    // BƯỚC 2: TẠO PROMPT
-    const contextData = members.map((m: any) => 
-        `- Họ tên: ${m.full_name || 'Không rõ'}, Giới tính: ${m.gender || 'Không rõ'}, Ngày sinh: ${m.birth_date || 'Không rõ'}, Ngày mất: ${m.death_date || 'Không rõ'}, Tiểu sử: ${m.biography || 'Không có'}`
-      ).join('\n');
+    // BƯỚC 2: Tự động ánh xạ dữ liệu gia phả với các trường hợp tên cột có thể xảy ra
+    const contextData = persons.map((p: any) => {
+        const name = p.full_name || p.name || p.ho_ten || p.title || 'Không rõ';
+        const gender = p.gender || p.gioi_tinh || 'Không rõ';
+        const birth = p.birth_date || p.dob || p.ngay_sinh || 'Không rõ';
+        const death = p.death_date || p.ngay_mat || 'Không rõ';
+        const bio = p.biography || p.tieu_su || p.ghi_chu || p.description || 'Không có';
+        
+        return `- Họ tên: ${name}, Giới tính: ${gender}, Ngày sinh: ${birth}, Ngày mất: ${death}, Thông tin thêm: ${bio}`;
+    }).join('\n');
 
     const systemPrompt = `Bạn là một trợ lý AI quản lý gia phả dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc của bạn là ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. 
 Chỉ cung cấp thông tin dựa trên dữ liệu gia phả được cung cấp dưới đây. Tuyệt đối không suy đoán, không bịa đặt, không tự tạo thông tin. Nếu dữ liệu dưới đây không có hoặc không đủ để trả lời câu hỏi của người dùng, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
@@ -49,7 +54,7 @@ Chỉ cung cấp thông tin dựa trên dữ liệu gia phả được cung cấ
 DỮ LIỆU GIA PHẢ:
 ${contextData}`;
 
-    // BƯỚC 3: GỌI GROQ API
+    // BƯỚC 3: Gọi API LLaMA 3.1 8B của Groq
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -62,7 +67,7 @@ ${contextData}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ],
-        temperature: 0.1, // Chỉnh xuống mức cực thấp để loại bỏ hoàn toàn sự bịa đặt
+        temperature: 0.1, // Giữ nhiệt độ AI thấp để đảm bảo không suy đoán thông tin
       }),
     });
 
