@@ -14,7 +14,6 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Khôi phục lịch sử chat từ Local Storage
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
     if (savedChat) {
@@ -26,7 +25,6 @@ export default function ChatbotWidget() {
     }
   }, []);
 
-  // Lưu lịch sử chat vào Local Storage
   useEffect(() => {
     if (chatHistory.length > 0) {
       localStorage.setItem('giapha_chat_history', JSON.stringify(chatHistory));
@@ -45,7 +43,6 @@ export default function ChatbotWidget() {
     setIsLoading(true);
 
     try {
-      // Chỉ gửi nội dung chat lên API, Backend sẽ tự xử lý database
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
