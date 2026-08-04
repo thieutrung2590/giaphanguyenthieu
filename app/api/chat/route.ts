@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Thuật toán lột bỏ dấu tiếng Việt để phục vụ Fuzzy Search
+// 1. Thuật toán lột bỏ dấu tiếng Việt để phục vụ Fuzzy Search
 function removeAccents(str: string) {
   if (!str) return '';
   return str
@@ -9,6 +9,35 @@ function removeAccents(str: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D');
+}
+
+// 2. Thuật toán chuyển đổi JSON sang CSV siêu gọn nhẹ
+function jsonToCsv(items: any[]) {
+  if (!items || items.length === 0) return '';
+  
+  // Lấy tất cả các tên cột (keys) có trong mảng dữ liệu
+  const keySet = new Set<string>();
+  items.forEach(item => Object.keys(item).forEach(key => keySet.add(key)));
+  const headers = Array.from(keySet);
+
+  const csvRows = [headers.join(',')]; // Dòng đầu tiên là tiêu đề cột
+
+  for (const row of items) {
+    const values = headers.map(header => {
+      let val = row[header];
+      if (val === null || val === undefined) val = '';
+      
+      const strVal = String(val);
+      // Xử lý an toàn: Nếu văn bản chứa dấu phẩy, ngoặc kép hoặc xuống dòng thì bọc trong ngoặc kép
+      if (strVal.includes(',') || strVal.includes('\n') || strVal.includes('"')) {
+        return `"${strVal.replace(/"/g, '""')}"`;
+      }
+      return strVal;
+    });
+    csvRows.push(values.join(','));
+  }
+  
+  return csvRows.join('\n');
 }
 
 export async function POST(req: Request) {
@@ -29,15 +58,14 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. CHUẨN BỊ TỪ KHÓA TÌM KIẾM (FUZZY SEARCH CẢI TIẾN)
+    // CHUẨN BỊ TỪ KHÓA TÌM KIẾM (FUZZY SEARCH)
     const lowerMsg = message.toLowerCase();
     const unaccentedMsg = removeAccents(lowerMsg);
     
-    // Bổ sung thêm các danh xưng phổ biến vào danh sách từ thừa để bộ lọc sạch hơn
     let cleanMsg = unaccentedMsg.replace(/(thong tin|cho biet|hoi ve|ai la|tim|ve|cua|nhung|nguoi|ten|cha|me|vo|chong|con|cai|gia|pha|ban|su kien|gio|hop|ngay|ong|ba|anh|chi|em|bac|chu|co|di|cau|mo|thim)/g, ' ').trim();
     const keywords = cleanMsg.split(/[ \n\t.,?]+/).filter((w: string) => w.length > 1);
 
-    // 2. TÍCH HỢP TÌM KIẾM SỰ KIỆN (custom_events)
+    // TÍCH HỢP TÌM KIẾM SỰ KIỆN (custom_events)
     let eventsData: any[] = [];
     const isEventQuery = /(su kien|gio|hop|le|ngay|ky niem)/.test(unaccentedMsg);
     
@@ -60,11 +88,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. TRUY XUẤT VÀ LỌC THÀNH VIÊN GIA PHẢ BẰNG THUẬT TOÁN CHẤM ĐIỂM (SCORING)
+    // TRUY XUẤT VÀ LỌC THÀNH VIÊN GIA PHẢ
     const { data: allPersons, error: personError, count } = await supabase
       .from('persons')
       .select('*', { count: 'exact' })
-      .limit(1500);
+      .limit(2000);
 
     if (personError) {
       return NextResponse.json({ reply: `Lỗi truy xuất bảng persons: ${personError.message}` }, { status: 500 });
@@ -78,7 +106,7 @@ export async function POST(req: Request) {
       let mainPersons = allPersons;
 
       if (keywords.length > 0 && !unaccentedMsg.includes('bao nhieu') && !unaccentedMsg.includes('tong so')) {
-        // Áp dụng thuật toán tính điểm: Ai khớp nhiều từ khóa trong tên nhất sẽ được điểm cao nhất
+        // Chấm điểm mức độ liên quan dựa trên từ khóa
         const scoredPersons = allPersons.map((p: any) => {
           const rawName = p.full_name || p.name || p.ho_ten || p.title || '';
           const nameStr = removeAccents(rawName.toLowerCase());
@@ -92,16 +120,16 @@ export async function POST(req: Request) {
         });
 
         mainPersons = scoredPersons
-          .filter((p: any) => p._matchScore > 0) // Lọc bỏ những người 0 điểm (không khớp chữ nào)
-          .sort((a: any, b: any) => b._matchScore - a._matchScore) // Xếp người điểm cao nhất lên đầu
-          .slice(0, 10); // Lấy top 10 người khả nghi nhất để gửi cho AI
+          .filter((p: any) => p._matchScore > 0) 
+          .sort((a: any, b: any) => b._matchScore - a._matchScore)
+          .slice(0, 30); // TĂNG LÊN 30 NGƯỜI LIÊN QUAN NHẤT
       } else {
-        mainPersons = mainPersons.slice(0, 10);
+        mainPersons = mainPersons.slice(0, 30);
       }
 
       finalPersons = [...mainPersons];
 
-      // 4. TRUY XUẤT BẢNG MỐI QUAN HỆ (Relationships)
+      // TRUY XUẤT BẢNG MỐI QUAN HỆ (Relationships)
       if (mainPersons.length > 0) {
         const mainIds = mainPersons.map(p => p.id).filter(Boolean);
 
@@ -110,7 +138,7 @@ export async function POST(req: Request) {
             .from('relationships')
             .select('*')
             .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
-            .limit(50);
+            .limit(100);
 
           if (rels && rels.length > 0) {
             relationshipsData = rels;
@@ -139,7 +167,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Lọc trùng lặp & Dọn dẹp JSON
+    // DỌN DẸP DỮ LIỆU CHUẨN BỊ CHUYỂN SANG CSV
     const uniquePersons = Array.from(new Map(finalPersons.map(p => [p.id, p])).values());
     const cleanPersons = uniquePersons.map((p: any) => {
       const clean: any = {};
@@ -159,29 +187,33 @@ export async function POST(req: Request) {
       return clean;
     });
 
-    // 5. XÂY DỰNG PROMPT THÔNG MINH CHO GROQ AI
-    const systemPrompt = `Bạn là "Trợ lý Gia Phả" của dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc: Ưu tiên tuyệt đối tính CHÍNH XÁC, không suy đoán hay bịa đặt thông tin. Xưng hô là "Trợ lý Gia Phả" và gọi người dùng là "bạn" hoặc "thành viên".
+    // ÉP SANG ĐỊNH DẠNG CSV ĐỂ TIẾT KIỆM TOKEN
+    const csvPersons = jsonToCsv(cleanPersons);
+    const csvRels = jsonToCsv(cleanRels);
+    const csvEvents = jsonToCsv(eventsData);
+
+    // XÂY DỰNG PROMPT CHO GROQ AI
+    const systemPrompt = `Bạn là "Trợ lý Gia Phả" của dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc: Ưu tiên tuyệt đối tính CHÍNH XÁC, không suy đoán hay bịa đặt.
 Nếu không có dữ liệu để kết luận, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
+Dữ liệu dưới đây được cung cấp dưới định dạng CSV (Các cột cách nhau bằng dấu phẩy).
 
 THÔNG TIN TỔNG QUAN:
 - Gia phả hiện tại có tổng cộng: ${totalMembers} thành viên.
 
-DỮ LIỆU THÀNH VIÊN (Kèm ID):
-${JSON.stringify(cleanPersons)}
+DỮ LIỆU THÀNH VIÊN (CSV):
+${csvPersons}
 
-DỮ LIỆU MỐI QUAN HỆ (Bảng Liên Kết):
-${JSON.stringify(cleanRels)}
+DỮ LIỆU MỐI QUAN HỆ (CSV):
+${csvRels}
 
-DỮ LIỆU SỰ KIỆN SẮP TỚI (Nếu có):
-${JSON.stringify(eventsData)}
+DỮ LIỆU SỰ KIỆN SẮP TỚI (CSV):
+${csvEvents}
 
-HƯỚNG DẪN TRÌNH BÀY (QUAN TRỌNG TỐI THƯỢNG):
-1. Đối chiếu chính xác ID giữa bảng THÀNH VIÊN và MỐI QUAN HỆ để biết ai là cha, mẹ, vợ, chồng, con. Không hiển thị dãy số ID ra màn hình.
-2. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: BẮT BUỘC phải nhóm danh sách người thân (đặc biệt là con cái) và xuất ra dưới dạng BẢNG (Table Markdown) thật đẹp mắt.
-- Cấu trúc cột của bảng phải bao gồm: | Họ tên | Giới tính | Ngày sinh | Mối quan hệ |
-3. NẾU CÓ DỮ LIỆU SỰ KIỆN: Hãy trình bày lịch sự, gạch đầu dòng rõ ràng ngày tháng và nội dung sự kiện.`;
+HƯỚNG DẪN TRÌNH BÀY:
+1. Đối chiếu cột ID giữa bảng THÀNH VIÊN và MỐI QUAN HỆ để xác định cha, mẹ, vợ, chồng, con. Không in ID ra màn hình.
+2. NẾU NGƯỜI DÙNG HỎI VỀ GIA ĐÌNH, CON CÁI: BẮT BUỘC trình bày danh sách người thân dưới dạng BẢNG Markdown đẹp mắt (Cột: Họ tên | Giới tính | Ngày sinh | Mối quan hệ).
+3. NẾU CÓ SỰ KIỆN: Trình bày gạch đầu dòng rõ ràng.`;
 
-    // 6. GỌI API LLaMA 3.1 CỦA GROQ
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -194,7 +226,7 @@ HƯỚNG DẪN TRÌNH BÀY (QUAN TRỌNG TỐI THƯỢNG):
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ],
-        temperature: 0.1, // Khóa chặt để tuân thủ luật Markdown
+        temperature: 0.1,
       }),
     });
 
