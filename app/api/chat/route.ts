@@ -16,31 +16,8 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Tự động tìm mô hình Gemini nhưng ưu tiên bản ổn định 1.5
-    let selectedModel = 'gemini-1.5-flash';
-    try {
-      const modelRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      if (modelRes.ok) {
-        const modelData = await modelRes.json();
-        const availableModels = modelData.models || [];
-        
-        // Lọc các mô hình hỗ trợ generateContent và BỎ QUA các mô hình 2.5 đang bị lỗi cho user mới
-        const validModels = availableModels.filter((m: any) => 
-          m.supportedGenerationMethods?.includes('generateContent') && 
-          m.name.includes('gemini') &&
-          !m.name.includes('2.5') // Loại trừ phiên bản 2.5
-        );
-        
-        if (validModels.length > 0) {
-          // Ưu tiên tìm chính xác bản 1.5-flash trước
-          const flashModel = validModels.find((m: any) => m.name.includes('1.5-flash')) || validModels.find((m: any) => m.name.includes('flash'));
-          const chosen = flashModel || validModels[0];
-          selectedModel = chosen.name.replace('models/', '');
-        }
-      }
-    } catch (e) {
-      console.error('Lỗi check model:', e);
-    }
+    // FIX LỖI 429 QUOTA: Gắn cứng model 1.5-flash, bỏ quét tự động để tiết kiệm request và tránh model bị khóa limit 0
+    const selectedModel = 'gemini-1.5-flash';
 
     const prompt = `Bạn là một trợ lý AI quản lý gia phả dòng họ Nguyễn Thiệu. Nguyên tắc bắt buộc của bạn là ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. 
 Chỉ cung cấp thông tin dựa trên dữ liệu gia phả được cung cấp dưới đây. Tuyệt đối không suy đoán, không bịa đặt, không tự tạo thông tin. Nếu dữ liệu dưới đây không có hoặc không đủ để trả lời câu hỏi của người dùng, hãy nói đúng nguyên văn: "Không đủ thông tin để kết luận".
