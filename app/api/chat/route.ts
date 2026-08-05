@@ -41,12 +41,13 @@ export async function POST(req: Request) {
     const { message } = await req.json();
     if (!message) return NextResponse.json({ reply: 'Vui lòng nhập câu hỏi.' }, { status: 400 });
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    // Trở lại sử dụng GROQ_API_KEY
+    const groqApiKey = process.env.GROQ_API_KEY;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!geminiApiKey || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường (Cần GEMINI_API_KEY và SUPABASE_KEY).' }, { status: 500 });
+    if (!groqApiKey || !supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường (Cần GROQ_API_KEY và SUPABASE_KEY).' }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
       systemContext += `\nHệ thống hiện tại chưa kết nối bảng tài chính. Hãy báo người dùng "Tính năng đang được phát triển".\n`;
     }
     else {
-      // Ép về lấy 1500 dòng để giảm tải cho DB
+      // Ép về lấy 1500 dòng để DB xử lý nhanh và nhẹ
       const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(1500);
       const totalMembers = count || (allPersons ? allPersons.length : 0);
       systemContext += `\n- Tổng số thành viên gia phả: ${totalMembers} người.\n`;
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
             return { ...p, _matchScore: score };
           });
 
-          // TỐI ƯU HÓA: Ép về 15 người để tránh bị Google API chặn
+          // Lấy 15 người điểm cao nhất để an toàn cho giới hạn Token của Groq
           mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 15); 
         } else {
           mainPersons = mainPersons.slice(0, 15);
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
               .from('relationships')
               .select('*')
               .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
-              .limit(100); // TỐI ƯU HÓA: Ép về 100 mối quan hệ để an toàn cho Free Tier
+              .limit(100); // Lấy 100 mối quan hệ để nhét vừa Context của Groq
 
             if (rels && rels.length > 0) {
               relationshipsData = rels;
@@ -166,43 +167,30 @@ HƯỚNG DẪN TRÌNH BÀY:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/dashboard/members?memberModalId={id})
 Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} bằng chuỗi ID chính xác của người đó.`;
 
-    let response;
-    let retries = 3;
-    let delay = 1500; // Tăng thời gian chờ lên 1.5 giây để tránh đụng trần Rate Limit
+    // Gọi lại API của Groq (LLaMA 3.1)
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.1,
+      }),
+    });
 
-    for (let i = 0; i < retries; i++) {
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: message }] }],
-          generationConfig: { temperature: 0.1 }
-        }),
-      });
-
-      if (response.ok) break;
-
+    if (!response.ok) {
       const errData = await response.json();
-      const errMsg = errData.error?.message || '';
-
-      if (response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('high demand')) {
-        if (i === retries - 1) {
-          throw new Error('Máy chủ Google AI hiện đang quá tải. Vui lòng đợi vài phút rồi thử lại.');
-        }
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; 
-      } else {
-        throw new Error(errMsg || 'Lỗi kết nối Gemini API');
-      }
-    }
-
-    if (!response || !response.ok) {
-      throw new Error('Không thể kết nối đến AI sau nhiều lần thử.');
+      throw new Error(errData.error?.message || 'Lỗi kết nối Groq API');
     }
 
     const data = await response.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Không nhận được phản hồi từ AI.';
+    const reply = data.choices[0]?.message?.content || 'Không nhận được phản hồi từ AI.';
 
     return NextResponse.json({ reply });
     
