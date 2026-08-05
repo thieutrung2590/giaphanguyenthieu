@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     let systemContext = "";
     
     if (isEventQuery) {
-      const { data: events } = await supabase.from('custom_events').select('*').limit(50);
+      const { data: events } = await supabase.from('custom_events').select('*').limit(20);
       if (events && events.length > 0) {
         systemContext += `\nDỮ LIỆU SỰ KIỆN (CSV):\n${jsonToCsv(events)}\n`;
       }
@@ -74,7 +74,8 @@ export async function POST(req: Request) {
       systemContext += `\nHệ thống hiện tại chưa kết nối bảng tài chính. Hãy báo người dùng "Tính năng đang được phát triển".\n`;
     }
     else {
-      const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(3000);
+      // Ép về lấy 1500 dòng để giảm tải cho DB
+      const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(1500);
       const totalMembers = count || (allPersons ? allPersons.length : 0);
       systemContext += `\n- Tổng số thành viên gia phả: ${totalMembers} người.\n`;
 
@@ -92,9 +93,10 @@ export async function POST(req: Request) {
             return { ...p, _matchScore: score };
           });
 
-          mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 50); 
+          // TỐI ƯU HÓA: Ép về 15 người để tránh bị Google API chặn
+          mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 15); 
         } else {
-          mainPersons = mainPersons.slice(0, 50);
+          mainPersons = mainPersons.slice(0, 15);
         }
 
         finalPersons = [...mainPersons];
@@ -106,7 +108,7 @@ export async function POST(req: Request) {
               .from('relationships')
               .select('*')
               .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
-              .limit(300);
+              .limit(100); // TỐI ƯU HÓA: Ép về 100 mối quan hệ để an toàn cho Free Tier
 
             if (rels && rels.length > 0) {
               relationshipsData = rels;
@@ -166,10 +168,9 @@ Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} b
 
     let response;
     let retries = 3;
-    let delay = 1000;
+    let delay = 1500; // Tăng thời gian chờ lên 1.5 giây để tránh đụng trần Rate Limit
 
     for (let i = 0; i < retries; i++) {
-      // Đã cập nhật chính xác sang mô hình gemini-2.0-flash được Google hỗ trợ cho API v1beta
       response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
