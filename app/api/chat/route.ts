@@ -169,8 +169,8 @@ Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} b
     let delay = 1000;
 
     for (let i = 0; i < retries; i++) {
-      // Đổi thành gemini-2.5-flash
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+      // Đã cập nhật chính xác sang mô hình gemini-2.0-flash được Google hỗ trợ cho API v1beta
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
