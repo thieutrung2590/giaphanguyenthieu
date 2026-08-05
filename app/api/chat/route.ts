@@ -164,16 +164,13 @@ HƯỚNG DẪN TRÌNH BÀY:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/dashboard/members?memberModalId={id})
 Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} bằng chuỗi ID chính xác của người đó.`;
 
-    // =========================================================================
-    // THUẬT TOÁN TỰ ĐỘNG THỬ LẠI (RETRY) KHI GOOGLE QUÁ TẢI (MÃ 503 HOẶC 429)
-    // =========================================================================
     let response;
-    let retries = 3; // Thử tối đa 3 lần
-    let delay = 1000; // Đợi 1 giây trước khi thử lại lần đầu
+    let retries = 3;
+    let delay = 1000;
 
     for (let i = 0; i < retries; i++) {
-      // Dùng gemini-1.5-flash để đảm bảo sự ổn định tuyệt đối và tránh lỗi High Demand
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+      // Đổi thành gemini-2.5-flash
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -183,20 +180,18 @@ Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} b
         }),
       });
 
-      if (response.ok) break; // Thoát vòng lặp ngay nếu gọi thành công
+      if (response.ok) break;
 
       const errData = await response.json();
       const errMsg = errData.error?.message || '';
 
-      // Nếu lỗi do hệ thống bận (503) hoặc quá giới hạn API (429)
       if (response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('high demand')) {
         if (i === retries - 1) {
           throw new Error('Máy chủ Google AI hiện đang quá tải. Vui lòng đợi vài phút rồi thử lại.');
         }
         await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Tăng dần thời gian đợi (2s, 4s...)
+        delay *= 2; 
       } else {
-        // Lỗi khác (ví dụ sai API Key) thì quăng lỗi ra ngoài luôn
         throw new Error(errMsg || 'Lỗi kết nối Gemini API');
       }
     }
