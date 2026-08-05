@@ -7,7 +7,7 @@ function removeAccents(str: string) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
 }
 
-// 2. Hàm ép JSON sang CSV giữ lại đầy đủ thông tin chi tiết
+// 2. Hàm ép JSON sang CSV
 function jsonToCsv(items: any[]) {
   if (!items || items.length === 0) return '';
   const keySet = new Set<string>();
@@ -164,31 +164,45 @@ HƯỚNG DẪN TRÌNH BÀY:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/dashboard/members?memberModalId={id})
 Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} bằng chuỗi ID chính xác của người đó.`;
 
-    // Gọi API của Google Gemini 3.5 Flash
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: message }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1, 
-        }
-      }),
-    });
+    // =========================================================================
+    // THUẬT TOÁN TỰ ĐỘNG THỬ LẠI (RETRY) KHI GOOGLE QUÁ TẢI (MÃ 503 HOẶC 429)
+    // =========================================================================
+    let response;
+    let retries = 3; // Thử tối đa 3 lần
+    let delay = 1000; // Đợi 1 giây trước khi thử lại lần đầu
 
-    if (!response.ok) {
+    for (let i = 0; i < retries; i++) {
+      // Dùng gemini-1.5-flash để đảm bảo sự ổn định tuyệt đối và tránh lỗi High Demand
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: message }] }],
+          generationConfig: { temperature: 0.1 }
+        }),
+      });
+
+      if (response.ok) break; // Thoát vòng lặp ngay nếu gọi thành công
+
       const errData = await response.json();
-      throw new Error(errData.error?.message || 'Lỗi kết nối Gemini API');
+      const errMsg = errData.error?.message || '';
+
+      // Nếu lỗi do hệ thống bận (503) hoặc quá giới hạn API (429)
+      if (response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('high demand')) {
+        if (i === retries - 1) {
+          throw new Error('Máy chủ Google AI hiện đang quá tải. Vui lòng đợi vài phút rồi thử lại.');
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Tăng dần thời gian đợi (2s, 4s...)
+      } else {
+        // Lỗi khác (ví dụ sai API Key) thì quăng lỗi ra ngoài luôn
+        throw new Error(errMsg || 'Lỗi kết nối Gemini API');
+      }
+    }
+
+    if (!response || !response.ok) {
+      throw new Error('Không thể kết nối đến AI sau nhiều lần thử.');
     }
 
     const data = await response.json();
