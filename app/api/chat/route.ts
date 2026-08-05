@@ -41,12 +41,12 @@ export async function POST(req: Request) {
     const { message } = await req.json();
     if (!message) return NextResponse.json({ reply: 'Vui lòng nhập câu hỏi.' }, { status: 400 });
 
-    const groqApiKey = process.env.GROQ_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!groqApiKey || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường.' }, { status: 500 });
+    if (!geminiApiKey || !supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường (Cần GEMINI_API_KEY và SUPABASE_KEY).' }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     const lowerMsg = message.toLowerCase();
     const unaccentedMsg = removeAccents(lowerMsg);
     
-    // ĐỊNH TUYẾN Ý ĐỊNH (INTENT DETECTION)
+    // ĐỊNH TUYẾN Ý ĐỊNH
     const isEventQuery = /(su kien|gio|hop|le|ngay|ky niem|sap toi)/.test(unaccentedMsg);
     const isFinanceQuery = /(quy|tien|dong gop|ung ho|chi tieu|thu chi)/.test(unaccentedMsg);
     const isCountQuery = /(bao nhieu|tong so)/.test(unaccentedMsg);
@@ -64,9 +64,8 @@ export async function POST(req: Request) {
 
     let systemContext = "";
     
-    // TẢI DỮ LIỆU TÙY THEO Ý ĐỊNH
     if (isEventQuery) {
-      const { data: events } = await supabase.from('custom_events').select('*').limit(20);
+      const { data: events } = await supabase.from('custom_events').select('*').limit(50);
       if (events && events.length > 0) {
         systemContext += `\nDỮ LIỆU SỰ KIỆN (CSV):\n${jsonToCsv(events)}\n`;
       }
@@ -75,7 +74,7 @@ export async function POST(req: Request) {
       systemContext += `\nHệ thống hiện tại chưa kết nối bảng tài chính. Hãy báo người dùng "Tính năng đang được phát triển".\n`;
     }
     else {
-      const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(2000);
+      const { data: allPersons, count } = await supabase.from('persons').select('*', { count: 'exact' }).limit(3000);
       const totalMembers = count || (allPersons ? allPersons.length : 0);
       systemContext += `\n- Tổng số thành viên gia phả: ${totalMembers} người.\n`;
 
@@ -93,10 +92,9 @@ export async function POST(req: Request) {
             return { ...p, _matchScore: score };
           });
 
-          // NÂNG LÊN 15 NGƯỜI ĐỂ ĐẠT NGƯỠNG 2000 - 3000 TOKENS INPUT
-          mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 15); 
+          mainPersons = scoredPersons.filter((p: any) => p._matchScore > 0).sort((a: any, b: any) => b._matchScore - a._matchScore).slice(0, 50); 
         } else {
-          mainPersons = mainPersons.slice(0, 15);
+          mainPersons = mainPersons.slice(0, 50);
         }
 
         finalPersons = [...mainPersons];
@@ -108,7 +106,7 @@ export async function POST(req: Request) {
               .from('relationships')
               .select('*')
               .or(`person_id.in.(${mainIds.join(',')}),related_person_id.in.(${mainIds.join(',')})`)
-              .limit(100);
+              .limit(300);
 
             if (rels && rels.length > 0) {
               relationshipsData = rels;
@@ -133,7 +131,6 @@ export async function POST(req: Request) {
         const clean: any = { id: p.id };
         for (const key in p) {
           const lowerKey = key.toLowerCase();
-          // Chỉ loại bỏ các khóa hệ thống không cần thiết, giữ lại toàn bộ tiểu sử và chi tiết cá nhân để làm giàu token
           if (['created_at', 'updated_at', 'avatar_url', 'image', 'photo', 'uuid', '_matchscore'].includes(lowerKey)) continue;
           if (p[key] !== null && p[key] !== '') clean[key] = p[key];
         }
@@ -167,29 +164,35 @@ HƯỚNG DẪN TRÌNH BÀY:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên thành viên}](/dashboard/members?memberModalId={id})
 Lưu ý: Thay thế {Tên thành viên} bằng họ tên đầy đủ và {id} bằng chuỗi ID chính xác của người đó.`;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Gọi API của Google Gemini 3.5 Flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: message }]
+          }
         ],
-        temperature: 0.1,
+        generationConfig: {
+          temperature: 0.1, 
+        }
       }),
     });
 
     if (!response.ok) {
       const errData = await response.json();
-      throw new Error(errData.error?.message || 'Lỗi kết nối Groq API');
+      throw new Error(errData.error?.message || 'Lỗi kết nối Gemini API');
     }
 
     const data = await response.json();
-    const reply = data.choices[0]?.message?.content || 'Không nhận được phản hồi từ AI.';
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Không nhận được phản hồi từ AI.';
 
     return NextResponse.json({ reply });
     
