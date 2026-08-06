@@ -17,9 +17,9 @@ function parseLLMJson(rawText: string) {
     if (match) {
       return JSON.parse(match[0]);
     }
-    return { intent: "general", params: {} };
+    return { intent: "general", name1: "", name2: "" };
   } catch (error) {
-    return { intent: "general", params: {} };
+    return { intent: "general", name1: "", name2: "" };
   }
 }
 
@@ -30,11 +30,10 @@ async function rpc_SearchPerson(supabase: any, name: string) {
   const { data } = await supabase.from('persons').select('id, full_name, name, ho_ten, gender, birth_date, death_date, biography, position');
   if (!data) return [];
   
-  // Tìm kiếm linh hoạt hơn: tách các từ khóa
   const keyword = removeAccents(name);
   return data.filter((p: any) => {
     const dbName = removeAccents(p.full_name || p.name || p.ho_ten || '');
-    return dbName.includes(keyword) || keyword.includes(dbName);
+    return dbName === keyword || dbName.includes(keyword) || keyword.includes(dbName);
   });
 }
 
@@ -125,15 +124,32 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 1: AI PHÂN LOẠI Ý ĐỊNH
+    // BƯỚC 0: TẢI TRƯỚC DANH BẠ TÊN (ENTITY GROUNDING)
     // ------------------------------------------------------------------------
-    const intentPrompt = `Phân tích câu hỏi của người dùng và trả về DUY NHẤT một đối tượng JSON. TUYỆT ĐỐI KHÔNG thêm văn bản nào khác.
+    // Trích xuất toàn bộ tên có trong gia phả (chỉ lấy tên để cực kỳ nhẹ)
+    const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(1500);
+    const validNames = Array.from(new Set(
+      (nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean)
+    )).join(', ');
+
+    // ------------------------------------------------------------------------
+    // BƯỚC 1: AI PHÂN LOẠI Ý ĐỊNH VÀ TRÍCH XUẤT TÊN TUYỆT ĐỐI CHÍNH XÁC
+    // ------------------------------------------------------------------------
+    const intentPrompt = `Bạn là hệ thống nhận diện ý định. Phân tích câu hỏi và trả về DUY NHẤT JSON. KHÔNG thêm văn bản nào.
 Cấu trúc JSON bắt buộc:
 {
   "intent": "search_person" | "get_family" | "find_relationship" | "count_members" | "general",
-  "name1": "Copy CHÍNH XÁC TỪNG CHỮ tên người từ câu hỏi gốc (Tuyệt đối không tự ý đổi chữ lót hay sửa lỗi chính tả)",
+  "name1": "Tên người thứ nhất",
   "name2": "Tên người thứ hai nếu có"
-}`;
+}
+
+DANH SÁCH TẤT CẢ THÀNH VIÊN TRONG GIA PHẢ:
+[${validNames}]
+
+HƯỚNG DẪN BẮT BUỘC:
+1. Bạn PHẢI đối chiếu câu hỏi với danh sách trên. Tên trích xuất ra (name1, name2) phải KHỚP TỪNG CHỮ với một cái tên trong danh sách.
+2. TUYỆT ĐỐI KHÔNG cắt xén tên (Ví dụ: Nếu tên trong danh sách là "Nguyễn Thiệu Trung", không được lấy "Nguyễn Thiệu").
+3. Nếu không có ai khớp, hãy để chuỗi rỗng "".`;
 
     const intentRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
@@ -145,7 +161,7 @@ Cấu trúc JSON bắt buộc:
           { role: 'system', content: intentPrompt },
           { role: 'user', content: message }
         ],
-        temperature: 0.1,
+        temperature: 0.1, // Ép mô hình tuân thủ quy tắc 100%
       }),
     });
 
@@ -161,7 +177,7 @@ Cấu trúc JSON bắt buộc:
     };
 
     // ------------------------------------------------------------------------
-    // BƯỚC 2: BACKEND THỰC THI & BỘ LỌC CHỐNG ẢO GIÁC (ANTI-HALLUCINATION)
+    // BƯỚC 2: BACKEND THỰC THI (ĐÃ ĐƯỢC CHỐNG LỖI TỐI ĐA)
     // ------------------------------------------------------------------------
     if (parsedIntent.intent === 'count_members') {
       const { count } = await supabase.from('persons').select('*', { count: 'exact', head: true });
@@ -173,21 +189,14 @@ Cấu trúc JSON bắt buộc:
     }
     else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family') {
       
-      let searchName = parsedIntent.name1 || '';
-      const msgNoAccent = removeAccents(message);
-      const extractedNoAccent = removeAccents(searchName);
+      let searchName = parsedIntent.name1;
 
-      // Phát hiện ảo giác: Nếu AI trích ra cái tên không hề nằm trong câu hỏi gốc -> Xóa bỏ tên đó
-      if (searchName && !msgNoAccent.includes(extractedNoAccent)) {
-        searchName = ''; 
-      }
-
-      // Auto-Fallback: Dùng Regex làm sạch từ ngữ dư thừa để ép lấy tên chuẩn
+      // Auto-Fallback: Nếu AI vẫn bắt trượt tên do người dùng hỏi quá cụt lủn, bóc tách bằng Regex
       if (!searchName || searchName.trim() === '') {
          searchName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử)/gi, '').replace(/[?.,!]/g, '').trim();
       }
 
-      backendContext._debug_name = searchName; // Theo dõi từ khóa đang được tìm
+      backendContext._debug_name = searchName;
 
       if (searchName) {
         const persons = await rpc_SearchPerson(supabase, searchName);
@@ -222,7 +231,7 @@ YÊU CẦU TRÌNH BÀY:
 1. Trả lời ngắn gọn, mạch lạc và dễ hiểu dựa chính xác vào JSON.
 2. NẾU JSON CHỨA ID CỦA THÀNH VIÊN: BẮT BUỘC chèn link hồ sơ ở cuối câu trả lời theo format sau:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-3. Không hiển thị cấu trúc JSON thô (như dấu ngoặc nhọn, trường _debug_intent, _debug_name) ra màn hình cho người dùng.`;
+3. Không hiển thị cấu trúc JSON thô (như dấu ngoặc nhọn, trường _debug_intent, _debug_name) ra màn hình.`;
 
     const finalRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
