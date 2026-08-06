@@ -23,7 +23,7 @@ function parseLLMJson(rawText: string) {
 }
 
 // ============================================================================
-// 2. TẦNG BACKEND LOGIC (QUÉT TOÀN BỘ QUAN HỆ TRONG BỘ NHỚ)
+// 2. TẦNG BACKEND LOGIC (THUẬT TOÁN QUÉT QUAN HỆ BẤT CHẤP CẤU TRÚC DB)
 // ============================================================================
 async function rpc_SearchPerson(supabase: any, name: string) {
   const { data } = await supabase.from('persons').select('*').limit(3000);
@@ -36,65 +36,67 @@ async function rpc_SearchPerson(supabase: any, name: string) {
   });
 }
 
-// BỘ MÁY QUÉT NGƯỜI THÂN ĐA CHIỀU (SUPER RELATIONSHIP FINDER)
 async function rpc_GetProfileAndFamily(supabase: any, personId: string) {
-  // Lấy toàn bộ người và quan hệ để phân tích nội bộ (Chống lỗi query Supabase)
+  // Lấy toàn bộ Database ra bộ nhớ RAM để quét đa chiều
   const { data: allPersons } = await supabase.from('persons').select('*').limit(3000);
-  const { data: allRels } = await supabase.from('relationships').select('*').limit(10000);
+  if (!allPersons) return { person: null, family: [] };
 
-  const person = (allPersons || []).find((p: any) => String(p.id) === String(personId));
+  const person = allPersons.find((p: any) => String(p.id) === String(personId));
   if (!person) return { person: null, family: [] };
 
   let family: any[] = [];
   const addedIds = new Set<string>();
 
-  const addRelative = (relId: string, relationName: string) => {
+  const addRelative = (relId: string, logicHint: string) => {
     if (!relId || addedIds.has(String(relId)) || String(relId) === String(personId)) return;
-    const relative = allPersons?.find((p: any) => String(p.id) === String(relId));
+    const relative = allPersons.find((p: any) => String(p.id) === String(relId));
     if (relative) {
       family.push({
         id: relative.id,
         name: relative.full_name || relative.name || relative.ho_ten || 'Không rõ',
-        relationship: relationName
+        relationship_hint: logicHint // Gợi ý logic để AI tự suy luận ra quan hệ
       });
       addedIds.add(String(relId));
     }
   };
 
-  // PHÂN TÍCH 1: Từ bảng 'relationships'
-  if (allRels && allRels.length > 0) {
+  // CHIẾN LƯỢC 1: DÒ TÌM TRÊN TẤT CẢ CÁC CỘT CỦA BẢNG PERSONS (Không cần biết tên cột)
+  for (const m of allPersons) {
+    if (String(m.id) === String(person.id)) continue;
+
+    // A. Tìm Cha/Mẹ/Vợ/Chồng (Cột của người đang tìm chứa ID của người m)
+    for (const key of Object.keys(person)) {
+      if (key !== 'id' && person[key] && String(person[key]) === String(m.id)) {
+        addRelative(m.id, `Họ là "${key}" (Cha/Mẹ/Vợ/Chồng) của người này`);
+      }
+    }
+
+    // B. Tìm Con cái (Cột của người m chứa ID của người đang tìm)
+    for (const key of Object.keys(m)) {
+      if (key !== 'id' && m[key] && String(m[key]) === String(person.id)) {
+        addRelative(m.id, `Người này là "${key}" của họ -> Suy ra họ là CON của người này`);
+      }
+    }
+  }
+
+  // CHIẾN LƯỢC 2: DÒ TÌM TRÊN BẢNG RELATIONSHIPS (Nếu có tồn tại)
+  const { data: allRels, error: relErr } = await supabase.from('relationships').select('*').limit(10000);
+  if (!relErr && allRels) {
     const rels = allRels.filter((r: any) => String(r.person_id) === String(personId) || String(r.related_person_id) === String(personId));
     rels.forEach((r: any) => {
       const isSubject = String(r.person_id) === String(personId);
       const relId = isSubject ? r.related_person_id : r.person_id;
-      const type = r.relationship_type || r.type || 'Người thân';
+      const type = r.relationship_type || r.type || 'Họ hàng';
       addRelative(relId, type);
     });
-  }
-
-  // PHÂN TÍCH 2: Từ cấu trúc cột trong bảng 'persons' (father_id, mother_id, spouse_id)
-  if (allPersons) {
-    if (person.father_id) addRelative(person.father_id, 'Cha');
-    if (person.mother_id) addRelative(person.mother_id, 'Mẹ');
-    if (person.spouse_id) addRelative(person.spouse_id, 'Vợ/Chồng');
-
-    // Tìm con cái (Những ai nhận người này làm cha/mẹ)
-    const children = allPersons.filter((p: any) => String(p.father_id) === String(personId) || String(p.mother_id) === String(personId));
-    children.forEach((child: any) => addRelative(child.id, 'Con'));
-
-    // Tìm vợ/chồng đối ứng (Những ai nhận người này làm spouse_id)
-    const spouses = allPersons.filter((p: any) => String(p.spouse_id) === String(personId));
-    spouses.forEach((spouse: any) => addRelative(spouse.id, 'Vợ/Chồng'));
   }
 
   return { person, family };
 }
 
-// BỘ MÁY TÌM ĐƯỜNG ĐI MỐI QUAN HỆ
+// BỘ MÁY TÌM ĐƯỜNG ĐI (Đã gỡ bỏ giới hạn Schema)
 async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: string) {
   const { data: persons } = await supabase.from('persons').select('*').limit(3000);
-  const { data: relationships } = await supabase.from('relationships').select('*').limit(10000);
-
   if (!persons) return null;
 
   const key1 = removeAccents(name1);
@@ -104,42 +106,31 @@ async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: stri
   const p2 = persons.find((p: any) => removeAccents(p.full_name || p.name || p.ho_ten || '').includes(key2));
 
   if (!p1 || !p2) return { error: `Không tìm thấy đủ thông tin của 2 người trong gia phả để so sánh.` };
-  if (String(p1.id) === String(p2.id)) return { path: [`Hai tên này đều chỉ cùng một người là: ${p1.full_name || p1.name || p1.ho_ten}.`] };
+  if (p1.id === p2.id) return { path: [`Hai tên này đều chỉ cùng một người: ${p1.full_name || p1.name}.`] };
 
   const graph: Record<string, { id: string, name: string, type: string }[]> = {};
   persons.forEach((p: any) => graph[String(p.id)] = []);
 
-  if (relationships) {
-    relationships.forEach((r: any) => {
-      const pId = String(r.person_id);
-      const relId = String(r.related_person_id);
-      if (graph[pId] && graph[relId]) {
-         const nameA = persons.find((p:any) => String(p.id) === relId)?.full_name || 'Không rõ';
-         const nameB = persons.find((p:any) => String(p.id) === pId)?.full_name || 'Không rõ';
-         const type = r.relationship_type || r.type || 'có họ hàng với';
-         graph[pId].push({ id: relId, name: nameA, type: type });
-         graph[relId].push({ id: pId, name: nameB, type: type });
-      }
-    });
-  }
-
+  // Xây đồ thị từ bảng persons
   persons.forEach((p: any) => {
      const pId = String(p.id);
      const pName = p.full_name || p.name || p.ho_ten || 'Không rõ';
      
-     const addEdge = (targetId: string, type1: string, type2: string) => {
+     const addEdge = (targetId: string, relationName: string) => {
          if (!targetId) return;
          const tId = String(targetId);
          if (graph[pId] && graph[tId]) {
              const tName = persons.find((t: any) => String(t.id) === tId)?.full_name || 'Không rõ';
-             graph[pId].push({ id: tId, name: tName, type: type1 });
-             graph[tId].push({ id: pId, name: pName, type: type2 });
+             graph[pId].push({ id: tId, name: tName, type: relationName });
+             graph[tId].push({ id: pId, name: pName, type: 'Quan hệ ngược lại' });
          }
      };
 
-     addEdge(p.father_id, 'Cha', 'Con');
-     addEdge(p.mother_id, 'Mẹ', 'Con');
-     addEdge(p.spouse_id, 'Vợ/Chồng', 'Vợ/Chồng');
+     for (const key of Object.keys(p)) {
+        if (key !== 'id' && p[key] && typeof p[key] === 'string' && p[key].length > 10) { 
+           addEdge(p[key], key); 
+        }
+     }
   });
 
   const queue: { id: string, path: string[] }[] = [{ id: String(p1.id), path: [p1.full_name || p1.name || p1.ho_ten] }];
@@ -153,7 +144,7 @@ async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: stri
     for (const neighbor of graph[id] || []) {
       if (!visited.has(String(neighbor.id))) {
         visited.add(String(neighbor.id));
-        const newPath = [...path, `(${neighbor.type})`, neighbor.name];
+        const newPath = [...path, `(Liên kết qua cột: ${neighbor.type})`, neighbor.name];
         queue.push({ id: neighbor.id, path: newPath });
       }
     }
@@ -179,7 +170,7 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 0: TẢI DANH BẠ 
+    // BƯỚC 0: TẢI DANH BẠ
     // ------------------------------------------------------------------------
     const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(3000);
     const validNames = Array.from(new Set((nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean))) as string[];
@@ -237,7 +228,7 @@ Cấu trúc:
         const words = finalClean.split(' ').filter(Boolean);
         const hasHallucination = words.some(word => !msgNoAccent.includes(word));
         if (hasHallucination) {
-            return message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
+            return message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà)/gi, '').replace(/[?.,!]/g, '').trim();
         }
         return extractedName;
     };
@@ -246,11 +237,11 @@ Cấu trúc:
     searchName2 = verifyHallucination(searchName2);
 
     if (!searchName1 && (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family')) {
-        searchName1 = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
+        searchName1 = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà)/gi, '').replace(/[?.,!]/g, '').trim();
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 3: THỰC THI TRUY VẤN
+    // BƯỚC 3: THỰC THI TRUY VẤN TỔNG HỢP
     // ------------------------------------------------------------------------
     if (parsedIntent.intent === 'count_members') {
       const { count } = await supabase.from('persons').select('*', { count: 'exact', head: true });
@@ -265,13 +256,12 @@ Cấu trúc:
       }
     }
     else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family') {
-      
       if (searchName1) {
         const persons = await rpc_SearchPerson(supabase, searchName1);
         if (persons.length === 0) {
           backendContext.error = `Xin lỗi, hệ thống không tìm thấy ai tên "${searchName1}" trong gia phả.`;
         } else {
-          // LUÔN LUÔN LẤY GIA ĐÌNH BẤT CHẤP HỎI Ý ĐỊNH GÌ
+          // LUÔN LUÔN LẤY GIA ĐÌNH BẰNG MÁY QUÉT ĐA CHIỀU
           const res = await rpc_GetProfileAndFamily(supabase, persons[0].id);
           backendContext = { ...backendContext, ...res };
         }
@@ -286,20 +276,20 @@ Cấu trúc:
     // ------------------------------------------------------------------------
     // BƯỚC 4: LLM XUẤT BẢN CÂU TRẢ LỜI 
     // ------------------------------------------------------------------------
-    const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. 
-Chỉ dựa vào DỮ LIỆU JSON cung cấp bên dưới để trả lời, không bịa đặt.
+    const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. Trả lời MẠCH LẠC, rõ ràng bằng tiếng Việt.
+Dựa vào JSON dưới đây, không tự bịa đặt.
 
-DỮ LIỆU JSON:
+JSON CONTEXT:
 ${JSON.stringify(backendContext)}
 
-YÊU CẦU BẮT BUỘC:
-1. Nếu JSON có trường "error", BẮT BUỘC trả lời Y HỆT câu thông báo lỗi đó.
-2. Nếu JSON chứa "person" và "family", BẮT BUỘC hiển thị 2 phần riêng biệt bằng gạch đầu dòng:
-   - **Thông tin cá nhân**: Tên, Giới tính, Năm sinh...
-   - **Quan hệ gia đình**: Liệt kê rõ ràng danh sách vợ/chồng, con cái, cha, mẹ từ mảng "family". Nếu mảng family rỗng thì báo "Chưa cập nhật thông tin người thân".
-3. Nếu JSON có ID thành viên: BẮT BUỘC chèn ĐÚNG MỘT link ở cuối cùng theo định dạng:
+HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
+1. Nếu có "error", in y hệt câu báo lỗi.
+2. Nếu có "person" và "family", bắt buộc chia làm 2 phần:
+   - **Thông tin cá nhân**: Liệt kê các thông tin tiểu sử của person.
+   - **Quan hệ gia đình**: Dựa vào mảng "family", hãy thông minh diễn dịch các mã "relationship_hint" (Ví dụ: Chứa chữ "father" -> Bố; Chứa chữ "mother" -> Mẹ; Chứa chữ "spouse" -> Vợ/Chồng; Chứa chữ "Suy ra họ là CON" -> Con cái). NẾU MẢNG FAMILY CÓ DỮ LIỆU, BẮT BUỘC PHẢI LIỆT KÊ TÊN NGƯỜI THÂN ĐÓ RA!
+3. Nếu JSON có person.id, chèn ĐÚNG MỘT link ở dòng cuối cùng:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-4. Không in ra cấu trúc JSON hoặc _debug_intent.`;
+4. Không in các trường _debug hoặc cú pháp lập trình ra màn hình.`;
 
     const finalRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
