@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-// Nâng cấp lên mô hình 70 Tỷ tham số: Thông minh hơn, hiểu tiếng Việt cực tốt, không bị lỗi cắt xén
 const GROQ_MODEL = 'llama-3.3-70b-versatile'; 
 
 // ============================================================================
@@ -125,7 +124,6 @@ export async function POST(req: Request) {
     const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(3000);
     const validNames = Array.from(new Set((nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean))) as string[];
     
-    // Ưu tiên quét các tên dài trước (vd: Quét "Nguyễn Thiệu Trung" trước "Nguyễn Thiệu")
     validNames.sort((a, b) => b.length - a.length);
 
     // ------------------------------------------------------------------------
@@ -155,19 +153,46 @@ Cấu trúc:
     let backendContext: any = { _debug_intent: parsedIntent.intent };
 
     // ------------------------------------------------------------------------
-    // BƯỚC 2: TÌM TÊN THÔNG MINH BẰNG CÁCH QUÉT TRỰC TIẾP TỪ TIN NHẮN VÀO DB
+    // BƯỚC 2: TÌM TÊN THÔNG MINH VÀ LỌC ẢO GIÁC TUYỆT ĐỐI (ANTI-HALLUCINATION)
     // ------------------------------------------------------------------------
     const msgNoAccent = removeAccents(message);
-    let matchedNames: string[] = [];
-    let tempMsg = msgNoAccent;
+    let searchName1 = "";
+    let searchName2 = "";
 
+    // Quét tên từ danh bạ trước
+    let tempMsg = msgNoAccent;
+    const matchedNames = [];
     for (const name of validNames) {
       const nameNoAccent = removeAccents(name);
-      // Chỉ tìm các tên lớn hơn 2 ký tự và có trong tin nhắn
       if (nameNoAccent.length > 2 && tempMsg.includes(nameNoAccent)) {
         matchedNames.push(name);
-        tempMsg = tempMsg.replace(nameNoAccent, ' '); // Gỡ tên ra khỏi chuỗi để tìm tên tiếp theo
+        tempMsg = tempMsg.replace(nameNoAccent, ' '); 
       }
+    }
+
+    searchName1 = matchedNames[0] || parsedIntent.name1 || "";
+    searchName2 = matchedNames[1] || parsedIntent.name2 || "";
+
+    // HÀM KIỂM DUYỆT ẢO GIÁC BẮT BUỘC
+    const verifyHallucination = (extractedName: string) => {
+        if (!extractedName) return "";
+        const finalClean = removeAccents(extractedName);
+        const words = finalClean.split(' ').filter(Boolean);
+        // Nếu AI đẻ ra một chữ (VD: "giới") không nằm trong câu hỏi gốc -> Ảo giác
+        const hasHallucination = words.some(word => !msgNoAccent.includes(word));
+        if (hasHallucination) {
+            // Tự động dùng Regex gọt câu hỏi lấy đúng từ khóa
+            return message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
+        }
+        return extractedName;
+    };
+
+    searchName1 = verifyHallucination(searchName1);
+    searchName2 = verifyHallucination(searchName2);
+
+    // Fallback nếu chuỗi vẫn trống
+    if (!searchName1 && (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family')) {
+        searchName1 = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
     }
 
     // ------------------------------------------------------------------------
@@ -178,27 +203,21 @@ Cấu trúc:
       backendContext.total_members = count;
     } 
     else if (parsedIntent.intent === 'find_relationship') {
-      const n1 = matchedNames[0] || parsedIntent.name1;
-      const n2 = matchedNames[1] || parsedIntent.name2;
-      if (n1 && n2) {
-        const res = await rpc_FindRelationshipBFS(supabase, n1, n2);
+      if (searchName1 && searchName2) {
+        const res = await rpc_FindRelationshipBFS(supabase, searchName1, searchName2);
         backendContext = { ...backendContext, ...res };
       } else {
         backendContext.error = "Bạn cần cung cấp rõ tên của 2 người để kiểm tra mối quan hệ.";
       }
     }
     else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family') {
-      // Ưu tiên 1: Lấy tên Quét chuẩn 100% từ Database
-      // Ưu tiên 2: Tên do AI bắt được
-      // Ưu tiên 3: Dọn dẹp câu hỏi lấy từ khóa
-      let searchName = matchedNames[0] || parsedIntent.name1 || message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
       
-      backendContext._debug_name = searchName;
+      backendContext._debug_name = searchName1;
 
-      if (searchName) {
-        const persons = await rpc_SearchPerson(supabase, searchName);
+      if (searchName1) {
+        const persons = await rpc_SearchPerson(supabase, searchName1);
         if (persons.length === 0) {
-          backendContext.error = `Xin lỗi, hệ thống không tìm thấy ai tên "${searchName}" trong gia phả.`;
+          backendContext.error = `Xin lỗi, hệ thống không tìm thấy ai tên "${searchName1}" trong gia phả.`;
         } else if (parsedIntent.intent === 'get_family') {
           const res = await rpc_GetFamily(supabase, persons[0].id);
           backendContext = { ...backendContext, ...res };
