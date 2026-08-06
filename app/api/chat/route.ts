@@ -1,40 +1,293 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 // ============================================================================
-// 1. CÁC HÀM TIỆN ÍCH
+// 1. INTERFACES & TYPES 
 // ============================================================================
-function removeAccents(str: string) {
-  if (!str) return '';
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
+interface PersonRecord {
+  id: string | number;
+  full_name?: string;
+  name?: string;
+  ho_ten?: string;
+  gender?: string;
+  birth_date?: string;
+  death_date?: string;
+  father_id?: string | number;
+  mother_id?: string | number;
+  spouse_id?: string | number;
+  [key: string]: unknown; 
 }
 
-function parseLLMJson(rawText: string) {
-  try {
-    const match = rawText.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    return { intent: "general", name1: "", name2: "" };
-  } catch (error) {
-    return { intent: "general", name1: "", name2: "" };
+interface RelationshipRecord {
+  person_id: string | number;
+  related_person_id: string | number;
+  relationship_type?: string;
+  type?: string;
+}
+
+interface GraphEdge {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface FamilyMember {
+  id: string;
+  name: string;
+  relationship_hint: string;
+}
+
+interface IntentJSON {
+  intent: 'search_person' | 'get_family' | 'find_relationship' | 'count_members' | 'general';
+  name1: string;
+  name2: string;
+}
+
+interface MatchedEntity {
+  normalized: string;
+  ids: string[];
+}
+
+interface MultipleMatch {
+  person: Partial<PersonRecord>;
+  family: FamilyMember[];
+}
+
+interface BackendContext {
+  _debug_intent?: string;
+  _debug_name?: string;
+  total_members?: number;
+  person?: Partial<PersonRecord>;
+  family?: FamilyMember[];
+  multiple_matches?: MultipleMatch[]; // Dùng khi phát hiện trùng tên
+  path?: string[];
+  message?: string;
+  error?: string;
+  note?: string;
+}
+
+// ============================================================================
+// 2. UTILS SERVICE 
+// ============================================================================
+class UtilsService {
+  static removeAccents(str: string): string {
+    if (!str) return '';
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim();
+  }
+
+  static parseLLMJson(rawText: string): IntentJSON {
+    try {
+      const match = rawText.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]) as IntentJSON;
+      return { intent: 'general', name1: '', name2: '' };
+    } catch (error) {
+      return { intent: 'general', name1: '', name2: '' };
+    }
+  }
+
+  static cleanPersonData(person: PersonRecord): Partial<PersonRecord> {
+    const clean: Partial<PersonRecord> = { ...person };
+    delete clean.created_at;
+    delete clean.updated_at;
+    delete clean.uuid;
+    delete clean.avatar_url;
+    delete clean.image;
+    return clean;
   }
 }
 
-// Hàm dọn dẹp object để tiết kiệm token cho LLM
-function cleanPersonData(person: any) {
-  const clean: any = { ...person };
-  delete clean.created_at;
-  delete clean.updated_at;
-  delete clean.uuid;
-  delete clean.avatar_url;
-  delete clean.image;
-  return clean;
+// ============================================================================
+// 3. DATA SERVICE (Xử lý Mảng ID cho Trùng tên)
+// ============================================================================
+class FamilyTreeDataService {
+  private static personsMap: Map<string, PersonRecord> = new Map();
+  private static graph: Map<string, GraphEdge[]> = new Map();
+  private static nameIndex: Map<string, string[]> = new Map(); // Lưu MẢNG ID để xử lý trùng tên
+  private static sortedNameKeys: string[] = []; 
+  
+  private static isLoaded = false;
+  private static lastLoadTime = 0;
+  private static CACHE_TTL = 1000 * 60 * 60; 
+
+  static async ensureLoaded(supabase: SupabaseClient): Promise<void> {
+    const now = Date.now();
+    if (this.isLoaded && now - this.lastLoadTime < this.CACHE_TTL) return; 
+
+    this.personsMap.clear();
+    this.graph.clear();
+    this.nameIndex.clear();
+    this.sortedNameKeys = [];
+
+    let allPersons: PersonRecord[] = [];
+    let from = 0;
+    const step = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('persons').select('*').range(from, from + step - 1);
+      if (error) throw new Error(`Lỗi tải bảng persons: ${error.message}`);
+      if (!data || data.length === 0) break;
+      allPersons = allPersons.concat(data as PersonRecord[]);
+      if (data.length < step) break;
+      from += step;
+    }
+
+    let allRels: RelationshipRecord[] = [];
+    from = 0;
+    while (true) {
+      const { data, error } = await supabase.from('relationships').select('*').range(from, from + step - 1);
+      if (error) break; 
+      if (!data || data.length === 0) break;
+      allRels = allRels.concat(data as RelationshipRecord[]);
+      if (data.length < step) break;
+      from += step;
+    }
+
+    // Khởi tạo Map, Graph và Index (Hỗ trợ trùng tên)
+    for (const p of allPersons) {
+      const pId = String(p.id);
+      this.personsMap.set(pId, p);
+      this.graph.set(pId, []);
+
+      const rawName = p.full_name || p.name || p.ho_ten;
+      if (typeof rawName === 'string') {
+        const normalized = UtilsService.removeAccents(rawName);
+        if (!this.nameIndex.has(normalized)) {
+          this.nameIndex.set(normalized, []);
+          this.sortedNameKeys.push(normalized);
+        }
+        this.nameIndex.get(normalized)!.push(pId);
+      }
+    }
+
+    this.sortedNameKeys.sort((a, b) => b.length - a.length);
+
+    const addEdge = (id1: string, id2: string, type1To2: string, type2To1: string) => {
+      if (!id1 || !id2 || id1 === id2 || !this.graph.has(id1) || !this.graph.has(id2)) return;
+      
+      const n1 = this.personsMap.get(id1);
+      const n2 = this.personsMap.get(id2);
+      const name1 = (n1?.full_name || n1?.name || n1?.ho_ten || 'Không rõ') as string;
+      const name2 = (n2?.full_name || n2?.name || n2?.ho_ten || 'Không rõ') as string;
+
+      const edges1 = this.graph.get(id1)!;
+      if (!edges1.some(e => e.id === id2)) edges1.push({ id: id2, name: name2, type: type1To2 });
+
+      const edges2 = this.graph.get(id2)!;
+      if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: type2To1 });
+    };
+
+    for (const p of allPersons) {
+      const pId = String(p.id);
+      if (p.father_id) addEdge(pId, String(p.father_id), 'Cha', 'Con');
+      if (p.mother_id) addEdge(pId, String(p.mother_id), 'Mẹ', 'Con');
+      if (p.spouse_id) addEdge(pId, String(p.spouse_id), 'Vợ/Chồng', 'Vợ/Chồng');
+
+      for (const key of Object.keys(p)) {
+        if (key.endsWith('_id') && !['father_id', 'mother_id', 'spouse_id'].includes(key)) {
+          const targetId = String(p[key]);
+          if (p[key] && this.graph.has(targetId)) {
+            addEdge(pId, targetId, key, `Liên kết ngược của ${key}`);
+          }
+        }
+      }
+    }
+
+    for (const r of allRels) {
+      const type = r.relationship_type || r.type || 'Họ hàng';
+      addEdge(String(r.person_id), String(r.related_person_id), type, type);
+    }
+
+    this.isLoaded = true;
+    this.lastLoadTime = now;
+  }
+
+  static getPerson(id: string): PersonRecord | undefined {
+    return this.personsMap.get(id);
+  }
+
+  static getFamily(id: string): FamilyMember[] {
+    const edges = this.graph.get(id) || [];
+    return edges.map(e => ({ id: e.id, name: e.name, relationship_hint: e.type }));
+  }
+
+  static getTotalMembers(): number {
+    return this.personsMap.size;
+  }
+
+  static getGraph(): Map<string, GraphEdge[]> {
+    return this.graph;
+  }
+
+  static extractMatchedEntities(text: string): MatchedEntity[] {
+    let normalizedText = UtilsService.removeAccents(text);
+    const matched: MatchedEntity[] = [];
+
+    for (const key of this.sortedNameKeys) {
+      if (key.length > 2 && normalizedText.includes(key)) {
+        const ids = this.nameIndex.get(key);
+        if (ids && ids.length > 0) {
+          matched.push({ normalized: key, ids });
+        }
+        normalizedText = normalizedText.replace(key, ' '); 
+      }
+    }
+    return matched;
+  }
+
+  static searchFallbackEntity(fallbackName: string): MatchedEntity | null {
+    const fbNorm = UtilsService.removeAccents(fallbackName);
+    if (fbNorm.length < 2) return null;
+    
+    const foundKey = this.sortedNameKeys.find(k => k.includes(fbNorm) || fbNorm.includes(k));
+    if (foundKey) {
+      return { normalized: foundKey, ids: this.nameIndex.get(foundKey) || [] };
+    }
+    return null;
+  }
 }
 
 // ============================================================================
-// 2. API ROUTE CHÍNH (SINGLE FETCH & IN-MEMORY GRAPH)
+// 4. LLM SERVICE 
+// ============================================================================
+class LLMService {
+  static async generate(apiKey: string, prompt: string, message: string, useJSON: boolean): Promise<any> {
+    const response = await fetch(GROQ_API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        response_format: useJSON ? { type: 'json_object' } : undefined,
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: message },
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`LLM Error: ${errData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content;
+  }
+}
+
+// ============================================================================
+// 5. BỘ ĐIỀU KHIỂN CHÍNH (API ROUTE POST)
 // ============================================================================
 export async function POST(req: Request) {
   try {
@@ -46,197 +299,106 @@ export async function POST(req: Request) {
     const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
 
     if (!groqApiKey || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ reply: 'Lỗi cấu hình Server: Thiếu biến môi trường (API Key hoặc Supabase).' }, { status: 500 });
+      return NextResponse.json({ reply: 'Lỗi cấu hình: Thiếu biến môi trường API Key hoặc Supabase.' }, { status: 500 });
     }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // ------------------------------------------------------------------------
-    // BƯỚC 1: FETCH TOÀN BỘ DỮ LIỆU ĐÚNG 1 LẦN (SINGLE FETCH)
-    // ------------------------------------------------------------------------
-    const [personsRes, relsRes] = await Promise.all([
-      supabase.from('persons').select('*').limit(3000),
-      supabase.from('relationships').select('*').limit(10000)
-    ]);
+    await FamilyTreeDataService.ensureLoaded(supabase);
 
-    if (personsRes.error) {
-      throw new Error(`Lỗi truy vấn bảng persons: ${personsRes.error.message}`);
-    }
-    
-    const allPersons = personsRes.data || [];
-    // Nếu bảng relationships không tồn tại, trả về mảng rỗng để không bị sập
-    const allRels = relsRes.error ? [] : (relsRes.data || []);
-
-    // ------------------------------------------------------------------------
-    // BƯỚC 2: XÂY DỰNG MAP O(1) VÀ ĐỒ THỊ QUAN HỆ (BUILD ONCE)
-    // ------------------------------------------------------------------------
-    const personsMap = new Map<string, any>();
-    const validNames: { id: string, raw: string, normalized: string }[] = [];
-    const graph = new Map<string, { id: string, name: string, type: string }[]>();
-
-    // 2.1 Khởi tạo Map
-    allPersons.forEach((p: any) => {
-      const pId = String(p.id);
-      personsMap.set(pId, p);
-      graph.set(pId, []);
-      
-      const name = p.full_name || p.name || p.ho_ten;
-      if (name) {
-        validNames.push({ id: pId, raw: name, normalized: removeAccents(name) });
-      }
-    });
-
-    // Sắp xếp tên dài lên trước để ưu tiên Exact Matching
-    validNames.sort((a, b) => b.normalized.length - a.normalized.length);
-
-    // Hàm tiện ích thêm cạnh đồ thị (Tránh lặp vô hạn)
-    const addEdge = (id1: string, id2: string, type1To2: string, type2To1: string) => {
-      if (!id1 || !id2 || id1 === id2 || !graph.has(id1) || !graph.has(id2)) return;
-      
-      const name1 = personsMap.get(id1)?.full_name || personsMap.get(id1)?.name || 'Không rõ';
-      const name2 = personsMap.get(id2)?.full_name || personsMap.get(id2)?.name || 'Không rõ';
-
-      const edges1 = graph.get(id1)!;
-      if (!edges1.some(e => e.id === id2)) edges1.push({ id: id2, name: name2, type: type1To2 });
-
-      const edges2 = graph.get(id2)!;
-      if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: type2To1 });
-    };
-
-    // 2.2 Quét các khóa ngoại đã xác định rõ (Foreign Keys Convention)
-    allPersons.forEach((p: any) => {
-      const pId = String(p.id);
-      if (p.father_id) addEdge(pId, String(p.father_id), 'Cha', 'Con');
-      if (p.mother_id) addEdge(pId, String(p.mother_id), 'Mẹ', 'Con');
-      if (p.spouse_id) addEdge(pId, String(p.spouse_id), 'Vợ/Chồng', 'Vợ/Chồng');
-      
-      // Mở rộng bắt các cột có đuôi _id (Quy ước)
-      for (const key of Object.keys(p)) {
-        if (key.endsWith('_id') && !['father_id', 'mother_id', 'spouse_id'].includes(key)) {
-          if (p[key]) addEdge(pId, String(p[key]), key, `Liên kết ngược của ${key}`);
-        }
-      }
-    });
-
-    // 2.3 Quét thêm từ bảng relationships (Nếu có)
-    allRels.forEach((r: any) => {
-      const type = r.relationship_type || r.type || 'Họ hàng';
-      addEdge(String(r.person_id), String(r.related_person_id), type, type);
-    });
-
-    // ------------------------------------------------------------------------
-    // BƯỚC 3: AI NHẬN DIỆN Ý ĐỊNH
-    // ------------------------------------------------------------------------
     const intentPrompt = `Phân tích câu hỏi và trả về DUY NHẤT JSON. 
-Cấu trúc:
-{
-  "intent": "search_person" | "find_relationship" | "count_members" | "general",
-  "name1": "Tên người 1",
-  "name2": "Tên người 2 (nếu có)"
-}`;
+Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members" | "general", "name1": "Tên 1", "name2": "Tên 2" }`;
+    
+    const intentText = await LLMService.generate(groqApiKey, intentPrompt, message, true);
+    const parsedIntent = UtilsService.parseLLMJson(intentText);
+    const backendContext: BackendContext = { _debug_intent: parsedIntent.intent };
 
-    const intentRes = await fetch(GROQ_API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        response_format: { type: "json_object" }, 
-        messages: [{ role: 'system', content: intentPrompt }, { role: 'user', content: message }],
-        temperature: 0.1,
-      }),
-    });
+    // Trích xuất Thực thể kèm toàn bộ Mảng ID trùng tên
+    const matchedEntities = FamilyTreeDataService.extractMatchedEntities(message);
+    const entity1 = matchedEntities[0] || null;
+    const entity2 = matchedEntities[1] || null;
 
-    if (!intentRes.ok) {
-      const errData = await intentRes.json().catch(() => ({}));
-      throw new Error(`Groq API Lỗi (Intent): ${errData.error?.message || intentRes.statusText}`);
+    let fallbackEntity: MatchedEntity | null = null;
+    if (!entity1 && parsedIntent.intent === 'search_person') {
+      const fallbackName = message
+        .replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà)/gi, '')
+        .replace(/[?.,!]/g, '')
+        .trim();
+      fallbackEntity = FamilyTreeDataService.searchFallbackEntity(fallbackName);
     }
 
-    const intentData = await intentRes.json();
-    const parsedIntent = parseLLMJson(intentData.choices?.[0]?.message?.content || '{}');
-    let backendContext: any = { _debug_intent: parsedIntent.intent };
+    const targetEntity = entity1 || fallbackEntity;
 
-    // ------------------------------------------------------------------------
-    // BƯỚC 4: EXACT MATCHING & CHỐNG ẢO GIÁC
-    // ------------------------------------------------------------------------
-    const msgNoAccent = removeAccents(message);
-    const matchedIds: string[] = [];
-    let tempMsg = msgNoAccent;
-
-    // Tìm kiếm trực tiếp O(1) giả lập qua mảng validNames đã sắp xếp
-    for (const item of validNames) {
-      if (item.normalized.length > 2 && tempMsg.includes(item.normalized)) {
-        matchedIds.push(item.id);
-        tempMsg = tempMsg.replace(item.normalized, ' '); 
-      }
-    }
-
-    const id1 = matchedIds[0] || null;
-    const id2 = matchedIds[1] || null;
-
-    // Fallback bóc tách văn bản thô nếu mảng rỗng (Trường hợp AI trả về intent search mà không quét được tên)
-    let fallbackName = "";
-    if (!id1 && (parsedIntent.intent === 'search_person')) {
-       fallbackName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
-    }
-
-    // ------------------------------------------------------------------------
-    // BƯỚC 5: THỰC THI BẰNG IN-MEMORY DATA
-    // ------------------------------------------------------------------------
+    // THỰC THI LOGIC TRÊN RAM
     if (parsedIntent.intent === 'count_members') {
-      backendContext.total_members = personsMap.size;
+      backendContext.total_members = FamilyTreeDataService.getTotalMembers();
     } 
     else if (parsedIntent.intent === 'find_relationship') {
-      if (id1 && id2) {
-        if (id1 === id2) {
-           backendContext.path = [`Hai tên này đều chỉ cùng một người là: ${personsMap.get(id1).full_name}.`];
-        } else {
-           // THUẬT TOÁN BFS SIÊU NHANH TRÊN RAM
-           const queue: { id: string, path: string[] }[] = [{ id: id1, path: [personsMap.get(id1).full_name] }];
-           const visited = new Set<string>([id1]);
-           let found = false;
+      if (entity1 && entity2) {
+        // Cảnh báo trùng tên khi tìm quan hệ
+        if (entity1.ids.length > 1 || entity2.ids.length > 1) {
+            backendContext.note = `Lưu ý: Có nhiều người trùng tên "${entity1.normalized}" hoặc "${entity2.normalized}". Hệ thống đang tạm chọn một cặp để kiểm tra. Hãy cung cấp thêm thông tin (VD: năm sinh, tên cha mẹ) để tra cứu chính xác hơn.`;
+        }
 
-           while (queue.length > 0) {
-             const { id: currentId, path } = queue.shift()!;
-             if (currentId === id2) {
-               backendContext.path = path;
-               found = true;
-               break;
-             }
-             for (const neighbor of graph.get(currentId) || []) {
-               if (!visited.has(neighbor.id)) {
-                 visited.add(neighbor.id);
-                 queue.push({ id: neighbor.id, path: [...path, `(${neighbor.type})`, neighbor.name] });
-               }
-             }
-           }
-           if (!found) backendContext.message = "Không tìm thấy mối liên hệ trực tiếp nào giữa hai người này.";
+        const id1 = entity1.ids[0];
+        const id2 = entity2.ids[0];
+
+        if (id1 === id2) {
+          backendContext.path = [`Hai tên này đều chỉ cùng một người là: ${FamilyTreeDataService.getPerson(id1)?.full_name || 'Không rõ'}.`];
+        } else {
+          const graph = FamilyTreeDataService.getGraph();
+          const p1Name = FamilyTreeDataService.getPerson(id1)?.full_name || 'Không rõ';
+          const queue: { id: string; path: string[] }[] = [{ id: id1, path: [p1Name] }];
+          const visited = new Set<string>([id1]);
+          let found = false;
+
+          while (queue.length > 0) {
+            const { id: currentId, path } = queue.shift()!;
+            if (currentId === id2) {
+              backendContext.path = path;
+              found = true;
+              break;
+            }
+            for (const neighbor of graph.get(currentId) || []) {
+              if (!visited.has(neighbor.id)) {
+                visited.add(neighbor.id);
+                queue.push({ id: neighbor.id, path: [...path, `(${neighbor.type})`, neighbor.name] });
+              }
+            }
+          }
+          if (!found) backendContext.message = 'Không tìm thấy mối liên hệ trực tiếp nào giữa hai người này.';
         }
       } else {
-        backendContext.error = "Hệ thống không nhận diện đủ 2 người trong gia phả để kiểm tra.";
+        backendContext.error = 'Bạn cần cung cấp rõ tên của 2 người có trong gia phả để kiểm tra mối quan hệ.';
       }
-    }
-    else if (parsedIntent.intent === 'search_person' || fallbackName) {
-      // Xử lý tìm kiếm 1 người và gia đình của họ
-      let targetId = id1;
-      
-      // Nếu không có ID chính xác, thử tìm bằng fallbackName
-      if (!targetId && fallbackName) {
-         const fbNorm = removeAccents(fallbackName);
-         const found = validNames.find(n => n.normalized.includes(fbNorm) || fbNorm.includes(n.normalized));
-         if (found) targetId = found.id;
-      }
-
-      if (targetId) {
-        const personData = personsMap.get(targetId);
-        const familyData = graph.get(targetId) || [];
+    } 
+    else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family' || fallbackEntity) {
+      if (targetEntity && targetEntity.ids.length > 0) {
         
-        backendContext.person = cleanPersonData(personData);
-        backendContext.family = familyData;
+        if (targetEntity.ids.length === 1) {
+            // Trường hợp bình thường (Chỉ 1 người)
+            const pId = targetEntity.ids[0];
+            const personData = FamilyTreeDataService.getPerson(pId);
+            if (personData) {
+                backendContext.person = UtilsService.cleanPersonData(personData);
+                backendContext.family = FamilyTreeDataService.getFamily(pId);
+            }
+        } else {
+            // TRƯỜNG HỢP TRÙNG TÊN: Gom toàn bộ vào mảng multiple_matches
+            backendContext.multiple_matches = targetEntity.ids.map(pId => {
+                const personData = FamilyTreeDataService.getPerson(pId)!;
+                return {
+                    person: UtilsService.cleanPersonData(personData),
+                    family: FamilyTreeDataService.getFamily(pId)
+                };
+            });
+        }
       } else {
-        backendContext.error = "Xin lỗi, không tìm thấy người này trong cơ sở dữ liệu gia phả.";
+        backendContext.error = 'Hệ thống không nhận diện được tên người bạn muốn tìm trong dữ liệu.';
       }
     } 
     else {
-      backendContext.note = "Câu hỏi ngoài lề hoặc chào hỏi thông thường.";
+      backendContext.note = 'Câu hỏi ngoài lề hoặc giao tiếp thông thường.';
     }
 
     // ------------------------------------------------------------------------
@@ -249,37 +411,20 @@ DỮ LIỆU JSON:
 ${JSON.stringify(backendContext)}
 
 YÊU CẦU BẮT BUỘC:
-1. Nếu JSON có trường "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi đó.
-2. Nếu JSON chứa "person" và "family", chia làm 2 phần gạch đầu dòng rõ ràng:
-   - **Thông tin cá nhân**: Tên, giới tính, năm sinh, thế hệ...
-   - **Quan hệ gia đình**: Liệt kê rõ ràng danh sách từ mảng "family". Nêu rõ người đó đóng vai trò gì. Nếu mảng family rỗng, báo "Chưa cập nhật thông tin người thân".
-3. Nếu JSON có ID thành viên: BẮT BUỘC chèn ĐÚNG MỘT link ở dòng cuối cùng theo định dạng:
-[Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-4. Không in các trường _debug hoặc cú pháp JSON ra màn hình.`;
+1. Nếu có "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi.
+2. Nếu có "note", hãy hiển thị nó như một cảnh báo/lưu ý cho người dùng.
+3. Nếu JSON có mảng "multiple_matches" (Do có nhiều người TRÙNG TÊN), hãy trình bày danh sách LẦN LƯỢT TỪNG NGƯỜI (bao gồm Thông tin cá nhân và Quan hệ gia đình của mỗi người) để người dùng tự phân biệt. Bắt buộc chèn Link hồ sơ bên dưới mỗi người.
+4. Nếu JSON chỉ có 1 "person" và "family", chia làm 2 phần:
+   - **Thông tin cá nhân**
+   - **Quan hệ gia đình** (Dựa theo relationship_hint để dịch ra vai trò).
+5. CHÈN LINK: Nếu có ID, phải chèn link theo format: [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id}). Nếu liệt kê nhiều người trùng tên, hãy chèn link tương ứng vào cuối phần thông tin của từng người.`;
 
-    const finalRes = await fetch(GROQ_API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [{ role: 'system', content: systemPromptNLG }, { role: 'user', content: message }],
-        temperature: 0.1,
-      }),
-    });
+    const finalReply = await LLMService.generate(groqApiKey, systemPromptNLG, message, false);
 
-    if (!finalRes.ok) {
-      const errData = await finalRes.json().catch(() => ({}));
-      throw new Error(`Groq API Lỗi (NLG): ${errData.error?.message || finalRes.statusText}`);
-    }
+    return NextResponse.json({ reply: finalReply || 'Không đủ thông tin để kết luận.' });
 
-    const finalData = await finalRes.json();
-    const reply = finalData.choices?.[0]?.message?.content || 'Không đủ thông tin để kết luận.';
-
-    return NextResponse.json({ reply });
-    
   } catch (error: any) {
-    // Console log để gỡ lỗi nội bộ trên Vercel
-    console.error("Chat API Error: ", error.message);
+    console.error('Family Tree API Error:', error);
     return NextResponse.json({ reply: `Hệ thống gián đoạn: ${error.message}` }, { status: 500 });
   }
 }
