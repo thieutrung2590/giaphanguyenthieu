@@ -288,7 +288,7 @@ export default function TuViPage() {
   const currentYear = new Date().getFullYear();
   
   const [formData, setFormData] = useState<FormDataState>({
-    name: "Nguyễn Thiệu Trung", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
+    name: "Nguyễn Thiệu", day: "25", month: "5", year: "1990", calendar: "Âm lịch", 
     isLeapMonth: false,
     hour: "10", minute: "0", 
     gender: "Nam giới", viewYear: String(currentYear)
