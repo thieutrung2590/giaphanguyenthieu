@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Khai báo cấu trúc URL sạch, tránh lỗi parse của Node.js
+const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+
 // ============================================================================
 // 1. CÁC HÀM TIỆN ÍCH (UTILITIES)
 // ============================================================================
@@ -108,9 +111,10 @@ export async function POST(req: Request) {
     const { message } = await req.json();
     if (!message) return NextResponse.json({ reply: 'Vui lòng nhập câu hỏi.' }, { status: 400 });
 
-    const groqApiKey = process.env.GROQ_API_KEY;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // Sử dụng .trim() để dọn dẹp các ký tự khoảng trắng vô tình lọt vào biến môi trường
+    const groqApiKey = (process.env.GROQ_API_KEY || '').trim();
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+    const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
 
     if (!groqApiKey || !supabaseUrl || !supabaseKey) {
       return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường.' }, { status: 500 });
@@ -133,12 +137,12 @@ Cấu trúc JSON:
 - count_members: Hỏi tổng số người trong gia phả.
 - general: Chào hỏi, câu hỏi ngoài lề.`;
 
-    const intentRes = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
+    const intentRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
-        response_format: { type: "json_object" }, // Ép Groq trả chuẩn JSON
+        response_format: { type: "json_object" }, 
         messages: [
           { role: 'system', content: intentPrompt },
           { role: 'user', content: message }
@@ -146,6 +150,10 @@ Cấu trúc JSON:
         temperature: 0.1,
       }),
     });
+
+    if (!intentRes.ok) {
+      throw new Error(`Lỗi API Intent phân loại: ${intentRes.statusText}`);
+    }
 
     const intentData = await intentRes.json();
     const parsedIntent = parseLLMJson(intentData.choices?.[0]?.message?.content || '{}');
@@ -193,7 +201,7 @@ YÊU CẦU TRÌNH BÀY:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
 3. Không hiển thị cấu trúc JSON hay dãy số ID ra màn hình cho người dùng xem.`;
 
-    const finalRes = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
+    const finalRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -205,6 +213,10 @@ YÊU CẦU TRÌNH BÀY:
         temperature: 0.1,
       }),
     });
+
+    if (!finalRes.ok) {
+       throw new Error(`Lỗi API NLG tạo ngôn ngữ: ${finalRes.statusText}`);
+    }
 
     const finalData = await finalRes.json();
     const reply = finalData.choices?.[0]?.message?.content || 'Không đủ thông tin để kết luận.';
