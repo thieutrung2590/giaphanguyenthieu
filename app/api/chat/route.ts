@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile'; 
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 // ============================================================================
 // 1. CÁC HÀM TIỆN ÍCH
@@ -22,138 +22,19 @@ function parseLLMJson(rawText: string) {
   }
 }
 
-// ============================================================================
-// 2. TẦNG BACKEND LOGIC (THUẬT TOÁN QUÉT QUAN HỆ BẤT CHẤP CẤU TRÚC DB)
-// ============================================================================
-async function rpc_SearchPerson(supabase: any, name: string) {
-  const { data } = await supabase.from('persons').select('*').limit(3000);
-  if (!data) return [];
-  
-  const keyword = removeAccents(name);
-  return data.filter((p: any) => {
-    const dbName = removeAccents(p.full_name || p.name || p.ho_ten || '');
-    return dbName === keyword || dbName.includes(keyword) || keyword.includes(dbName);
-  });
-}
-
-async function rpc_GetProfileAndFamily(supabase: any, personId: string) {
-  // Lấy toàn bộ Database ra bộ nhớ RAM để quét đa chiều
-  const { data: allPersons } = await supabase.from('persons').select('*').limit(3000);
-  if (!allPersons) return { person: null, family: [] };
-
-  const person = allPersons.find((p: any) => String(p.id) === String(personId));
-  if (!person) return { person: null, family: [] };
-
-  let family: any[] = [];
-  const addedIds = new Set<string>();
-
-  const addRelative = (relId: string, logicHint: string) => {
-    if (!relId || addedIds.has(String(relId)) || String(relId) === String(personId)) return;
-    const relative = allPersons.find((p: any) => String(p.id) === String(relId));
-    if (relative) {
-      family.push({
-        id: relative.id,
-        name: relative.full_name || relative.name || relative.ho_ten || 'Không rõ',
-        relationship_hint: logicHint // Gợi ý logic để AI tự suy luận ra quan hệ
-      });
-      addedIds.add(String(relId));
-    }
-  };
-
-  // CHIẾN LƯỢC 1: DÒ TÌM TRÊN TẤT CẢ CÁC CỘT CỦA BẢNG PERSONS (Không cần biết tên cột)
-  for (const m of allPersons) {
-    if (String(m.id) === String(person.id)) continue;
-
-    // A. Tìm Cha/Mẹ/Vợ/Chồng (Cột của người đang tìm chứa ID của người m)
-    for (const key of Object.keys(person)) {
-      if (key !== 'id' && person[key] && String(person[key]) === String(m.id)) {
-        addRelative(m.id, `Họ là "${key}" (Cha/Mẹ/Vợ/Chồng) của người này`);
-      }
-    }
-
-    // B. Tìm Con cái (Cột của người m chứa ID của người đang tìm)
-    for (const key of Object.keys(m)) {
-      if (key !== 'id' && m[key] && String(m[key]) === String(person.id)) {
-        addRelative(m.id, `Người này là "${key}" của họ -> Suy ra họ là CON của người này`);
-      }
-    }
-  }
-
-  // CHIẾN LƯỢC 2: DÒ TÌM TRÊN BẢNG RELATIONSHIPS (Nếu có tồn tại)
-  const { data: allRels, error: relErr } = await supabase.from('relationships').select('*').limit(10000);
-  if (!relErr && allRels) {
-    const rels = allRels.filter((r: any) => String(r.person_id) === String(personId) || String(r.related_person_id) === String(personId));
-    rels.forEach((r: any) => {
-      const isSubject = String(r.person_id) === String(personId);
-      const relId = isSubject ? r.related_person_id : r.person_id;
-      const type = r.relationship_type || r.type || 'Họ hàng';
-      addRelative(relId, type);
-    });
-  }
-
-  return { person, family };
-}
-
-// BỘ MÁY TÌM ĐƯỜNG ĐI (Đã gỡ bỏ giới hạn Schema)
-async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: string) {
-  const { data: persons } = await supabase.from('persons').select('*').limit(3000);
-  if (!persons) return null;
-
-  const key1 = removeAccents(name1);
-  const key2 = removeAccents(name2);
-  
-  const p1 = persons.find((p: any) => removeAccents(p.full_name || p.name || p.ho_ten || '').includes(key1));
-  const p2 = persons.find((p: any) => removeAccents(p.full_name || p.name || p.ho_ten || '').includes(key2));
-
-  if (!p1 || !p2) return { error: `Không tìm thấy đủ thông tin của 2 người trong gia phả để so sánh.` };
-  if (p1.id === p2.id) return { path: [`Hai tên này đều chỉ cùng một người: ${p1.full_name || p1.name}.`] };
-
-  const graph: Record<string, { id: string, name: string, type: string }[]> = {};
-  persons.forEach((p: any) => graph[String(p.id)] = []);
-
-  // Xây đồ thị từ bảng persons
-  persons.forEach((p: any) => {
-     const pId = String(p.id);
-     const pName = p.full_name || p.name || p.ho_ten || 'Không rõ';
-     
-     const addEdge = (targetId: string, relationName: string) => {
-         if (!targetId) return;
-         const tId = String(targetId);
-         if (graph[pId] && graph[tId]) {
-             const tName = persons.find((t: any) => String(t.id) === tId)?.full_name || 'Không rõ';
-             graph[pId].push({ id: tId, name: tName, type: relationName });
-             graph[tId].push({ id: pId, name: pName, type: 'Quan hệ ngược lại' });
-         }
-     };
-
-     for (const key of Object.keys(p)) {
-        if (key !== 'id' && p[key] && typeof p[key] === 'string' && p[key].length > 10) { 
-           addEdge(p[key], key); 
-        }
-     }
-  });
-
-  const queue: { id: string, path: string[] }[] = [{ id: String(p1.id), path: [p1.full_name || p1.name || p1.ho_ten] }];
-  const visited = new Set<string>();
-  visited.add(String(p1.id));
-
-  while (queue.length > 0) {
-    const { id, path } = queue.shift()!;
-    if (String(id) === String(p2.id)) return { path }; 
-
-    for (const neighbor of graph[id] || []) {
-      if (!visited.has(String(neighbor.id))) {
-        visited.add(String(neighbor.id));
-        const newPath = [...path, `(Liên kết qua cột: ${neighbor.type})`, neighbor.name];
-        queue.push({ id: neighbor.id, path: newPath });
-      }
-    }
-  }
-  return { path: null, message: "Không tìm thấy mối liên hệ trực tiếp nào giữa hai người này." };
+// Hàm dọn dẹp object để tiết kiệm token cho LLM
+function cleanPersonData(person: any) {
+  const clean: any = { ...person };
+  delete clean.created_at;
+  delete clean.updated_at;
+  delete clean.uuid;
+  delete clean.avatar_url;
+  delete clean.image;
+  return clean;
 }
 
 // ============================================================================
-// 3. API ROUTE CHÍNH
+// 2. API ROUTE CHÍNH (SINGLE FETCH & IN-MEMORY GRAPH)
 // ============================================================================
 export async function POST(req: Request) {
   try {
@@ -165,24 +46,90 @@ export async function POST(req: Request) {
     const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
 
     if (!groqApiKey || !supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường.' }, { status: 500 });
+      return NextResponse.json({ reply: 'Lỗi cấu hình Server: Thiếu biến môi trường (API Key hoặc Supabase).' }, { status: 500 });
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 0: TẢI DANH BẠ
+    // BƯỚC 1: FETCH TOÀN BỘ DỮ LIỆU ĐÚNG 1 LẦN (SINGLE FETCH)
     // ------------------------------------------------------------------------
-    const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(3000);
-    const validNames = Array.from(new Set((nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean))) as string[];
-    validNames.sort((a, b) => b.length - a.length);
+    const [personsRes, relsRes] = await Promise.all([
+      supabase.from('persons').select('*').limit(3000),
+      supabase.from('relationships').select('*').limit(10000)
+    ]);
+
+    if (personsRes.error) {
+      throw new Error(`Lỗi truy vấn bảng persons: ${personsRes.error.message}`);
+    }
+    
+    const allPersons = personsRes.data || [];
+    // Nếu bảng relationships không tồn tại, trả về mảng rỗng để không bị sập
+    const allRels = relsRes.error ? [] : (relsRes.data || []);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 1: HỎI AI ĐỂ LẤY Ý ĐỊNH
+    // BƯỚC 2: XÂY DỰNG MAP O(1) VÀ ĐỒ THỊ QUAN HỆ (BUILD ONCE)
+    // ------------------------------------------------------------------------
+    const personsMap = new Map<string, any>();
+    const validNames: { id: string, raw: string, normalized: string }[] = [];
+    const graph = new Map<string, { id: string, name: string, type: string }[]>();
+
+    // 2.1 Khởi tạo Map
+    allPersons.forEach((p: any) => {
+      const pId = String(p.id);
+      personsMap.set(pId, p);
+      graph.set(pId, []);
+      
+      const name = p.full_name || p.name || p.ho_ten;
+      if (name) {
+        validNames.push({ id: pId, raw: name, normalized: removeAccents(name) });
+      }
+    });
+
+    // Sắp xếp tên dài lên trước để ưu tiên Exact Matching
+    validNames.sort((a, b) => b.normalized.length - a.normalized.length);
+
+    // Hàm tiện ích thêm cạnh đồ thị (Tránh lặp vô hạn)
+    const addEdge = (id1: string, id2: string, type1To2: string, type2To1: string) => {
+      if (!id1 || !id2 || id1 === id2 || !graph.has(id1) || !graph.has(id2)) return;
+      
+      const name1 = personsMap.get(id1)?.full_name || personsMap.get(id1)?.name || 'Không rõ';
+      const name2 = personsMap.get(id2)?.full_name || personsMap.get(id2)?.name || 'Không rõ';
+
+      const edges1 = graph.get(id1)!;
+      if (!edges1.some(e => e.id === id2)) edges1.push({ id: id2, name: name2, type: type1To2 });
+
+      const edges2 = graph.get(id2)!;
+      if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: type2To1 });
+    };
+
+    // 2.2 Quét các khóa ngoại đã xác định rõ (Foreign Keys Convention)
+    allPersons.forEach((p: any) => {
+      const pId = String(p.id);
+      if (p.father_id) addEdge(pId, String(p.father_id), 'Cha', 'Con');
+      if (p.mother_id) addEdge(pId, String(p.mother_id), 'Mẹ', 'Con');
+      if (p.spouse_id) addEdge(pId, String(p.spouse_id), 'Vợ/Chồng', 'Vợ/Chồng');
+      
+      // Mở rộng bắt các cột có đuôi _id (Quy ước)
+      for (const key of Object.keys(p)) {
+        if (key.endsWith('_id') && !['father_id', 'mother_id', 'spouse_id'].includes(key)) {
+          if (p[key]) addEdge(pId, String(p[key]), key, `Liên kết ngược của ${key}`);
+        }
+      }
+    });
+
+    // 2.3 Quét thêm từ bảng relationships (Nếu có)
+    allRels.forEach((r: any) => {
+      const type = r.relationship_type || r.type || 'Họ hàng';
+      addEdge(String(r.person_id), String(r.related_person_id), type, type);
+    });
+
+    // ------------------------------------------------------------------------
+    // BƯỚC 3: AI NHẬN DIỆN Ý ĐỊNH
     // ------------------------------------------------------------------------
     const intentPrompt = `Phân tích câu hỏi và trả về DUY NHẤT JSON. 
 Cấu trúc:
 {
-  "intent": "search_person" | "get_family" | "find_relationship" | "count_members" | "general",
+  "intent": "search_person" | "find_relationship" | "count_members" | "general",
   "name1": "Tên người 1",
   "name2": "Tên người 2 (nếu có)"
 }`;
@@ -198,98 +145,117 @@ Cấu trúc:
       }),
     });
 
+    if (!intentRes.ok) {
+      const errData = await intentRes.json().catch(() => ({}));
+      throw new Error(`Groq API Lỗi (Intent): ${errData.error?.message || intentRes.statusText}`);
+    }
+
     const intentData = await intentRes.json();
     const parsedIntent = parseLLMJson(intentData.choices?.[0]?.message?.content || '{}');
     let backendContext: any = { _debug_intent: parsedIntent.intent };
 
     // ------------------------------------------------------------------------
-    // BƯỚC 2: KHÓA TÊN MỤC TIÊU & CHỐNG ẢO GIÁC
+    // BƯỚC 4: EXACT MATCHING & CHỐNG ẢO GIÁC
     // ------------------------------------------------------------------------
     const msgNoAccent = removeAccents(message);
-    let searchName1 = "";
-    let searchName2 = "";
-
+    const matchedIds: string[] = [];
     let tempMsg = msgNoAccent;
-    const matchedNames = [];
-    for (const name of validNames) {
-      const nameNoAccent = removeAccents(name);
-      if (nameNoAccent.length > 2 && tempMsg.includes(nameNoAccent)) {
-        matchedNames.push(name);
-        tempMsg = tempMsg.replace(nameNoAccent, ' '); 
+
+    // Tìm kiếm trực tiếp O(1) giả lập qua mảng validNames đã sắp xếp
+    for (const item of validNames) {
+      if (item.normalized.length > 2 && tempMsg.includes(item.normalized)) {
+        matchedIds.push(item.id);
+        tempMsg = tempMsg.replace(item.normalized, ' '); 
       }
     }
 
-    searchName1 = matchedNames[0] || parsedIntent.name1 || "";
-    searchName2 = matchedNames[1] || parsedIntent.name2 || "";
+    const id1 = matchedIds[0] || null;
+    const id2 = matchedIds[1] || null;
 
-    const verifyHallucination = (extractedName: string) => {
-        if (!extractedName) return "";
-        const finalClean = removeAccents(extractedName);
-        const words = finalClean.split(' ').filter(Boolean);
-        const hasHallucination = words.some(word => !msgNoAccent.includes(word));
-        if (hasHallucination) {
-            return message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà)/gi, '').replace(/[?.,!]/g, '').trim();
-        }
-        return extractedName;
-    };
-
-    searchName1 = verifyHallucination(searchName1);
-    searchName2 = verifyHallucination(searchName2);
-
-    if (!searchName1 && (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family')) {
-        searchName1 = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà)/gi, '').replace(/[?.,!]/g, '').trim();
+    // Fallback bóc tách văn bản thô nếu mảng rỗng (Trường hợp AI trả về intent search mà không quét được tên)
+    let fallbackName = "";
+    if (!id1 && (parsedIntent.intent === 'search_person')) {
+       fallbackName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 3: THỰC THI TRUY VẤN TỔNG HỢP
+    // BƯỚC 5: THỰC THI BẰNG IN-MEMORY DATA
     // ------------------------------------------------------------------------
     if (parsedIntent.intent === 'count_members') {
-      const { count } = await supabase.from('persons').select('*', { count: 'exact', head: true });
-      backendContext.total_members = count;
+      backendContext.total_members = personsMap.size;
     } 
     else if (parsedIntent.intent === 'find_relationship') {
-      if (searchName1 && searchName2) {
-        const res = await rpc_FindRelationshipBFS(supabase, searchName1, searchName2);
-        backendContext = { ...backendContext, ...res };
-      } else {
-        backendContext.error = "Bạn cần cung cấp rõ tên của 2 người để kiểm tra mối quan hệ.";
-      }
-    }
-    else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family') {
-      if (searchName1) {
-        const persons = await rpc_SearchPerson(supabase, searchName1);
-        if (persons.length === 0) {
-          backendContext.error = `Xin lỗi, hệ thống không tìm thấy ai tên "${searchName1}" trong gia phả.`;
+      if (id1 && id2) {
+        if (id1 === id2) {
+           backendContext.path = [`Hai tên này đều chỉ cùng một người là: ${personsMap.get(id1).full_name}.`];
         } else {
-          // LUÔN LUÔN LẤY GIA ĐÌNH BẰNG MÁY QUÉT ĐA CHIỀU
-          const res = await rpc_GetProfileAndFamily(supabase, persons[0].id);
-          backendContext = { ...backendContext, ...res };
+           // THUẬT TOÁN BFS SIÊU NHANH TRÊN RAM
+           const queue: { id: string, path: string[] }[] = [{ id: id1, path: [personsMap.get(id1).full_name] }];
+           const visited = new Set<string>([id1]);
+           let found = false;
+
+           while (queue.length > 0) {
+             const { id: currentId, path } = queue.shift()!;
+             if (currentId === id2) {
+               backendContext.path = path;
+               found = true;
+               break;
+             }
+             for (const neighbor of graph.get(currentId) || []) {
+               if (!visited.has(neighbor.id)) {
+                 visited.add(neighbor.id);
+                 queue.push({ id: neighbor.id, path: [...path, `(${neighbor.type})`, neighbor.name] });
+               }
+             }
+           }
+           if (!found) backendContext.message = "Không tìm thấy mối liên hệ trực tiếp nào giữa hai người này.";
         }
       } else {
-         backendContext.error = "Hệ thống không nhận diện được tên người bạn muốn tìm.";
+        backendContext.error = "Hệ thống không nhận diện đủ 2 người trong gia phả để kiểm tra.";
+      }
+    }
+    else if (parsedIntent.intent === 'search_person' || fallbackName) {
+      // Xử lý tìm kiếm 1 người và gia đình của họ
+      let targetId = id1;
+      
+      // Nếu không có ID chính xác, thử tìm bằng fallbackName
+      if (!targetId && fallbackName) {
+         const fbNorm = removeAccents(fallbackName);
+         const found = validNames.find(n => n.normalized.includes(fbNorm) || fbNorm.includes(n.normalized));
+         if (found) targetId = found.id;
+      }
+
+      if (targetId) {
+        const personData = personsMap.get(targetId);
+        const familyData = graph.get(targetId) || [];
+        
+        backendContext.person = cleanPersonData(personData);
+        backendContext.family = familyData;
+      } else {
+        backendContext.error = "Xin lỗi, không tìm thấy người này trong cơ sở dữ liệu gia phả.";
       }
     } 
     else {
-      backendContext.note = "Câu hỏi ngoài lề hoặc chào hỏi.";
+      backendContext.note = "Câu hỏi ngoài lề hoặc chào hỏi thông thường.";
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 4: LLM XUẤT BẢN CÂU TRẢ LỜI 
+    // BƯỚC 6: LLM PHÁT SINH NGÔN NGỮ (NLG)
     // ------------------------------------------------------------------------
-    const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. Trả lời MẠCH LẠC, rõ ràng bằng tiếng Việt.
-Dựa vào JSON dưới đây, không tự bịa đặt.
+    const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. 
+Chỉ dựa vào DỮ LIỆU JSON cung cấp bên dưới để trả lời, không tự bịa đặt.
 
-JSON CONTEXT:
+DỮ LIỆU JSON:
 ${JSON.stringify(backendContext)}
 
-HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
-1. Nếu có "error", in y hệt câu báo lỗi.
-2. Nếu có "person" và "family", bắt buộc chia làm 2 phần:
-   - **Thông tin cá nhân**: Liệt kê các thông tin tiểu sử của person.
-   - **Quan hệ gia đình**: Dựa vào mảng "family", hãy thông minh diễn dịch các mã "relationship_hint" (Ví dụ: Chứa chữ "father" -> Bố; Chứa chữ "mother" -> Mẹ; Chứa chữ "spouse" -> Vợ/Chồng; Chứa chữ "Suy ra họ là CON" -> Con cái). NẾU MẢNG FAMILY CÓ DỮ LIỆU, BẮT BUỘC PHẢI LIỆT KÊ TÊN NGƯỜI THÂN ĐÓ RA!
-3. Nếu JSON có person.id, chèn ĐÚNG MỘT link ở dòng cuối cùng:
+YÊU CẦU BẮT BUỘC:
+1. Nếu JSON có trường "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi đó.
+2. Nếu JSON chứa "person" và "family", chia làm 2 phần gạch đầu dòng rõ ràng:
+   - **Thông tin cá nhân**: Tên, giới tính, năm sinh, thế hệ...
+   - **Quan hệ gia đình**: Liệt kê rõ ràng danh sách từ mảng "family". Nêu rõ người đó đóng vai trò gì. Nếu mảng family rỗng, báo "Chưa cập nhật thông tin người thân".
+3. Nếu JSON có ID thành viên: BẮT BUỘC chèn ĐÚNG MỘT link ở dòng cuối cùng theo định dạng:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-4. Không in các trường _debug hoặc cú pháp lập trình ra màn hình.`;
+4. Không in các trường _debug hoặc cú pháp JSON ra màn hình.`;
 
     const finalRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
@@ -301,12 +267,19 @@ HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
       }),
     });
 
+    if (!finalRes.ok) {
+      const errData = await finalRes.json().catch(() => ({}));
+      throw new Error(`Groq API Lỗi (NLG): ${errData.error?.message || finalRes.statusText}`);
+    }
+
     const finalData = await finalRes.json();
     const reply = finalData.choices?.[0]?.message?.content || 'Không đủ thông tin để kết luận.';
 
     return NextResponse.json({ reply });
     
   } catch (error: any) {
+    // Console log để gỡ lỗi nội bộ trên Vercel
+    console.error("Chat API Error: ", error.message);
     return NextResponse.json({ reply: `Hệ thống gián đoạn: ${error.message}` }, { status: 500 });
   }
 }
