@@ -5,7 +5,7 @@ const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 // ============================================================================
-// 1. INTERFACES & TYPES 
+// 1. INTERFACES & TYPES
 // ============================================================================
 interface PersonRecord {
   id: string | number;
@@ -62,7 +62,7 @@ interface BackendContext {
   total_members?: number;
   person?: Partial<PersonRecord>;
   family?: FamilyMember[];
-  multiple_matches?: MultipleMatch[]; // Dùng khi phát hiện trùng tên
+  multiple_matches?: MultipleMatch[]; 
   path?: string[];
   message?: string;
   error?: string;
@@ -106,12 +106,12 @@ class UtilsService {
 }
 
 // ============================================================================
-// 3. DATA SERVICE (Xử lý Mảng ID cho Trùng tên)
+// 3. DATA SERVICE
 // ============================================================================
 class FamilyTreeDataService {
   private static personsMap: Map<string, PersonRecord> = new Map();
   private static graph: Map<string, GraphEdge[]> = new Map();
-  private static nameIndex: Map<string, string[]> = new Map(); // Lưu MẢNG ID để xử lý trùng tên
+  private static nameIndex: Map<string, string[]> = new Map(); 
   private static sortedNameKeys: string[] = []; 
   
   private static isLoaded = false;
@@ -150,7 +150,6 @@ class FamilyTreeDataService {
       from += step;
     }
 
-    // Khởi tạo Map, Graph và Index (Hỗ trợ trùng tên)
     for (const p of allPersons) {
       const pId = String(p.id);
       this.personsMap.set(pId, p);
@@ -303,25 +302,36 @@ export async function POST(req: Request) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-
     await FamilyTreeDataService.ensureLoaded(supabase);
 
+    // Bước 1: AI Nhận diện Intent (Đã dặn dò kĩ về danh xưng)
     const intentPrompt = `Phân tích câu hỏi và trả về DUY NHẤT JSON. 
-Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members" | "general", "name1": "Tên 1", "name2": "Tên 2" }`;
+Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members" | "general", "name1": "Tên 1", "name2": "Tên 2" }
+LƯU Ý QUAN TRỌNG: 
+- Bỏ qua các danh xưng (cụ, kỵ, kị, ông, bà, anh, chị, chú, bác...) khi trích xuất tên.
+- Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa tên người đều có intent là "search_person".`;
     
     const intentText = await LLMService.generate(groqApiKey, intentPrompt, message, true);
     const parsedIntent = UtilsService.parseLLMJson(intentText);
-    const backendContext: BackendContext = { _debug_intent: parsedIntent.intent };
-
-    // Trích xuất Thực thể kèm toàn bộ Mảng ID trùng tên
+    
+    // Bước 2: Quét Tên chính xác
     const matchedEntities = FamilyTreeDataService.extractMatchedEntities(message);
     const entity1 = matchedEntities[0] || null;
     const entity2 = matchedEntities[1] || null;
 
+    // AUTO-CORRECT AI: Ép chuẩn Intent nếu AI nhầm lẫn nhưng mình vẫn quét được tên
+    if (parsedIntent.intent === 'general' && entity1) {
+       if (entity2) parsedIntent.intent = 'find_relationship';
+       else parsedIntent.intent = 'search_person';
+    }
+
+    const backendContext: BackendContext = { _debug_intent: parsedIntent.intent };
+
+    // Bước 3: Fallback Regex (Đã bổ sung bộ lọc danh xưng đầy đủ)
     let fallbackEntity: MatchedEntity | null = null;
     if (!entity1 && parsedIntent.intent === 'search_person') {
       const fallbackName = message
-        .replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà)/gi, '')
+        .replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà|cụ|kỵ|kị|chú|bác|cô|dì|dượng|mợ|thím)/gi, '')
         .replace(/[?.,!]/g, '')
         .trim();
       fallbackEntity = FamilyTreeDataService.searchFallbackEntity(fallbackName);
@@ -335,9 +345,8 @@ Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members"
     } 
     else if (parsedIntent.intent === 'find_relationship') {
       if (entity1 && entity2) {
-        // Cảnh báo trùng tên khi tìm quan hệ
         if (entity1.ids.length > 1 || entity2.ids.length > 1) {
-            backendContext.note = `Lưu ý: Có nhiều người trùng tên "${entity1.normalized}" hoặc "${entity2.normalized}". Hệ thống đang tạm chọn một cặp để kiểm tra. Hãy cung cấp thêm thông tin (VD: năm sinh, tên cha mẹ) để tra cứu chính xác hơn.`;
+            backendContext.note = `Lưu ý: Có nhiều người trùng tên "${entity1.normalized}" hoặc "${entity2.normalized}". Hệ thống đang tạm chọn một cặp để kiểm tra. Hãy cung cấp thêm thông tin để tra cứu chính xác hơn.`;
         }
 
         const id1 = entity1.ids[0];
@@ -376,7 +385,6 @@ Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members"
       if (targetEntity && targetEntity.ids.length > 0) {
         
         if (targetEntity.ids.length === 1) {
-            // Trường hợp bình thường (Chỉ 1 người)
             const pId = targetEntity.ids[0];
             const personData = FamilyTreeDataService.getPerson(pId);
             if (personData) {
@@ -384,7 +392,6 @@ Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members"
                 backendContext.family = FamilyTreeDataService.getFamily(pId);
             }
         } else {
-            // TRƯỜNG HỢP TRÙNG TÊN: Gom toàn bộ vào mảng multiple_matches
             backendContext.multiple_matches = targetEntity.ids.map(pId => {
                 const personData = FamilyTreeDataService.getPerson(pId)!;
                 return {
@@ -402,7 +409,7 @@ Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members"
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 6: LLM PHÁT SINH NGÔN NGỮ (NLG)
+    // BƯỚC 4: LLM PHÁT SINH NGÔN NGỮ (NLG)
     // ------------------------------------------------------------------------
     const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. 
 Chỉ dựa vào DỮ LIỆU JSON cung cấp bên dưới để trả lời, không tự bịa đặt.
