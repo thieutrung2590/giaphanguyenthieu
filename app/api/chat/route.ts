@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+// Nâng cấp lên mô hình 70 Tỷ tham số: Thông minh hơn, hiểu tiếng Việt cực tốt, không bị lỗi cắt xén
+const GROQ_MODEL = 'llama-3.3-70b-versatile'; 
 
 // ============================================================================
-// 1. CÁC HÀM TIỆN ÍCH (UTILITIES)
+// 1. CÁC HÀM TIỆN ÍCH
 // ============================================================================
 function removeAccents(str: string) {
   if (!str) return '';
@@ -14,9 +16,7 @@ function removeAccents(str: string) {
 function parseLLMJson(rawText: string) {
   try {
     const match = rawText.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
+    if (match) return JSON.parse(match[0]);
     return { intent: "general", name1: "", name2: "" };
   } catch (error) {
     return { intent: "general", name1: "", name2: "" };
@@ -24,7 +24,7 @@ function parseLLMJson(rawText: string) {
 }
 
 // ============================================================================
-// 2. TẦNG BACKEND LOGIC (SIMULATING SUPABASE RPCs)
+// 2. TẦNG BACKEND LOGIC (MÔ PHỎNG RPC SUPABASE)
 // ============================================================================
 async function rpc_SearchPerson(supabase: any, name: string) {
   const { data } = await supabase.from('persons').select('id, full_name, name, ho_ten, gender, birth_date, death_date, biography, position');
@@ -39,7 +39,6 @@ async function rpc_SearchPerson(supabase: any, name: string) {
 
 async function rpc_GetFamily(supabase: any, personId: string) {
   const { data: person } = await supabase.from('persons').select('id, full_name, gender, birth_date, death_date').eq('id', personId).single();
-  
   const { data: rels } = await supabase
     .from('relationships')
     .select('person_id, related_person_id, relationship_type, persons!related_person_id(id, full_name, gender, birth_date)')
@@ -51,8 +50,7 @@ async function rpc_GetFamily(supabase: any, personId: string) {
     const isSubject = r.person_id === personId;
     const relName = r.persons?.full_name || 'Không rõ';
     const relId = r.persons?.id;
-    const type = r.relationship_type;
-    return { id: relId, name: relName, relationship: type };
+    return { id: relId, name: relName, relationship: r.relationship_type };
   });
 
   return { person, family };
@@ -70,8 +68,8 @@ async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: stri
   const p1 = persons.find((p: any) => removeAccents(p.full_name || p.name || '').includes(key1));
   const p2 = persons.find((p: any) => removeAccents(p.full_name || p.name || '').includes(key2));
 
-  if (!p1 || !p2) return { error: `Không tìm thấy thông tin của ${!p1 ? name1 : name2} trong gia phả.` };
-  if (p1.id === p2.id) return { path: [`${p1.full_name} chính là người đang được hỏi.`] };
+  if (!p1 || !p2) return { error: `Không tìm thấy đủ thông tin của 2 người trong gia phả để so sánh.` };
+  if (p1.id === p2.id) return { path: [`Hai tên này đều chỉ cùng một người là: ${p1.full_name}.`] };
 
   const graph: Record<string, { id: string, name: string, type: string }[]> = {};
   persons.forEach((p: any) => graph[p.id] = []);
@@ -80,9 +78,8 @@ async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: stri
     if (graph[r.person_id] && graph[r.related_person_id]) {
        const nameA = persons.find((p:any) => p.id === r.related_person_id)?.full_name;
        const nameB = persons.find((p:any) => p.id === r.person_id)?.full_name;
-       
        graph[r.person_id].push({ id: r.related_person_id, name: nameA, type: r.relationship_type });
-       graph[r.related_person_id].push({ id: r.person_id, name: nameB, type: `có liên kết họ hàng với` });
+       graph[r.related_person_id].push({ id: r.person_id, name: nameB, type: `có họ hàng với` });
     }
   });
 
@@ -102,7 +99,7 @@ async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: stri
       }
     }
   }
-  return { path: null, message: "Không tìm thấy mối liên hệ trực tiếp giữa hai người." };
+  return { path: null, message: "Không tìm thấy mối liên hệ trực tiếp nào giữa hai người này." };
 }
 
 // ============================================================================
@@ -120,89 +117,88 @@ export async function POST(req: Request) {
     if (!groqApiKey || !supabaseUrl || !supabaseKey) {
       return NextResponse.json({ reply: 'Lỗi cấu hình biến môi trường.' }, { status: 500 });
     }
-
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 0: TẢI TRƯỚC DANH BẠ TÊN (ENTITY GROUNDING)
+    // BƯỚC 0: TẢI DANH BẠ ĐỂ QUÉT TÊN CHÍNH XÁC (EXACT MATCHING)
     // ------------------------------------------------------------------------
-    // Trích xuất toàn bộ tên có trong gia phả (chỉ lấy tên để cực kỳ nhẹ)
-    const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(1500);
-    const validNames = Array.from(new Set(
-      (nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean)
-    )).join(', ');
+    const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(3000);
+    const validNames = Array.from(new Set((nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean))) as string[];
+    
+    // Ưu tiên quét các tên dài trước (vd: Quét "Nguyễn Thiệu Trung" trước "Nguyễn Thiệu")
+    validNames.sort((a, b) => b.length - a.length);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 1: AI PHÂN LOẠI Ý ĐỊNH VÀ TRÍCH XUẤT TÊN TUYỆT ĐỐI CHÍNH XÁC
+    // BƯỚC 1: HỎI AI ĐỂ LẤY Ý ĐỊNH
     // ------------------------------------------------------------------------
-    const intentPrompt = `Bạn là hệ thống nhận diện ý định. Phân tích câu hỏi và trả về DUY NHẤT JSON. KHÔNG thêm văn bản nào.
-Cấu trúc JSON bắt buộc:
+    const intentPrompt = `Phân tích câu hỏi và trả về DUY NHẤT JSON. 
+Cấu trúc:
 {
   "intent": "search_person" | "get_family" | "find_relationship" | "count_members" | "general",
-  "name1": "Tên người thứ nhất",
-  "name2": "Tên người thứ hai nếu có"
-}
-
-DANH SÁCH TẤT CẢ THÀNH VIÊN TRONG GIA PHẢ:
-[${validNames}]
-
-HƯỚNG DẪN BẮT BUỘC:
-1. Bạn PHẢI đối chiếu câu hỏi với danh sách trên. Tên trích xuất ra (name1, name2) phải KHỚP TỪNG CHỮ với một cái tên trong danh sách.
-2. TUYỆT ĐỐI KHÔNG cắt xén tên (Ví dụ: Nếu tên trong danh sách là "Nguyễn Thiệu Trung", không được lấy "Nguyễn Thiệu").
-3. Nếu không có ai khớp, hãy để chuỗi rỗng "".`;
+  "name1": "Tên người 1",
+  "name2": "Tên người 2 (nếu có)"
+}`;
 
     const intentRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: GROQ_MODEL,
         response_format: { type: "json_object" }, 
-        messages: [
-          { role: 'system', content: intentPrompt },
-          { role: 'user', content: message }
-        ],
-        temperature: 0.1, // Ép mô hình tuân thủ quy tắc 100%
+        messages: [{ role: 'system', content: intentPrompt }, { role: 'user', content: message }],
+        temperature: 0.1,
       }),
     });
 
-    if (!intentRes.ok) {
-      throw new Error(`Lỗi API Intent phân loại: ${intentRes.statusText}`);
-    }
-
     const intentData = await intentRes.json();
     const parsedIntent = parseLLMJson(intentData.choices?.[0]?.message?.content || '{}');
-    
-    let backendContext: any = {
-      _debug_intent: parsedIntent.intent
-    };
+    let backendContext: any = { _debug_intent: parsedIntent.intent };
 
     // ------------------------------------------------------------------------
-    // BƯỚC 2: BACKEND THỰC THI (ĐÃ ĐƯỢC CHỐNG LỖI TỐI ĐA)
+    // BƯỚC 2: TÌM TÊN THÔNG MINH BẰNG CÁCH QUÉT TRỰC TIẾP TỪ TIN NHẮN VÀO DB
+    // ------------------------------------------------------------------------
+    const msgNoAccent = removeAccents(message);
+    let matchedNames: string[] = [];
+    let tempMsg = msgNoAccent;
+
+    for (const name of validNames) {
+      const nameNoAccent = removeAccents(name);
+      // Chỉ tìm các tên lớn hơn 2 ký tự và có trong tin nhắn
+      if (nameNoAccent.length > 2 && tempMsg.includes(nameNoAccent)) {
+        matchedNames.push(name);
+        tempMsg = tempMsg.replace(nameNoAccent, ' '); // Gỡ tên ra khỏi chuỗi để tìm tên tiếp theo
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // BƯỚC 3: THỰC THI LOGIC TRUY VẤN
     // ------------------------------------------------------------------------
     if (parsedIntent.intent === 'count_members') {
       const { count } = await supabase.from('persons').select('*', { count: 'exact', head: true });
       backendContext.total_members = count;
     } 
-    else if (parsedIntent.intent === 'find_relationship' && parsedIntent.name1 && parsedIntent.name2) {
-      const res = await rpc_FindRelationshipBFS(supabase, parsedIntent.name1, parsedIntent.name2);
-      backendContext = { ...backendContext, ...res };
+    else if (parsedIntent.intent === 'find_relationship') {
+      const n1 = matchedNames[0] || parsedIntent.name1;
+      const n2 = matchedNames[1] || parsedIntent.name2;
+      if (n1 && n2) {
+        const res = await rpc_FindRelationshipBFS(supabase, n1, n2);
+        backendContext = { ...backendContext, ...res };
+      } else {
+        backendContext.error = "Bạn cần cung cấp rõ tên của 2 người để kiểm tra mối quan hệ.";
+      }
     }
     else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family') {
+      // Ưu tiên 1: Lấy tên Quét chuẩn 100% từ Database
+      // Ưu tiên 2: Tên do AI bắt được
+      // Ưu tiên 3: Dọn dẹp câu hỏi lấy từ khóa
+      let searchName = matchedNames[0] || parsedIntent.name1 || message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
       
-      let searchName = parsedIntent.name1;
-
-      // Auto-Fallback: Nếu AI vẫn bắt trượt tên do người dùng hỏi quá cụt lủn, bóc tách bằng Regex
-      if (!searchName || searchName.trim() === '') {
-         searchName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử)/gi, '').replace(/[?.,!]/g, '').trim();
-      }
-
       backendContext._debug_name = searchName;
 
       if (searchName) {
         const persons = await rpc_SearchPerson(supabase, searchName);
-        
         if (persons.length === 0) {
-          backendContext.error = `Xin lỗi, nhưng thông tin về "${searchName}" không được tìm thấy trong cơ sở dữ liệu của chúng tôi.`;
+          backendContext.error = `Xin lỗi, hệ thống không tìm thấy ai tên "${searchName}" trong gia phả.`;
         } else if (parsedIntent.intent === 'get_family') {
           const res = await rpc_GetFamily(supabase, persons[0].id);
           backendContext = { ...backendContext, ...res };
@@ -210,45 +206,38 @@ HƯỚNG DẪN BẮT BUỘC:
           backendContext.person = persons[0];
         }
       } else {
-         backendContext.error = "Không nhận diện được tên người cần tìm trong câu hỏi.";
+         backendContext.error = "Hệ thống không nhận diện được tên người bạn muốn tìm.";
       }
     } 
     else {
-      backendContext.note = "Câu hỏi giao tiếp thông thường hoặc ngoài lề.";
+      backendContext.note = "Câu hỏi ngoài lề hoặc chào hỏi.";
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 3: LLM CHỈ LÀM NHIỆM VỤ TẠO NGÔN NGỮ (NLG)
+    // BƯỚC 4: LLM PHÁT SINH NGÔN NGỮ (NLG)
     // ------------------------------------------------------------------------
     const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ Nguyễn Thiệu. 
-Chỉ sử dụng dữ liệu JSON được cung cấp dưới đây để trả lời. Không tự suy diễn.
-Nếu JSON trả về lỗi (error) hoặc thiếu dữ liệu, hãy xin lỗi và thông báo đúng nguyên văn nội dung từ trường error đó.
+Chỉ dựa vào DỮ LIỆU JSON cung cấp bên dưới để trả lời, không bịa đặt.
 
-DỮ LIỆU JSON (Context):
+DỮ LIỆU JSON:
 ${JSON.stringify(backendContext)}
 
-YÊU CẦU TRÌNH BÀY:
-1. Trả lời ngắn gọn, mạch lạc và dễ hiểu dựa chính xác vào JSON.
-2. NẾU JSON CHỨA ID CỦA THÀNH VIÊN: BẮT BUỘC chèn link hồ sơ ở cuối câu trả lời theo format sau:
+YÊU CẦU BẮT BUỘC:
+1. Nếu JSON có trường "error", BẮT BUỘC trả lời Y HỆT câu thông báo lỗi đó. KHÔNG tự suy diễn thêm.
+2. Trả lời mạch lạc, gạch đầu dòng rõ ràng.
+3. Nếu JSON có ID thành viên: BẮT BUỘC chèn link ở cuối cùng theo format sau:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-3. Không hiển thị cấu trúc JSON thô (như dấu ngoặc nhọn, trường _debug_intent, _debug_name) ra màn hình.`;
+4. Không hiển thị các trường _debug hay cấu trúc ngoặc nhọn của JSON.`;
 
     const finalRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: systemPromptNLG },
-          { role: 'user', content: message }
-        ],
+        model: GROQ_MODEL,
+        messages: [{ role: 'system', content: systemPromptNLG }, { role: 'user', content: message }],
         temperature: 0.1,
       }),
     });
-
-    if (!finalRes.ok) {
-       throw new Error(`Lỗi API NLG tạo ngôn ngữ: ${finalRes.statusText}`);
-    }
 
     const finalData = await finalRes.json();
     const reply = finalData.choices?.[0]?.message?.content || 'Không đủ thông tin để kết luận.';
