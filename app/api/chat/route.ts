@@ -11,16 +11,15 @@ function removeAccents(str: string) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
 }
 
-// Xử lý chuỗi JSON do LLM trả về, tự động làm sạch markdown
 function parseLLMJson(rawText: string) {
   try {
     const match = rawText.match(/\{[\s\S]*\}/);
     if (match) {
       return JSON.parse(match[0]);
     }
-    return { intent: "general" };
+    return { intent: "general", params: {} };
   } catch (error) {
-    return { intent: "general" };
+    return { intent: "general", params: {} };
   }
 }
 
@@ -30,8 +29,13 @@ function parseLLMJson(rawText: string) {
 async function rpc_SearchPerson(supabase: any, name: string) {
   const { data } = await supabase.from('persons').select('id, full_name, name, ho_ten, gender, birth_date, death_date, biography, position');
   if (!data) return [];
+  
+  // Tìm kiếm linh hoạt hơn: tách các từ khóa
   const keyword = removeAccents(name);
-  return data.filter((p: any) => removeAccents(p.full_name || p.name || p.ho_ten || '').includes(keyword));
+  return data.filter((p: any) => {
+    const dbName = removeAccents(p.full_name || p.name || p.ho_ten || '');
+    return dbName.includes(keyword) || keyword.includes(dbName);
+  });
 }
 
 async function rpc_GetFamily(supabase: any, personId: string) {
@@ -121,20 +125,15 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ------------------------------------------------------------------------
-    // BƯỚC 1: AI PHÂN LOẠI Ý ĐỊNH (Đã được làm phẳng JSON để LLaMA 8B dễ đọc)
+    // BƯỚC 1: AI PHÂN LOẠI Ý ĐỊNH
     // ------------------------------------------------------------------------
     const intentPrompt = `Phân tích câu hỏi của người dùng và trả về DUY NHẤT một đối tượng JSON. TUYỆT ĐỐI KHÔNG thêm văn bản nào khác.
 Cấu trúc JSON bắt buộc:
 {
   "intent": "search_person" | "get_family" | "find_relationship" | "count_members" | "general",
-  "name1": "Tên người thứ nhất",
-  "name2": "Tên người thứ hai (nếu có)"
-}
-- search_person: Hỏi thông tin tiểu sử của 1 người.
-- get_family: Hỏi về cha, mẹ, vợ, chồng, con, anh em của 1 người.
-- find_relationship: Hỏi quan hệ giữa 2 người.
-- count_members: Hỏi tổng số người trong gia phả.
-- general: Chào hỏi, hoặc không nhắc đến tên ai cụ thể.`;
+  "name1": "Copy CHÍNH XÁC TỪNG CHỮ tên người từ câu hỏi gốc (Tuyệt đối không tự ý đổi chữ lót hay sửa lỗi chính tả)",
+  "name2": "Tên người thứ hai nếu có"
+}`;
 
     const intentRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
@@ -158,12 +157,11 @@ Cấu trúc JSON bắt buộc:
     const parsedIntent = parseLLMJson(intentData.choices?.[0]?.message?.content || '{}');
     
     let backendContext: any = {
-      _debug_intent: parsedIntent.intent,
-      _debug_name: parsedIntent.name1
+      _debug_intent: parsedIntent.intent
     };
 
     // ------------------------------------------------------------------------
-    // BƯỚC 2: BACKEND THỰC THI & AUTO-FALLBACK
+    // BƯỚC 2: BACKEND THỰC THI & BỘ LỌC CHỐNG ẢO GIÁC (ANTI-HALLUCINATION)
     // ------------------------------------------------------------------------
     if (parsedIntent.intent === 'count_members') {
       const { count } = await supabase.from('persons').select('*', { count: 'exact', head: true });
@@ -175,17 +173,27 @@ Cấu trúc JSON bắt buộc:
     }
     else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family') {
       
-      // AUTO-FALLBACK: Nếu AI bắt trượt tên, tự bóc tách tên bằng Regex từ câu hỏi thô
-      let searchName = parsedIntent.name1;
-      if (!searchName || searchName.trim() === '') {
-         searchName = message.replace(/(thông tin|tìm|về|của|ai là|gia đình|con của|bố của|mẹ của|cho biết)/gi, '').trim();
+      let searchName = parsedIntent.name1 || '';
+      const msgNoAccent = removeAccents(message);
+      const extractedNoAccent = removeAccents(searchName);
+
+      // Phát hiện ảo giác: Nếu AI trích ra cái tên không hề nằm trong câu hỏi gốc -> Xóa bỏ tên đó
+      if (searchName && !msgNoAccent.includes(extractedNoAccent)) {
+        searchName = ''; 
       }
+
+      // Auto-Fallback: Dùng Regex làm sạch từ ngữ dư thừa để ép lấy tên chuẩn
+      if (!searchName || searchName.trim() === '') {
+         searchName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử)/gi, '').replace(/[?.,!]/g, '').trim();
+      }
+
+      backendContext._debug_name = searchName; // Theo dõi từ khóa đang được tìm
 
       if (searchName) {
         const persons = await rpc_SearchPerson(supabase, searchName);
         
         if (persons.length === 0) {
-          backendContext.error = `Đã tìm kiếm từ khóa "${searchName}" nhưng không thấy ai trong cơ sở dữ liệu.`;
+          backendContext.error = `Xin lỗi, nhưng thông tin về "${searchName}" không được tìm thấy trong cơ sở dữ liệu của chúng tôi.`;
         } else if (parsedIntent.intent === 'get_family') {
           const res = await rpc_GetFamily(supabase, persons[0].id);
           backendContext = { ...backendContext, ...res };
@@ -205,7 +213,7 @@ Cấu trúc JSON bắt buộc:
     // ------------------------------------------------------------------------
     const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ Nguyễn Thiệu. 
 Chỉ sử dụng dữ liệu JSON được cung cấp dưới đây để trả lời. Không tự suy diễn.
-Nếu JSON trả về lỗi (error) hoặc thiếu dữ liệu, hãy xin lỗi và thông báo đúng nội dung từ trường error đó.
+Nếu JSON trả về lỗi (error) hoặc thiếu dữ liệu, hãy xin lỗi và thông báo đúng nguyên văn nội dung từ trường error đó.
 
 DỮ LIỆU JSON (Context):
 ${JSON.stringify(backendContext)}
@@ -214,7 +222,7 @@ YÊU CẦU TRÌNH BÀY:
 1. Trả lời ngắn gọn, mạch lạc và dễ hiểu dựa chính xác vào JSON.
 2. NẾU JSON CHỨA ID CỦA THÀNH VIÊN: BẮT BUỘC chèn link hồ sơ ở cuối câu trả lời theo format sau:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-3. Không hiển thị cấu trúc JSON thô (như dấu ngoặc nhọn, trường _debug_intent) ra màn hình cho người dùng.`;
+3. Không hiển thị cấu trúc JSON thô (như dấu ngoặc nhọn, trường _debug_intent, _debug_name) ra màn hình cho người dùng.`;
 
     const finalRes = await fetch(GROQ_API_ENDPOINT, {
       method: 'POST',
