@@ -13,19 +13,21 @@ interface PersonRecord {
   name?: string;
   ho_ten?: string;
   gender?: string;
-  birth_date?: string;
-  death_date?: string;
-  father_id?: string | number;
-  mother_id?: string | number;
-  spouse_id?: string | number;
+  birth_year?: number;
+  death_year?: number;
+  is_deceased?: boolean;
+  is_in_law?: boolean;
+  generation?: number;
   [key: string]: unknown; 
 }
 
 interface RelationshipRecord {
-  person_id: string | number;
-  related_person_id: string | number;
-  relationship_type?: string;
+  id?: string | number;
   type?: string;
+  person_a: string | number;
+  person_b: string | number;
+  note?: string;
+  [key: string]: unknown;
 }
 
 interface GraphEdge {
@@ -94,21 +96,6 @@ class UtilsService {
     delete clean.created_at; delete clean.updated_at; delete clean.uuid;
     delete clean.avatar_url; delete clean.image;
     return clean;
-  }
-
-  // Phân tích chiều ngược lại của quan hệ
-  static getInverse(type: string): string {
-    const t = type.toLowerCase().trim();
-    if (t.includes('cha') || t.includes('mẹ') || t.includes('bố')) return 'Con';
-    if (t === 'con') return 'Cha/Mẹ';
-    if (t === 'vợ') return 'Chồng';
-    if (t === 'chồng') return 'Vợ';
-    if (t.includes('anh') || t.includes('chị')) return 'Em';
-    if (t === 'em') return 'Anh/Chị';
-    if (t.includes('ông') || t.includes('bà')) return 'Cháu';
-    if (t.includes('cháu')) return 'Ông/Bà/Chú/Bác/Cô/Dì';
-    if (t.includes('bác') || t.includes('chú') || t.includes('cô') || t.includes('dì') || t.includes('cậu')) return 'Cháu';
-    return `Người liên quan của (${type})`;
   }
 
   // Động cơ tính toán huyết thống chính xác từ đường đi BFS
@@ -197,6 +184,7 @@ class FamilyTreeDataService {
     this.nameIndex.clear();
     this.sortedNameKeys = [];
 
+    // Tải bảng persons bằng phân trang
     let allPersons: PersonRecord[] = [];
     let from = 0;
     const step = 1000;
@@ -209,6 +197,7 @@ class FamilyTreeDataService {
       from += step;
     }
 
+    // Tải bảng relationships bằng phân trang
     let allRels: RelationshipRecord[] = [];
     from = 0;
     while (true) {
@@ -220,6 +209,7 @@ class FamilyTreeDataService {
       from += step;
     }
 
+    // Nạp dữ liệu vào Map và Name Index
     for (const p of allPersons) {
       const pId = String(p.id);
       this.personsMap.set(pId, p);
@@ -253,23 +243,45 @@ class FamilyTreeDataService {
       if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: type2To1 });
     };
 
+    // Nạp dữ liệu từ các cột dự phòng (nếu vẫn còn sót lại trong Database)
     for (const p of allPersons) {
       const pId = String(p.id);
-      // Quy chuẩn khóa ngoại: Target là người nắm giữ vai trò
       if (p.father_id) addEdge(pId, String(p.father_id), 'Cha', 'Con');
       if (p.mother_id) addEdge(pId, String(p.mother_id), 'Mẹ', 'Con');
       if (p.spouse_id) addEdge(pId, String(p.spouse_id), 'Vợ/Chồng', 'Vợ/Chồng');
     }
 
+    // XỬ LÝ QUAN HỆ CHÍNH XÁC TỪ BẢNG relationships
     for (const r of allRels) {
-      const type = r.relationship_type || r.type || 'Họ hàng';
-      // Sử dụng Logic tính chiều ngược lại thay vì gán cứng
-      const inverseType = UtilsService.getInverse(type);
-      addEdge(String(r.person_id), String(r.related_person_id), type, inverseType);
+      const type = r.type; // biological_child hoặc marriage
+      const idA = String(r.person_a);
+      const idB = String(r.person_b);
+
+      const personA = this.personsMap.get(idA);
+      const personB = this.personsMap.get(idB);
+
+      if (!personA || !personB) continue;
+
+      if (type === 'biological_child') {
+        const roleOfA = personA.gender === 'male' ? 'Cha' : 'Mẹ';
+        const roleOfB = 'Con';
+        addEdge(idA, idB, roleOfB, roleOfA);
+      } 
+      else if (type === 'marriage') {
+        const roleOfA = personA.gender === 'male' ? 'Chồng' : 'Vợ';
+        const roleOfB = personB.gender === 'male' ? 'Chồng' : 'Vợ';
+        addEdge(idA, idB, roleOfB, roleOfA);
+      }
+      else {
+        // Fallback cho các loại quan hệ chưa xác định
+        const relationType = r.relationship_type || type || 'Họ hàng';
+        addEdge(idA, idB, relationType, relationType);
+      }
     }
 
     this.isLoaded = true;
 
+    // Lưu lại vào Database Cache dưới dạng khối JSON nguyên bản
     const payload = {
         persons: Array.from(this.personsMap.entries()),
         graph: Array.from(this.graph.entries()),
@@ -305,10 +317,53 @@ class FamilyTreeDataService {
     }
     return matched;
   }
+
+  static searchFallbackEntity(fallbackName: string): MatchedEntity | null {
+    const fbNorm = UtilsService.removeAccents(fallbackName);
+    if (fbNorm.length < 2) return null;
+    
+    const foundKey = this.sortedNameKeys.find(k => k.includes(fbNorm) || fbNorm.includes(k));
+    if (foundKey) {
+      return { normalized: foundKey, ids: this.nameIndex.get(foundKey) || [] };
+    }
+    return null;
+  }
 }
 
 // ============================================================================
-// 4. BỘ ĐIỀU KHIỂN CHÍNH (API ROUTE)
+// 4. LLM SERVICE 
+// ============================================================================
+class LLMService {
+  static async generate(apiKey: string, prompt: string, message: string, useJSON: boolean): Promise<any> {
+    const response = await fetch(GROQ_API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        response_format: useJSON ? { type: 'json_object' } : undefined,
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: message },
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`LLM Error: ${errData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content;
+  }
+}
+
+// ============================================================================
+// 5. BỘ ĐIỀU KHIỂN CHÍNH (API ROUTE POST)
 // ============================================================================
 export async function POST(req: Request) {
   try {
@@ -339,7 +394,8 @@ export async function POST(req: Request) {
 
     const intentPrompt = `Phân tích câu hỏi và trả về DUY NHẤT JSON. 
 Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members" | "general", "name1": "Tên 1", "name2": "Tên 2" }
-LƯU Ý: Bỏ qua danh xưng (cụ, kỵ, ông, bà, anh, chị...). Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" là "search_person".`;
+LƯU Ý: Bỏ qua danh xưng (cụ, kỵ, ông, bà, anh, chị, chú, bác, dì, cô, dượng, mợ, thím...) khi trích xuất tên.
+Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa tên người đều có intent là "search_person".`;
     
     const intentRes = await fetch(GROQ_API_ENDPOINT, {
         method: 'POST',
@@ -362,8 +418,6 @@ LƯU Ý: Bỏ qua danh xưng (cụ, kỵ, ông, bà, anh, chị...). Các câu h
     let fallbackEntity: MatchedEntity | null = null;
     if (!entity1 && parsedIntent.intent === 'search_person') {
       const fallbackName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà|cụ|kỵ|kị|chú|bác|cô|dì|dượng|mợ|thím)/gi, '').replace(/[?.,!]/g, '').trim();
-      const fbNorm = UtilsService.removeAccents(fallbackName);
-      const graphNames = Array.from(FamilyTreeDataService.getGraph().keys()).map(id => FamilyTreeDataService.getPerson(id)?.full_name || '');
       const foundEntity = FamilyTreeDataService.extractMatchedEntities(fallbackName)[0];
       if (foundEntity) fallbackEntity = foundEntity;
     }
@@ -443,10 +497,13 @@ ${JSON.stringify(backendContext)}
 
 HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
 1. KHÔNG tự suy luận. Chỉ dùng kết quả từ Backend.
-2. Nếu hỏi Quan hệ (find_relationship): Dùng trường "exact_relationship" để trả lời ngay lập tức (VD: "A là Ông nội của B"). Không cần kể lể dài dòng đường đi (path_raw).
-3. Nếu tìm người: In ra Thông tin cá nhân và Quan hệ gia đình. Bắt buộc có link hồ sơ ở cuối mỗi người:
+2. Nếu có "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi.
+3. Nếu có "note", hãy hiển thị nó như một cảnh báo/lưu ý.
+4. Nếu JSON có mảng "multiple_matches" (Trùng tên), hãy trình bày danh sách LẦN LƯỢT TỪNG NGƯỜI (bao gồm Thông tin cá nhân và Quan hệ gia đình). Bắt buộc chèn Link hồ sơ bên dưới mỗi người.
+5. Nếu hỏi Quan hệ (find_relationship): Dùng trường "exact_relationship" để trả lời ngay lập tức (VD: "A là Ông nội của B"). Không cần kể lể dài dòng đường đi (path_raw).
+6. Nếu tìm người: In ra Thông tin cá nhân và Quan hệ gia đình (Dựa theo relationship_hint để in ra vai trò). Bắt buộc có link hồ sơ ở cuối mỗi người:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-4. Không in các trường _debug hoặc JSON ra màn hình.`;
+7. Không in các trường _debug hoặc JSON ra màn hình.`;
 
     const finalRes = await fetch(GROQ_API_ENDPOINT, {
         method: 'POST',
