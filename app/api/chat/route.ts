@@ -23,11 +23,11 @@ function parseLLMJson(rawText: string) {
 }
 
 // ============================================================================
-// 2. TẦNG BACKEND LOGIC (MÔ PHỎNG RPC SUPABASE)
+// 2. TẦNG BACKEND LOGIC (SỬ DỤNG SELECT * ĐỂ CHỐNG LỖI THIẾU CỘT TRONG DB)
 // ============================================================================
 async function rpc_SearchPerson(supabase: any, name: string) {
-  const { data } = await supabase.from('persons').select('id, full_name, name, ho_ten, gender, birth_date, death_date, biography, position');
-  if (!data) return [];
+  const { data, error } = await supabase.from('persons').select('*').limit(3000);
+  if (error || !data) return [];
   
   const keyword = removeAccents(name);
   return data.filter((p: any) => {
@@ -37,27 +37,45 @@ async function rpc_SearchPerson(supabase: any, name: string) {
 }
 
 async function rpc_GetFamily(supabase: any, personId: string) {
-  const { data: person } = await supabase.from('persons').select('id, full_name, gender, birth_date, death_date').eq('id', personId).single();
+  const { data: person } = await supabase.from('persons').select('*').eq('id', personId).single();
   const { data: rels } = await supabase
     .from('relationships')
-    .select('person_id, related_person_id, relationship_type, persons!related_person_id(id, full_name, gender, birth_date)')
+    .select('*')
     .or(`person_id.eq.${personId},related_person_id.eq.${personId}`);
 
   if (!person || !rels) return { person, family: [] };
 
-  const family = rels.map((r: any) => {
-    const isSubject = r.person_id === personId;
-    const relName = r.persons?.full_name || 'Không rõ';
-    const relId = r.persons?.id;
-    return { id: relId, name: relName, relationship: r.relationship_type };
+  const relativeIds = new Set<string>();
+  rels.forEach((r: any) => {
+    if (r.person_id && r.person_id !== personId) relativeIds.add(r.person_id);
+    if (r.related_person_id && r.related_person_id !== personId) relativeIds.add(r.related_person_id);
   });
+
+  let family: any[] = [];
+  if (relativeIds.size > 0) {
+    const ids = Array.from(relativeIds);
+    const { data: relatives } = await supabase.from('persons').select('*').in('id', ids);
+    if (relatives) {
+      family = rels.map((r: any) => {
+         const isSubject = r.person_id === personId;
+         const relId = isSubject ? r.related_person_id : r.person_id;
+         const relative = relatives.find((p: any) => p.id === relId);
+         const type = r.relationship_type || r.type || 'có quan hệ';
+         return { 
+             id: relId, 
+             name: relative?.full_name || relative?.name || 'Không rõ', 
+             relationship: type 
+         };
+      });
+    }
+  }
 
   return { person, family };
 }
 
 async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: string) {
-  const { data: persons } = await supabase.from('persons').select('id, full_name, name, ho_ten');
-  const { data: relationships } = await supabase.from('relationships').select('person_id, related_person_id, relationship_type');
+  const { data: persons } = await supabase.from('persons').select('*').limit(3000);
+  const { data: relationships } = await supabase.from('relationships').select('*');
 
   if (!persons || !relationships) return null;
 
@@ -68,21 +86,22 @@ async function rpc_FindRelationshipBFS(supabase: any, name1: string, name2: stri
   const p2 = persons.find((p: any) => removeAccents(p.full_name || p.name || '').includes(key2));
 
   if (!p1 || !p2) return { error: `Không tìm thấy đủ thông tin của 2 người trong gia phả để so sánh.` };
-  if (p1.id === p2.id) return { path: [`Hai tên này đều chỉ cùng một người là: ${p1.full_name}.`] };
+  if (p1.id === p2.id) return { path: [`Hai tên này đều chỉ cùng một người là: ${p1.full_name || p1.name}.`] };
 
   const graph: Record<string, { id: string, name: string, type: string }[]> = {};
   persons.forEach((p: any) => graph[p.id] = []);
 
   relationships.forEach((r: any) => {
     if (graph[r.person_id] && graph[r.related_person_id]) {
-       const nameA = persons.find((p:any) => p.id === r.related_person_id)?.full_name;
-       const nameB = persons.find((p:any) => p.id === r.person_id)?.full_name;
-       graph[r.person_id].push({ id: r.related_person_id, name: nameA, type: r.relationship_type });
-       graph[r.related_person_id].push({ id: r.person_id, name: nameB, type: `có họ hàng với` });
+       const nameA = persons.find((p:any) => p.id === r.related_person_id)?.full_name || 'Không rõ';
+       const nameB = persons.find((p:any) => p.id === r.person_id)?.full_name || 'Không rõ';
+       const type = r.relationship_type || r.type || 'có họ hàng với';
+       graph[r.person_id].push({ id: r.related_person_id, name: nameA, type: type });
+       graph[r.related_person_id].push({ id: r.person_id, name: nameB, type: type });
     }
   });
 
-  const queue: { id: string, path: string[] }[] = [{ id: p1.id, path: [p1.full_name] }];
+  const queue: { id: string, path: string[] }[] = [{ id: p1.id, path: [p1.full_name || p1.name] }];
   const visited = new Set<string>();
   visited.add(p1.id);
 
@@ -121,9 +140,8 @@ export async function POST(req: Request) {
     // ------------------------------------------------------------------------
     // BƯỚC 0: TẢI DANH BẠ ĐỂ QUÉT TÊN CHÍNH XÁC (EXACT MATCHING)
     // ------------------------------------------------------------------------
-    const { data: nameData } = await supabase.from('persons').select('full_name, name, ho_ten').limit(3000);
+    const { data: nameData } = await supabase.from('persons').select('*').limit(3000);
     const validNames = Array.from(new Set((nameData || []).map((p: any) => p.full_name || p.name || p.ho_ten).filter(Boolean))) as string[];
-    
     validNames.sort((a, b) => b.length - a.length);
 
     // ------------------------------------------------------------------------
@@ -153,13 +171,12 @@ Cấu trúc:
     let backendContext: any = { _debug_intent: parsedIntent.intent };
 
     // ------------------------------------------------------------------------
-    // BƯỚC 2: TÌM TÊN THÔNG MINH VÀ LỌC ẢO GIÁC TUYỆT ĐỐI (ANTI-HALLUCINATION)
+    // BƯỚC 2: TÌM TÊN THÔNG MINH VÀ LỌC ẢO GIÁC TUYỆT ĐỐI
     // ------------------------------------------------------------------------
     const msgNoAccent = removeAccents(message);
     let searchName1 = "";
     let searchName2 = "";
 
-    // Quét tên từ danh bạ trước
     let tempMsg = msgNoAccent;
     const matchedNames = [];
     for (const name of validNames) {
@@ -173,15 +190,12 @@ Cấu trúc:
     searchName1 = matchedNames[0] || parsedIntent.name1 || "";
     searchName2 = matchedNames[1] || parsedIntent.name2 || "";
 
-    // HÀM KIỂM DUYỆT ẢO GIÁC BẮT BUỘC
     const verifyHallucination = (extractedName: string) => {
         if (!extractedName) return "";
         const finalClean = removeAccents(extractedName);
         const words = finalClean.split(' ').filter(Boolean);
-        // Nếu AI đẻ ra một chữ (VD: "giới") không nằm trong câu hỏi gốc -> Ảo giác
         const hasHallucination = words.some(word => !msgNoAccent.includes(word));
         if (hasHallucination) {
-            // Tự động dùng Regex gọt câu hỏi lấy đúng từ khóa
             return message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
         }
         return extractedName;
@@ -190,7 +204,6 @@ Cấu trúc:
     searchName1 = verifyHallucination(searchName1);
     searchName2 = verifyHallucination(searchName2);
 
-    // Fallback nếu chuỗi vẫn trống
     if (!searchName1 && (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family')) {
         searchName1 = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ)/gi, '').replace(/[?.,!]/g, '').trim();
     }
