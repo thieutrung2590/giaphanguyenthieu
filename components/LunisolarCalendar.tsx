@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, CalendarDays, X, Sun, Moon } from "lucide-react";
-import { Solar, Lunar, LunarYear } from "lunar-javascript";
+import { Solar, Lunar } from "lunar-javascript";
 import { useState, useMemo, useCallback } from "react";
 
 // --- BỘ TỪ ĐIỂN DỊCH THUẬT CAN CHI & MỆNH ---
@@ -58,7 +58,7 @@ const YEARS_LIST = Array.from({ length: 101 }, (_, i) => CURRENT_YEAR - 50 + i);
 const MONTHS_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS_31_LIST = Array.from({ length: 31 }, (_, i) => i + 1);
 
-// --- TỐI ƯU: CACHE KẾT QUẢ TÍNH TOÁN (Tránh gọi .getLunar lặp lại 42 lần vô ích) ---
+// --- CACHE KẾT QUẢ TÍNH TOÁN ---
 const LUNAR_CACHE = new Map<string, Lunar>();
 function getCachedLunar(y: number, m: number, d: number): Lunar {
   const key = `${y}-${m}-${d}`;
@@ -69,6 +69,22 @@ function getCachedLunar(y: number, m: number, d: number): Lunar {
 }
 
 const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
+
+// --- TÌM THÁNG NHUẬN (Bypass lỗi TS của LunarYear) ---
+// Dùng Solar quét qua các ngày trong năm (bước nhảy 15 ngày) để tự dò tháng âm bị âm (nhuận)
+function getLeapMonthOfYear(y: number): number {
+  const date = new Date(y, 0, 15); // Bắt đầu quét từ 15/1 dương lịch
+  const endDate = new Date(y + 1, 2, 15); // Quét tới 15/3 năm sau (chắc chắn cover hết năm âm lịch)
+  
+  while (date <= endDate) {
+    const lunar = getCachedLunar(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    if (lunar.getYear() === y && lunar.getMonth() < 0) {
+      return Math.abs(lunar.getMonth());
+    }
+    date.setDate(date.getDate() + 15); // Bước nhảy 15 ngày không thể sót được bất kỳ tháng nào
+  }
+  return 0; // Năm không có tháng nhuận
+}
 
 export default function LunisolarCalendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -139,21 +155,21 @@ export default function LunisolarCalendar() {
     const lunar = getCachedLunar(modalSolarData.y, modalSolarData.m, modalSolarData.d);
     return { 
       d: lunar.getDay(), 
-      m: lunar.getMonth(), // Hàm này trả về số âm nếu đó là tháng nhuận
+      m: lunar.getMonth(), // Trả về số âm nếu đó là tháng nhuận
       y: lunar.getYear(),
       isLeap: lunar.getMonth() < 0
     };
   }, [modalSolarData]);
 
-  // --- NGHIỆP VỤ: Động tạo danh sách tháng âm lịch cho Dropdown ---
+  // Tạo động Dropdown Tháng Âm lịch (hỗ trợ Nhuận)
   const lunarMonthOptions = useMemo(() => {
     const options = [];
-    const leapMonth = LunarYear.fromYear(modalLunarData.y).getLeapMonth();
+    const leapMonth = getLeapMonthOfYear(modalLunarData.y);
     
     for(let i = 1; i <= 12; i++) {
       options.push({ value: i, label: `Tháng ${i}` });
       if (i === leapMonth) {
-        options.push({ value: -i, label: `Tháng ${i} (Nhuận)` }); // Giá trị âm đại diện cho nhuận
+        options.push({ value: -i, label: `Tháng ${i} (Nhuận)` }); // Giá trị âm cho tháng nhuận
       }
     }
     return options;
@@ -180,7 +196,7 @@ export default function LunisolarCalendar() {
     if (type === 'y') {
       y = value;
       // Tránh lỗi khi đang chọn tháng Nhuận, mà đổi qua năm không có tháng Nhuận đó
-      const leapMonth = LunarYear.fromYear(y).getLeapMonth();
+      const leapMonth = getLeapMonthOfYear(y);
       if (m < 0 && Math.abs(m) !== leapMonth) {
         m = Math.abs(m);
       }
@@ -189,15 +205,12 @@ export default function LunisolarCalendar() {
     if (type === 'd') d = value;
 
     try {
-      // 1. Kiểm tra ngày lớn nhất của tháng đó (với thư viện lunar-javascript thì truyền số âm để kiểm tra tháng nhuận là hợp lệ)
-      const tempLunar = Lunar.fromYmd(y, m, 1);
+      const tempLunar = Lunar.fromYmd(y, m, 1) as any;
       const maxLunarDays = tempLunar.getDayCount();
 
-      // 2. Chặn lại nếu ngày vượt giới hạn
       if (d > maxLunarDays) d = maxLunarDays;
 
-      // 3. Quy đổi ngược ra Dương lịch để cập nhật view
-      const lunarObj = Lunar.fromYmd(y, m, d);
+      const lunarObj = Lunar.fromYmd(y, m, d) as any;
       const solarObj = lunarObj.getSolar();
       const newDate = new Date(solarObj.getYear(), solarObj.getMonth() - 1, solarObj.getDay());
       
@@ -205,7 +218,7 @@ export default function LunisolarCalendar() {
       setModalViewMonth(newDate.getMonth() + 1);
       setModalViewYear(newDate.getFullYear());
     } catch (e) {
-      console.error("Invalid lunar date mapping", e);
+      console.error("Lỗi khi chuyển đổi ngày âm:", e);
     }
   };
 
@@ -251,7 +264,7 @@ export default function LunisolarCalendar() {
     const sMonth = selectedDate.getMonth() + 1;
     const sDay = selectedDate.getDate();
     
-    const lunar = getCachedLunar(sYear, sMonth, sDay);
+    const lunar = getCachedLunar(sYear, sMonth, sDay) as any;
 
     const lYearStr = translateToVN(lunar.getYearInGanZhi());
     const lMonthStr = translateToVN(lunar.getMonthInGanZhi());
@@ -300,7 +313,7 @@ export default function LunisolarCalendar() {
       const sMonth = d.getMonth() + 1;
       const sDay = d.getDate();
       
-      const lunar = getCachedLunar(sYear, sMonth, sDay);
+      const lunar = getCachedLunar(sYear, sMonth, sDay) as any;
       
       const lDay = lunar.getDay();
       const lMonth = Math.abs(lunar.getMonth());
