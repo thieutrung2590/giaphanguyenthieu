@@ -18,22 +18,23 @@ interface PersonRecord {
   is_deceased?: boolean;
   is_in_law?: boolean;
   generation?: number;
-  [key: string]: unknown; 
+  [key: string]: any; // Đổi thành 'any' để tránh lỗi {} của TypeScript khi build
 }
 
 interface RelationshipRecord {
   id?: string | number;
   type?: string;
+  relationship_type?: string;
   person_a: string | number;
   person_b: string | number;
   note?: string;
-  [key: string]: unknown;
+  [key: string]: any; // Đổi thành 'any' để tránh lỗi {} của TypeScript khi build
 }
 
 interface GraphEdge {
   id: string;
   name: string;
-  type: string; // Chiều có hướng: "Người này là [type] của người gốc"
+  type: string;
 }
 
 interface FamilyMember {
@@ -73,12 +74,12 @@ interface BackendContext {
 }
 
 // ============================================================================
-// 2. UTILS & KINSHIP ENGINE (Xử lý Đồ thị có hướng)
+// 2. UTILS & KINSHIP ENGINE 
 // ============================================================================
 class UtilsService {
   static removeAccents(str: string): string {
     if (!str) return '';
-    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
+    return String(str).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
   }
 
   static parseLLMJson(rawText: string): IntentJSON {
@@ -98,14 +99,12 @@ class UtilsService {
     return clean;
   }
 
-  // Động cơ tính toán huyết thống chính xác từ đường đi BFS
   static inferExactKinship(pathRelations: string[]): string {
     if (pathRelations.length === 0) return "Cùng một người";
-    if (pathRelations.length === 1) return pathRelations[0]; // Trực tiếp 1 bậc
+    if (pathRelations.length === 1) return pathRelations[0]; 
 
-    const p = pathRelations.map(x => x.toLowerCase().trim()).join(' -> ');
+    const p = pathRelations.map(x => String(x).toLowerCase().trim()).join(' -> ');
     
-    // Bộ quy tắc suy luận Graph Logic
     const rules: Record<string, string> = {
         "cha -> cha": "Ông nội",
         "cha -> mẹ": "Bà nội",
@@ -131,13 +130,12 @@ class UtilsService {
         if (p.includes(key)) return val;
     }
 
-    // Nếu quá sâu hoặc phức tạp, gom lại thành chuỗi quan hệ chi tiết để LLM dễ đọc
     return `Quan hệ nối tiếp qua ${pathRelations.length} bậc: ` + pathRelations.join(' của ');
   }
 }
 
 // ============================================================================
-// 3. DATA SERVICE (Webhook & Database Cache - Không dùng TTL)
+// 3. DATA SERVICE 
 // ============================================================================
 class FamilyTreeDataService {
   private static personsMap: Map<string, PersonRecord> = new Map();
@@ -148,13 +146,9 @@ class FamilyTreeDataService {
   private static isLoaded = false;
   private static CACHE_KEY = 'family_tree_v1';
 
-  /**
-   * Tải dữ liệu. forceRefresh = true sẽ được gọi từ Webhook để cập nhật DB Cache.
-   */
   static async ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
     if (this.isLoaded && !forceRefresh) return; 
 
-    // Nếu không ép làm mới, Cố gắng tải từ Database Cache (Chỉ 1 request O(1))
     if (!forceRefresh) {
         const { data: cacheRow, error: cacheErr } = await supabase
           .from('api_cache')
@@ -178,13 +172,11 @@ class FamilyTreeDataService {
         }
     }
 
-    // Nạp lại toàn bộ từ Database (Chỉ chạy khi forceRefresh hoặc Cache trống)
     this.personsMap.clear();
     this.graph.clear();
     this.nameIndex.clear();
     this.sortedNameKeys = [];
 
-    // Tải bảng persons bằng phân trang
     let allPersons: PersonRecord[] = [];
     let from = 0;
     const step = 1000;
@@ -197,7 +189,6 @@ class FamilyTreeDataService {
       from += step;
     }
 
-    // Tải bảng relationships bằng phân trang
     let allRels: RelationshipRecord[] = [];
     from = 0;
     while (true) {
@@ -209,7 +200,6 @@ class FamilyTreeDataService {
       from += step;
     }
 
-    // Nạp dữ liệu vào Map và Name Index
     for (const p of allPersons) {
       const pId = String(p.id);
       this.personsMap.set(pId, p);
@@ -227,33 +217,23 @@ class FamilyTreeDataService {
     }
     this.sortedNameKeys.sort((a, b) => b.length - a.length);
 
-    // CẠNH CÓ HƯỚNG: id1 -> id2 (người id2 là type1To2 của id1)
     const addEdge = (id1: string, id2: string, type1To2: string, type2To1: string) => {
       if (!id1 || !id2 || id1 === id2 || !this.graph.has(id1) || !this.graph.has(id2)) return;
       
       const n1 = this.personsMap.get(id1);
       const n2 = this.personsMap.get(id2);
-      const name1 = (n1?.full_name || n1?.name || n1?.ho_ten || 'Không rõ') as string;
-      const name2 = (n2?.full_name || n2?.name || n2?.ho_ten || 'Không rõ') as string;
+      const name1 = String(n1?.full_name || n1?.name || n1?.ho_ten || 'Không rõ');
+      const name2 = String(n2?.full_name || n2?.name || n2?.ho_ten || 'Không rõ');
 
       const edges1 = this.graph.get(id1)!;
-      if (!edges1.some(e => e.id === id2)) edges1.push({ id: id2, name: name2, type: type1To2 });
+      if (!edges1.some(e => e.id === id2)) edges1.push({ id: id2, name: name2, type: String(type1To2) });
 
       const edges2 = this.graph.get(id2)!;
-      if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: type2To1 });
+      if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: String(type2To1) });
     };
 
-    // Nạp dữ liệu từ các cột dự phòng (nếu vẫn còn sót lại trong Database)
-    for (const p of allPersons) {
-      const pId = String(p.id);
-      if (p.father_id) addEdge(pId, String(p.father_id), 'Cha', 'Con');
-      if (p.mother_id) addEdge(pId, String(p.mother_id), 'Mẹ', 'Con');
-      if (p.spouse_id) addEdge(pId, String(p.spouse_id), 'Vợ/Chồng', 'Vợ/Chồng');
-    }
-
-    // XỬ LÝ QUAN HỆ CHÍNH XÁC TỪ BẢNG relationships
     for (const r of allRels) {
-      const type = r.type; // biological_child hoặc marriage
+      const type = r.type as string; 
       const idA = String(r.person_a);
       const idB = String(r.person_b);
 
@@ -273,15 +253,14 @@ class FamilyTreeDataService {
         addEdge(idA, idB, roleOfB, roleOfA);
       }
       else {
-        // Fallback cho các loại quan hệ chưa xác định
-        const relationType = r.relationship_type || type || 'Họ hàng';
+        // Ép kiểu tường minh để tránh lỗi TypeError khi build
+        const relationType = String(r.relationship_type || type || 'Họ hàng');
         addEdge(idA, idB, relationType, relationType);
       }
     }
 
     this.isLoaded = true;
 
-    // Lưu lại vào Database Cache dưới dạng khối JSON nguyên bản
     const payload = {
         persons: Array.from(this.personsMap.entries()),
         graph: Array.from(this.graph.entries()),
@@ -289,7 +268,6 @@ class FamilyTreeDataService {
         sortedNameKeys: this.sortedNameKeys
     };
     
-    // Upsert để ghi đè khối JSON
     await supabase.from('api_cache').upsert({ 
         key: this.CACHE_KEY, 
         payload: payload, 
@@ -369,7 +347,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // BẮT WEBHOOK: Kích hoạt tải lại Cache không điều kiện
     const isWebhookRefresh = body.action === 'refresh_cache';
     const message = body.message || '';
     
@@ -382,7 +359,6 @@ export async function POST(req: Request) {
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Nếu là Webhook, nạp lại Cache và dừng luồng
     if (isWebhookRefresh) {
         await FamilyTreeDataService.ensureLoaded(supabase, true);
         return NextResponse.json({ reply: 'Cache đã được làm mới thành công từ Database!' });
@@ -489,7 +465,7 @@ Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa 
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 5: LLM NLG - CHỈ DIỄN ĐẠT, KHÔNG TỰ SUY LUẬN TOÁN HỌC
+    // BƯỚC 5: LLM NLG 
     // ------------------------------------------------------------------------
     const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. 
 JSON CONTEXT:
