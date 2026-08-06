@@ -1,10 +1,24 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Fragment } from 'react';
+
+type ParsedPart = {
+  id: string;
+  type: 'text' | 'link';
+  content: string;
+  url?: string;
+};
+
+type ParsedLine = {
+  id: string;
+  parts: ParsedPart[];
+};
 
 type ChatMessage = {
+  id: string;
   role: 'user' | 'bot';
   text: string;
+  parsedLines: ParsedLine[];
 };
 
 export default function ChatbotWidget() {
@@ -14,12 +28,64 @@ export default function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Hàm tạo tin nhắn và phân tích link Markdown ngay từ đầu để tránh dùng index làm key khi render
+  const createMessage = (role: 'user' | 'bot', text: string): ChatMessage => {
+    const parsedLines = text.split('\n').map((line) => {
+      const parts: ParsedPart[] = [];
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = linkRegex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push({
+            id: crypto.randomUUID(),
+            type: 'text',
+            content: line.substring(lastIndex, match.index),
+          });
+        }
+        parts.push({
+          id: crypto.randomUUID(),
+          type: 'link',
+          content: match[1],
+          url: match[2],
+        });
+        lastIndex = linkRegex.lastIndex;
+      }
+
+      if (lastIndex < line.length) {
+        parts.push({
+          id: crypto.randomUUID(),
+          type: 'text',
+          content: line.substring(lastIndex),
+        });
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        parts,
+      };
+    });
+
+    return {
+      id: crypto.randomUUID(),
+      role,
+      text,
+      parsedLines,
+    };
+  };
+
   useEffect(() => {
     const savedChat = localStorage.getItem('giapha_chat_history');
     if (savedChat) {
       try {
-        setChatHistory(JSON.parse(savedChat));
-      } catch (error) {
+        const parsed = JSON.parse(savedChat);
+        // Đảm bảo tương thích với lịch sử cũ chưa có cấu trúc id và parsedLines
+        const validHistory = parsed.map((msg: any) =>
+          msg.parsedLines && msg.id ? msg : createMessage(msg.role, msg.text)
+        );
+        setChatHistory(validHistory);
+      } catch (error: unknown) {
         console.error('Lỗi khi đọc lịch sử chat:', error);
       }
     }
@@ -35,11 +101,13 @@ export default function ChatbotWidget() {
   }, [chatHistory, isLoading]);
 
   const sendMessage = async () => {
-    if (!message.trim()) return;
+    // Không cho gửi khi đang loading hoặc tin nhắn rỗng
+    if (isLoading || !message.trim()) return;
 
     const userMsg = message;
     setMessage('');
-    setChatHistory((prev) => [...prev, { role: 'user', text: userMsg }]);
+    
+    setChatHistory((prev) => [...prev, createMessage('user', userMsg)]);
     setIsLoading(true);
 
     try {
@@ -49,22 +117,36 @@ export default function ChatbotWidget() {
         body: JSON.stringify({ message: userMsg }),
       });
 
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-         throw new Error("Bị chặn truy cập. Có thể do Middleware yêu cầu đăng nhập.");
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Bị chặn truy cập. Có thể do Middleware yêu cầu đăng nhập.');
       }
 
       const data = await res.json();
-      
+
       if (!res.ok) {
-        throw new Error(data.reply || 'Máy chủ trả về lỗi không xác định.');
+        // Kiểm tra tồn tại của data và data.reply
+        throw new Error((data && data.reply) ? data.reply : 'Máy chủ trả về lỗi không xác định.');
       }
 
-      setChatHistory((prev) => [...prev, { role: 'bot', text: data.reply }]);
-    } catch (error: any) {
+      // Kiểm tra tính hợp lệ của dữ liệu phản hồi
+      if (!data || !data.reply || typeof data.reply !== 'string') {
+        throw new Error('Dữ liệu phản hồi từ máy chủ không hợp lệ.');
+      }
+
+      setChatHistory((prev) => [...prev, createMessage('bot', data.reply)]);
+    } catch (error: unknown) {
+      // Bắt lỗi không dùng any, xử lý type an toàn
+      let errorMessage = 'Lỗi không xác định';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+
       setChatHistory((prev) => [
         ...prev,
-        { role: 'bot', text: `Chi tiết lỗi: ${error.message}` },
+        createMessage('bot', `Chi tiết lỗi: ${errorMessage}`),
       ]);
     } finally {
       setIsLoading(false);
@@ -76,43 +158,6 @@ export default function ChatbotWidget() {
       setChatHistory([]);
       localStorage.removeItem('giapha_chat_history');
     }
-  };
-
-  // Hàm quét và chuyển đổi Markdown Link thành thẻ Link HTML click được
-  const formatText = (text: string, role: string) => {
-    return text.split('\n').map((line, lineIndex) => {
-      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      const parts = [];
-      let lastIndex = 0;
-      let match;
-
-      while ((match = linkRegex.exec(line)) !== null) {
-        if (match.index > lastIndex) {
-          parts.push(line.substring(lastIndex, match.index));
-        }
-        parts.push(
-          <a
-            key={match.index}
-            href={match[2]}
-            // Thiết lập màu xanh lam đậm, gạch chân để giống với một link chuyên nghiệp
-            className={role === 'user' ? 'underline font-semibold text-white' : 'underline font-bold text-blue-600 hover:text-blue-800'}
-          >
-            {match[1]}
-          </a>
-        );
-        lastIndex = linkRegex.lastIndex;
-      }
-
-      if (lastIndex < line.length) {
-        parts.push(line.substring(lastIndex));
-      }
-
-      return (
-        <span key={lineIndex} className="block mb-1">
-          {parts.length > 0 ? parts : line}
-        </span>
-      );
-    });
   };
 
   return (
@@ -151,21 +196,43 @@ export default function ChatbotWidget() {
                 Xin chào! Tôi có thể giúp bạn tìm kiếm thông tin về các thành viên trong gia phả.
               </div>
             )}
-            
-            {chatHistory.map((chat, index) => (
+
+            {chatHistory.map((chat) => (
               <div
-                key={index}
+                key={chat.id}
                 className={`max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed ${
                   chat.role === 'user'
                     ? 'bg-amber-600 text-white self-end rounded-tr-sm shadow-md'
                     : 'bg-white text-stone-800 self-start border border-amber-100 shadow-sm rounded-tl-sm'
                 }`}
               >
-                {/* Sử dụng hàm formatText để render nội dung có chứa link */}
-                {formatText(chat.text, chat.role)}
+                {chat.parsedLines.map((line) => (
+                  <span key={line.id} className="block mb-1">
+                    {line.parts.map((part) => {
+                      if (part.type === 'link') {
+                        return (
+                          <a
+                            key={part.id}
+                            href={part.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={
+                              chat.role === 'user'
+                                ? 'underline font-semibold text-white'
+                                : 'underline font-bold text-blue-600 hover:text-blue-800'
+                            }
+                          >
+                            {part.content}
+                          </a>
+                        );
+                      }
+                      return <Fragment key={part.id}>{part.content}</Fragment>;
+                    })}
+                  </span>
+                ))}
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="bg-white text-stone-800 self-start max-w-[85%] rounded-2xl rounded-tl-sm p-3 border border-amber-100 shadow-sm flex gap-1 items-center">
                 <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce"></div>
@@ -183,7 +250,7 @@ export default function ChatbotWidget() {
               placeholder="Hỏi về thành viên..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              onKeyDown={(e) => e.key === 'Enter' && !isLoading && message.trim() && sendMessage()}
               disabled={isLoading}
             />
             <button
