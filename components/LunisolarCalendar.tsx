@@ -1,40 +1,15 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, CalendarDays, X, Sun, Moon } from "lucide-react";
-import { Solar, Lunar } from "lunar-javascript";
+import { Solar, Lunar, LunarYear } from "lunar-javascript";
 import { useState, useMemo, useCallback } from "react";
 
-// --- INTERFACES ĐỂ LOẠI BỎ 'any' ---
-interface SolarInstance {
-  getYear: () => number;
-  getMonth: () => number;
-  getDay: () => number;
-  getLunar: () => LunarInstance;
-}
-
-interface LunarInstance {
-  getDay: () => number;
-  getMonth: () => number; // Trả về số âm nếu là tháng nhuận
-  getYear: () => number;
-  getYearInGanZhi: () => string;
-  getMonthInGanZhi: () => string;
-  getDayInGanZhi: () => string;
-  getDayNaYin: () => string;
-  getDayChongDesc: () => string;
-  getDaySha: () => string;
-  getDayTianShenType?: () => string;
-  getDayZhi: () => string;
-  getDayCount: () => number; // Số ngày trong tháng âm lịch (29 hoặc 30)
-  getSolar: () => SolarInstance;
-}
-
 // --- BỘ TỪ ĐIỂN DỊCH THUẬT CAN CHI & MỆNH ---
-const HAN_VIET_MAP: Record<string, string> = { 
+const HAN_VIET_MAP: Record<string, string> = {
   '甲': 'Giáp', '乙': 'Ất', '丙': 'Bính', '丁': 'Đinh', '戊': 'Mậu', '己': 'Kỷ', '庚': 'Canh', '辛': 'Tân', '壬': 'Nhâm', '癸': 'Quý',
-  '子': 'Tý', '丑': 'Sửu', '寅': 'Dần', '卯': 'Mão', '辰': 'Thìn', '巳': 'Tỵ', '午': 'Ngọ', '未': 'Mùi', '申': 'Thân', '酉': 'Dậu', '戌': 'Tuất', '亥': 'Hợi' 
+  '子': 'Tý', '丑': 'Sửu', '寅': 'Dần', '卯': 'Mão', '辰': 'Thìn', '巳': 'Tỵ', '午': 'Ngọ', '未': 'Mùi', '申': 'Thân', '酉': 'Dậu', '戌': 'Tuất', '亥': 'Hợi'
 };
 
-// TỐI ƯU 1: Pre-compile Regex một lần duy nhất thay vì tạo mới trong mỗi vòng lặp
 const HAN_VIET_REGEX = new RegExp(Object.keys(HAN_VIET_MAP).join('|'), 'g');
 
 function translateToVN(str: string) {
@@ -78,29 +53,33 @@ const SOLAR_EVENTS: Record<string, string> = {
 const WEEKDAYS = ["Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy", "Chủ nhật"];
 const MINI_WEEKDAYS = ["Th 2", "Th 3", "Th 4", "Th 5", "Th 6", "Th 7", "CN"];
 
-// TỐI ƯU 2: Đưa các danh sách không đổi ra ngoài component để tránh re-render tốn tài nguyên
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS_LIST = Array.from({ length: 101 }, (_, i) => CURRENT_YEAR - 50 + i);
 const MONTHS_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS_31_LIST = Array.from({ length: 31 }, (_, i) => i + 1);
-const DAYS_30_LIST = Array.from({ length: 30 }, (_, i) => i + 1);
 
-// Helper function: Lấy số ngày trong tháng dương lịch
+// --- TỐI ƯU: CACHE KẾT QUẢ TÍNH TOÁN (Tránh gọi .getLunar lặp lại 42 lần vô ích) ---
+const LUNAR_CACHE = new Map<string, Lunar>();
+function getCachedLunar(y: number, m: number, d: number): Lunar {
+  const key = `${y}-${m}-${d}`;
+  if (LUNAR_CACHE.has(key)) return LUNAR_CACHE.get(key)!;
+  const lunar = Solar.fromYmd(y, m, d).getLunar();
+  LUNAR_CACHE.set(key, lunar);
+  return lunar;
+}
+
 const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
 
 export default function LunisolarCalendar() {
-  // Lịch chính
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth() + 1);
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
 
-  // Lịch thu nhỏ (Modal xem nhanh)
   const [showQuickView, setShowQuickView] = useState(false);
   const [modalDate, setModalDate] = useState(new Date());
   const [modalViewMonth, setModalViewMonth] = useState(modalDate.getMonth() + 1);
   const [modalViewYear, setModalViewYear] = useState(modalDate.getFullYear());
 
-  // TỐI ƯU 3: Đồng bộ selectedDate khi thay đổi tháng (nhảy về ngày mùng 1 của tháng đó)
   const changeMainMonth = useCallback((offsetMonth: number) => {
     const newDate = new Date(viewYear, viewMonth - 1 + offsetMonth, 1);
     setSelectedDate(newDate);
@@ -127,7 +106,6 @@ export default function LunisolarCalendar() {
   const handlePrevMonth = () => changeMainMonth(-1);
   const handleNextMonth = () => changeMainMonth(1);
 
-  // --- HÀM XỬ LÝ MODAL (XEM NHANH THEO NGÀY) ---
   const openQuickView = () => {
     setModalDate(selectedDate);
     setModalViewMonth(selectedDate.getMonth() + 1);
@@ -153,23 +131,34 @@ export default function LunisolarCalendar() {
   const handleModalPrevMonth = () => changeModalMonth(-1);
   const handleModalNextMonth = () => changeModalMonth(1);
 
-  // Tính toán dữ liệu dropdown trong Modal
   const modalSolarData = useMemo(() => {
     return { d: modalDate.getDate(), m: modalDate.getMonth() + 1, y: modalDate.getFullYear() };
   }, [modalDate]);
 
   const modalLunarData = useMemo(() => {
-    const solar = Solar.fromYmd(modalSolarData.y, modalSolarData.m, modalSolarData.d);
-    const lunar = solar.getLunar() as unknown as LunarInstance;
+    const lunar = getCachedLunar(modalSolarData.y, modalSolarData.m, modalSolarData.d);
     return { 
       d: lunar.getDay(), 
-      m: Math.abs(lunar.getMonth()), 
+      m: lunar.getMonth(), // Hàm này trả về số âm nếu đó là tháng nhuận
       y: lunar.getYear(),
-      isLeap: lunar.getMonth() < 0 // Ghi nhận tháng nhuận
+      isLeap: lunar.getMonth() < 0
     };
   }, [modalSolarData]);
 
-  // Khi thay đổi dropdown Dương Lịch
+  // --- NGHIỆP VỤ: Động tạo danh sách tháng âm lịch cho Dropdown ---
+  const lunarMonthOptions = useMemo(() => {
+    const options = [];
+    const leapMonth = LunarYear.fromYear(modalLunarData.y).getLeapMonth();
+    
+    for(let i = 1; i <= 12; i++) {
+      options.push({ value: i, label: `Tháng ${i}` });
+      if (i === leapMonth) {
+        options.push({ value: -i, label: `Tháng ${i} (Nhuận)` }); // Giá trị âm đại diện cho nhuận
+      }
+    }
+    return options;
+  }, [modalLunarData.y]);
+
   const handleModalSolarChange = (type: 'd' | 'm' | 'y', value: number) => {
     let { d, m, y } = modalSolarData;
     if (type === 'y') y = value;
@@ -185,26 +174,30 @@ export default function LunisolarCalendar() {
     setModalViewYear(y);
   };
 
-  // TỐI ƯU 4: Xử lý Ngày Âm không hợp lệ (Ví dụ: Tháng 29 ngày nhưng chọn ngày 30)
   const handleModalLunarChange = (type: 'd' | 'm' | 'y', value: number) => {
-    let { d, m, y, isLeap } = modalLunarData;
-    if (type === 'y') y = value;
+    let { d, m, y } = modalLunarData;
+    
+    if (type === 'y') {
+      y = value;
+      // Tránh lỗi khi đang chọn tháng Nhuận, mà đổi qua năm không có tháng Nhuận đó
+      const leapMonth = LunarYear.fromYear(y).getLeapMonth();
+      if (m < 0 && Math.abs(m) !== leapMonth) {
+        m = Math.abs(m);
+      }
+    }
     if (type === 'm') m = value;
     if (type === 'd') d = value;
-    
-    // Đảm bảo giữ đúng tháng nhuận nếu đang ở tháng nhuận (âm giá trị)
-    const activeMonth = isLeap ? -Math.abs(m) : Math.abs(m);
 
     try {
-      // 1. Lấy ra tháng âm đó để check tổng số ngày (29 hay 30 ngày)
-      const tempLunar = Lunar.fromYmd(y, activeMonth, 1) as unknown as LunarInstance;
+      // 1. Kiểm tra ngày lớn nhất của tháng đó (với thư viện lunar-javascript thì truyền số âm để kiểm tra tháng nhuận là hợp lệ)
+      const tempLunar = Lunar.fromYmd(y, m, 1);
       const maxLunarDays = tempLunar.getDayCount();
 
-      // 2. Clamp (chặn) nếu ngày chọn lớn hơn số ngày thực tế của tháng âm đó
+      // 2. Chặn lại nếu ngày vượt giới hạn
       if (d > maxLunarDays) d = maxLunarDays;
 
-      // 3. Khởi tạo lại với ngày hợp lệ và lấy Dương Lịch
-      const lunarObj = Lunar.fromYmd(y, activeMonth, d) as unknown as LunarInstance;
+      // 3. Quy đổi ngược ra Dương lịch để cập nhật view
+      const lunarObj = Lunar.fromYmd(y, m, d);
       const solarObj = lunarObj.getSolar();
       const newDate = new Date(solarObj.getYear(), solarObj.getMonth() - 1, solarObj.getDay());
       
@@ -216,7 +209,6 @@ export default function LunisolarCalendar() {
     }
   };
 
-  // Dữ liệu lưới lịch thu nhỏ (Modal)
   const miniGridDays = useMemo(() => {
     const days = [];
     const firstDay = new Date(modalViewYear, modalViewMonth - 1, 1);
@@ -232,9 +224,7 @@ export default function LunisolarCalendar() {
       const sMonth = d.getMonth() + 1;
       const sDay = d.getDate();
       
-      const solar = Solar.fromYmd(sYear, sMonth, sDay);
-      const lunar = solar.getLunar() as unknown as LunarInstance; 
-      
+      const lunar = getCachedLunar(sYear, sMonth, sDay);
       const lMonthAbs = Math.abs(lunar.getMonth());
       const isLeap = lunar.getMonth() < 0;
       
@@ -256,14 +246,12 @@ export default function LunisolarCalendar() {
   }, [modalViewMonth, modalViewYear, modalDate]);
 
 
-  // --- TÍNH TOÁN DỮ LIỆU LỊCH CHÍNH (Đang chọn) ---
   const topInfo = useMemo(() => {
     const sYear = selectedDate.getFullYear();
     const sMonth = selectedDate.getMonth() + 1;
     const sDay = selectedDate.getDate();
     
-    const solar = Solar.fromYmd(sYear, sMonth, sDay);
-    const lunar = solar.getLunar() as unknown as LunarInstance;
+    const lunar = getCachedLunar(sYear, sMonth, sDay);
 
     const lYearStr = translateToVN(lunar.getYearInGanZhi());
     const lMonthStr = translateToVN(lunar.getMonthInGanZhi());
@@ -284,7 +272,7 @@ export default function LunisolarCalendar() {
       sDay, sMonth, sYear,
       lDay: lunar.getDay(),
       lMonth: Math.abs(lunar.getMonth()),
-      isLeap: lunar.getMonth() < 0, // Kiểm tra tháng nhuận
+      isLeap: lunar.getMonth() < 0,
       lYearStr, lMonthStr, lDayStr,
       naYin,
       xungText: `${xungStr} (${satStr})`,
@@ -293,7 +281,7 @@ export default function LunisolarCalendar() {
     };
   }, [selectedDate]);
 
-  // --- TÍNH TOÁN LƯỚI LỊCH CHÍNH (GRID) ---
+
   const gridDays = useMemo(() => {
     const days = [];
     const firstDay = new Date(viewYear, viewMonth - 1, 1);
@@ -312,8 +300,7 @@ export default function LunisolarCalendar() {
       const sMonth = d.getMonth() + 1;
       const sDay = d.getDate();
       
-      const solar = Solar.fromYmd(sYear, sMonth, sDay);
-      const lunar = solar.getLunar() as unknown as LunarInstance; 
+      const lunar = getCachedLunar(sYear, sMonth, sDay);
       
       const lDay = lunar.getDay();
       const lMonth = Math.abs(lunar.getMonth());
@@ -326,7 +313,7 @@ export default function LunisolarCalendar() {
 
       let lunarDisplay = `${lDay}`;
       if (lDay === 1 || sDay === 1) {
-        lunarDisplay = `${lDay}/${lMonth}${isLeap ? '(N)' : ''}`; // Thêm hiển thị nhuận
+        lunarDisplay = `${lDay}/${lMonth}${isLeap ? '(N)' : ''}`;
       }
 
       let eventText = lDayCanChi; 
@@ -368,9 +355,6 @@ export default function LunisolarCalendar() {
   return (
     <div className="max-w-4xl mx-auto font-sans bg-[#f8f9fa] shadow-lg rounded-md overflow-hidden border border-gray-200">
       
-      {/* =========================================================
-                               MODAL XEM NHANH
-         ========================================================= */}
       {showQuickView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="relative bg-white w-full max-w-[360px] rounded-xl shadow-2xl p-4 sm:p-5 flex flex-col">
@@ -453,14 +437,14 @@ export default function LunisolarCalendar() {
             <div className="mt-4">
               <div className="flex items-center gap-1.5 mb-2 text-gray-400 font-semibold text-[15px]">
                 <Moon className="size-5 fill-gray-300" />
-                <span className="text-gray-800">Âm Lịch {modalLunarData.isLeap ? "(Nhuận)" : ""}</span>
+                <span className="text-gray-800">Âm Lịch</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <select value={modalLunarData.d} onChange={(e) => handleModalLunarChange('d', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
-                  {DAYS_30_LIST.map(d => <option key={`ld-${d}`} value={d}>Ngày {d}</option>)}
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map(d => <option key={`ld-${d}`} value={d}>Ngày {d}</option>)}
                 </select>
                 <select value={modalLunarData.m} onChange={(e) => handleModalLunarChange('m', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
-                  {MONTHS_LIST.map(m => <option key={`lm-${m}`} value={m}>Tháng {m}</option>)}
+                  {lunarMonthOptions.map(opt => <option key={`lm-${opt.value}`} value={opt.value}>{opt.label}</option>)}
                 </select>
                 <select value={modalLunarData.y} onChange={(e) => handleModalLunarChange('y', Number(e.target.value))} className="border border-gray-300 rounded px-2 py-1.5 outline-none text-sm text-gray-700 bg-white">
                   {YEARS_LIST.map(y => <option key={`ly-${y}`} value={y}>{y}</option>)}
@@ -478,9 +462,6 @@ export default function LunisolarCalendar() {
         </div>
       )}
 
-      {/* =========================================================
-                               THẺ XEM CHI TIẾT (MAIN UI)
-         ========================================================= */}
       <div className="bg-white">
         <div className="bg-[#439c49] text-white px-3 sm:px-4 py-2 sm:py-2.5 flex justify-between items-center rounded-t-md">
           <h2 className="text-lg sm:text-xl font-bold uppercase tracking-wide">Lịch Vạn Niên</h2>
@@ -539,9 +520,6 @@ export default function LunisolarCalendar() {
 
       <div className="h-2 sm:h-4 bg-gray-100 border-t border-gray-200"></div>
 
-      {/* =========================================================
-                               LƯỚI LỊCH (GRID)
-         ========================================================= */}
       <div className="bg-white">
         <div className="bg-[#439c49] text-white px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3">
