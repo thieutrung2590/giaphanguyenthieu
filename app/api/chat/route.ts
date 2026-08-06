@@ -18,23 +18,25 @@ interface PersonRecord {
   is_deceased?: boolean;
   is_in_law?: boolean;
   generation?: number;
-  [key: string]: any; // Đổi thành 'any' để tránh lỗi {} của TypeScript khi build
+  [key: string]: any; 
 }
 
 interface RelationshipRecord {
   id?: string | number;
   type?: string;
   relationship_type?: string;
-  person_a: string | number;
-  person_b: string | number;
+  person_a?: string | number;
+  person_b?: string | number;
+  person_id?: string | number;
+  related_person_id?: string | number;
   note?: string;
-  [key: string]: any; // Đổi thành 'any' để tránh lỗi {} của TypeScript khi build
+  [key: string]: any; 
 }
 
 interface GraphEdge {
   id: string;
   name: string;
-  type: string;
+  type: string; 
 }
 
 interface FamilyMember {
@@ -144,7 +146,8 @@ class FamilyTreeDataService {
   private static sortedNameKeys: string[] = []; 
   
   private static isLoaded = false;
-  private static CACHE_KEY = 'family_tree_v1';
+  // BUMP VERSION CACHE ĐỂ ÉP HỆ THỐNG XÓA CACHE CŨ VÀ TẢI LẠI TOÀN BỘ TỪ SUPABASE
+  private static CACHE_KEY = 'family_tree_v2';
 
   static async ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
     if (this.isLoaded && !forceRefresh) return; 
@@ -232,10 +235,12 @@ class FamilyTreeDataService {
       if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: String(type2To1) });
     };
 
+    // Quét quan hệ chắc chắn từ bảng relationships
     for (const r of allRels) {
-      const type = r.type as string; 
-      const idA = String(r.person_a);
-      const idB = String(r.person_b);
+      // Bao quát cả trường hợp tên cột bị sai lệch
+      const type = String(r.type || r.relationship_type || '').toLowerCase().trim(); 
+      const idA = String(r.person_a || r.person_id);
+      const idB = String(r.person_b || r.related_person_id);
 
       const personA = this.personsMap.get(idA);
       const personB = this.personsMap.get(idB);
@@ -253,8 +258,7 @@ class FamilyTreeDataService {
         addEdge(idA, idB, roleOfB, roleOfA);
       }
       else {
-        // Ép kiểu tường minh để tránh lỗi TypeError khi build
-        const relationType = String(r.relationship_type || type || 'Họ hàng');
+        const relationType = String(r.relationship_type || r.type || 'Họ hàng');
         addEdge(idA, idB, relationType, relationType);
       }
     }
@@ -465,7 +469,7 @@ Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa 
     }
 
     // ------------------------------------------------------------------------
-    // BƯỚC 5: LLM NLG 
+    // BƯỚC 5: LLM NLG - CHỈ DIỄN ĐẠT, KHÔNG TỰ SUY LUẬN TOÁN HỌC
     // ------------------------------------------------------------------------
     const systemPromptNLG = `Bạn là trợ lý gia phả dòng họ. 
 JSON CONTEXT:
