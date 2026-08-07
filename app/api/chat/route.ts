@@ -14,6 +14,7 @@ interface PersonRecord {
   ho_ten?: string;
   gender?: string;
   birth_year?: number;
+  birth_order?: number;
   death_year?: number;
   is_deceased?: boolean;
   is_in_law?: boolean;
@@ -25,10 +26,8 @@ interface RelationshipRecord {
   id?: string | number;
   type?: string;
   relationship_type?: string;
-  person_a?: string | number;
-  person_b?: string | number;
-  person_id?: string | number;
-  related_person_id?: string | number;
+  person_a: string | number;
+  person_b: string | number;
   note?: string;
   [key: string]: any; 
 }
@@ -76,7 +75,7 @@ interface BackendContext {
 }
 
 // ============================================================================
-// 2. UTILS & KINSHIP ENGINE 
+// 2. UTILS & ADVANCED KINSHIP ENGINE (Tích hợp so sánh Tuổi/Thế hệ)
 // ============================================================================
 class UtilsService {
   static removeAccents(str: string): string {
@@ -101,43 +100,94 @@ class UtilsService {
     return clean;
   }
 
-  static inferExactKinship(pathRelations: string[]): string {
-    if (pathRelations.length === 0) return "Cùng một người";
-    if (pathRelations.length === 1) return pathRelations[0]; 
-
-    const p = pathRelations.map(x => String(x).toLowerCase().trim()).join(' -> ');
+  // TÍNH TOÁN DANH XƯNG CHUẨN VIỆT NAM (Dựa trên gen, tuổi, giới tính)
+  static inferExactKinship(pathIds: string[], personsMap: Map<string, PersonRecord>): string {
+    if (pathIds.length < 2) return "Chính là một người";
     
-    const rules: Record<string, string> = {
-        "cha -> cha": "Ông nội",
-        "cha -> mẹ": "Bà nội",
-        "mẹ -> cha": "Ông ngoại",
-        "mẹ -> mẹ": "Bà ngoại",
-        "cha -> cha -> cha": "Cụ nội",
-        "mẹ -> mẹ -> mẹ": "Cụ ngoại",
-        "cha -> anh": "Bác (trai)",
-        "cha -> chị": "Bác (gái)",
-        "cha -> em": "Chú / Cô",
-        "mẹ -> anh": "Cậu",
-        "mẹ -> chị": "Dì",
-        "mẹ -> em": "Cậu / Dì",
-        "con -> con": "Cháu nội/ngoại",
-        "con -> con -> con": "Chắt",
-        "anh -> cha": "Cha",
-        "em -> cha": "Cha",
-        "vợ -> cha": "Bố vợ",
-        "chồng -> cha": "Bố chồng"
-    };
+    const source = personsMap.get(pathIds[0]);
+    const target = personsMap.get(pathIds[pathIds.length - 1]);
+    
+    if (!source || !target) return "Có họ hàng";
 
-    for (const [key, val] of Object.entries(rules)) {
-        if (p.includes(key)) return val;
+    // 1. Nếu là quan hệ trực tiếp (Cha/Mẹ - Con, Vợ - Chồng)
+    if (pathIds.length === 2) {
+      const genDiff = (target.generation || 0) - (source.generation || 0);
+      if (genDiff === -1) {
+          if (target.is_in_law) return target.gender === 'male' ? "Bố dượng / Cha dượng" : "Mẹ kế / Dì ghẻ";
+          return target.gender === 'male' ? "Cha / Bố" : "Mẹ";
+      }
+      if (genDiff === 1) return target.gender === 'male' ? "Con trai" : "Con gái";
+      if (genDiff === 0 && target.is_in_law) return target.gender === 'male' ? "Chồng" : "Vợ";
     }
 
-    return `Quan hệ nối tiếp qua ${pathRelations.length} bậc: ` + pathRelations.join(' của ');
+    // 2. Tính toán dựa trên độ chênh lệch Thế hệ (Generation)
+    const genDiff = (target.generation || 0) - (source.generation || 0);
+    
+    // So sánh thứ tự sinh hoặc năm sinh để biết lớn/nhỏ hơn
+    const isTargetOlder = () => {
+        if (target.birth_order && source.birth_order) return target.birth_order < source.birth_order;
+        if (target.birth_year && source.birth_year) return target.birth_year < source.birth_year;
+        return false; // Mặc định nếu không có dữ liệu
+    };
+
+    // ĐỒNG VAI VẾ (Anh chị em)
+    if (genDiff === 0 && pathIds.length > 2) {
+        if (target.is_in_law) {
+            return target.gender === 'male' ? "Anh rể / Em rể" : "Chị dâu / Em dâu";
+        }
+        if (isTargetOlder()) return target.gender === 'male' ? "Anh" : "Chị";
+        return target.gender === 'male' ? "Em trai" : "Em gái";
+    }
+
+    // LỚN HƠN 1 ĐỜI (Cô, Dì, Chú, Bác, Cậu)
+    if (genDiff === -1 && pathIds.length > 2) {
+        // Tìm người làm cầu nối (Ví dụ: Cha/Mẹ của source)
+        const parentId = pathIds[1]; 
+        const parent = personsMap.get(parentId);
+        
+        if (parent) {
+            const isTargetOlderThanParent = () => {
+                if (target.birth_order && parent.birth_order) return target.birth_order < parent.birth_order;
+                if (target.birth_year && parent.birth_year) return target.birth_year < parent.birth_year;
+                return false;
+            };
+
+            const isOlder = isTargetOlderThanParent();
+            const isPaternal = parent.gender === 'male'; // Nội hay Ngoại
+
+            if (target.is_in_law) {
+                 if (isPaternal) return target.gender === 'female' ? (isOlder ? "Bác gái (vợ bác)" : "Thím") : "Dượng (chồng cô)";
+                 return target.gender === 'male' ? "Dượng" : "Mợ";
+            }
+
+            if (isPaternal) { // Đằng Nội
+                if (isOlder) return target.gender === 'male' ? "Bác (trai)" : "Bác (gái)";
+                return target.gender === 'male' ? "Chú" : "Cô";
+            } else { // Đằng Ngoại
+                if (target.gender === 'male') return "Cậu";
+                return isOlder ? "Dì (lớn)" : "Dì (nhỏ)";
+            }
+        }
+    }
+
+    // LỚN HƠN 2 ĐỜI (Ông/Bà)
+    if (genDiff === -2) return target.gender === 'male' ? "Ông" : "Bà";
+    if (genDiff === -3) return target.gender === 'male' ? "Cụ ông" : "Cụ bà";
+    if (genDiff === -4) return target.gender === 'male' ? "Kỵ ông" : "Kỵ bà";
+
+    // NHỎ HƠN ĐỜI MÌNH (Cháu/Chắt)
+    if (genDiff === 1) return target.gender === 'male' ? "Cháu trai" : "Cháu gái";
+    if (genDiff === 2) return "Cháu";
+    if (genDiff === 3) return "Chắt";
+    if (genDiff === 4) return "Chút";
+
+    // Fallback nếu không xác định được rõ
+    return `Quan hệ cách nhau ${Math.abs(genDiff)} đời`;
   }
 }
 
 // ============================================================================
-// 3. DATA SERVICE 
+// 3. DATA SERVICE (Lưu trữ toàn diện Generation, Birth Year, Is In Law)
 // ============================================================================
 class FamilyTreeDataService {
   private static personsMap: Map<string, PersonRecord> = new Map();
@@ -146,8 +196,7 @@ class FamilyTreeDataService {
   private static sortedNameKeys: string[] = []; 
   
   private static isLoaded = false;
-  // BUMP VERSION CACHE ĐỂ ÉP HỆ THỐNG XÓA CACHE CŨ VÀ TẢI LẠI TOÀN BỘ TỪ SUPABASE
-  private static CACHE_KEY = 'family_tree_v2';
+  private static CACHE_KEY = 'family_tree_v3_kinship';
 
   static async ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
     if (this.isLoaded && !forceRefresh) return; 
@@ -180,11 +229,14 @@ class FamilyTreeDataService {
     this.nameIndex.clear();
     this.sortedNameKeys = [];
 
+    // Gọi chính xác các trường cần thiết để tính Danh xưng
     let allPersons: PersonRecord[] = [];
     let from = 0;
     const step = 1000;
     while (true) {
-      const { data, error } = await supabase.from('persons').select('*').range(from, from + step - 1);
+      const { data, error } = await supabase.from('persons')
+        .select('id, full_name, name, ho_ten, gender, birth_year, birth_order, generation, is_in_law, death_year, note')
+        .range(from, from + step - 1);
       if (error) throw new Error(`Lỗi tải persons: ${error.message}`);
       if (!data || data.length === 0) break;
       allPersons = allPersons.concat(data as PersonRecord[]);
@@ -235,12 +287,10 @@ class FamilyTreeDataService {
       if (!edges2.some(e => e.id === id1)) edges2.push({ id: id1, name: name1, type: String(type2To1) });
     };
 
-    // Quét quan hệ chắc chắn từ bảng relationships
     for (const r of allRels) {
-      // Bao quát cả trường hợp tên cột bị sai lệch
-      const type = String(r.type || r.relationship_type || '').toLowerCase().trim(); 
-      const idA = String(r.person_a || r.person_id);
-      const idB = String(r.person_b || r.related_person_id);
+      const type = r.type as string; 
+      const idA = String(r.person_a);
+      const idB = String(r.person_b);
 
       const personA = this.personsMap.get(idA);
       const personB = this.personsMap.get(idB);
@@ -258,7 +308,7 @@ class FamilyTreeDataService {
         addEdge(idA, idB, roleOfB, roleOfA);
       }
       else {
-        const relationType = String(r.relationship_type || r.type || 'Họ hàng');
+        const relationType = String(r.relationship_type || type || 'Họ hàng');
         addEdge(idA, idB, relationType, relationType);
       }
     }
@@ -286,6 +336,7 @@ class FamilyTreeDataService {
   }
   static getTotalMembers(): number { return this.personsMap.size; }
   static getGraph(): Map<string, GraphEdge[]> { return this.graph; }
+  static getPersonsMap(): Map<string, PersonRecord> { return this.personsMap; }
 
   static extractMatchedEntities(text: string): MatchedEntity[] {
     let normalizedText = UtilsService.removeAccents(text);
@@ -417,25 +468,30 @@ Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa 
         const id2 = entity2.ids[0];
 
         if (id1 === id2) {
-          backendContext.exact_relationship = "Cùng là một người";
+          backendContext.exact_relationship = "Chính là một người";
         } else {
           const graph = FamilyTreeDataService.getGraph();
-          const queue: { id: string; pathRelations: string[] }[] = [{ id: id1, pathRelations: [] }];
+          const personsMap = FamilyTreeDataService.getPersonsMap();
+          
+          // Truyền cả mảng ID để động cơ Huyết thống tự động tra cứu tuổi/thế hệ
+          const queue: { id: string; pathIds: string[] }[] = [{ id: id1, pathIds: [id1] }];
           const visited = new Set<string>([id1]);
           let found = false;
 
           while (queue.length > 0) {
-            const { id: currentId, pathRelations } = queue.shift()!;
+            const { id: currentId, pathIds } = queue.shift()!;
             if (currentId === id2) {
-              backendContext.exact_relationship = UtilsService.inferExactKinship(pathRelations);
-              backendContext.path_raw = pathRelations.join(' -> ');
+              backendContext.exact_relationship = UtilsService.inferExactKinship(pathIds, personsMap);
+              
+              // Tạo chuỗi path_raw hiển thị tên dọc đường đi để AI tham khảo
+              backendContext.path_raw = pathIds.map(pid => personsMap.get(pid)?.full_name || '').join(' -> ');
               found = true;
               break;
             }
             for (const neighbor of graph.get(currentId) || []) {
               if (!visited.has(neighbor.id)) {
                 visited.add(neighbor.id);
-                queue.push({ id: neighbor.id, pathRelations: [...pathRelations, neighbor.type] });
+                queue.push({ id: neighbor.id, pathIds: [...pathIds, neighbor.id] });
               }
             }
           }
@@ -480,8 +536,8 @@ HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
 2. Nếu có "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi.
 3. Nếu có "note", hãy hiển thị nó như một cảnh báo/lưu ý.
 4. Nếu JSON có mảng "multiple_matches" (Trùng tên), hãy trình bày danh sách LẦN LƯỢT TỪNG NGƯỜI (bao gồm Thông tin cá nhân và Quan hệ gia đình). Bắt buộc chèn Link hồ sơ bên dưới mỗi người.
-5. Nếu hỏi Quan hệ (find_relationship): Dùng trường "exact_relationship" để trả lời ngay lập tức (VD: "A là Ông nội của B"). Không cần kể lể dài dòng đường đi (path_raw).
-6. Nếu tìm người: In ra Thông tin cá nhân và Quan hệ gia đình (Dựa theo relationship_hint để in ra vai trò). Bắt buộc có link hồ sơ ở cuối mỗi người:
+5. Nếu hỏi Quan hệ (find_relationship): Dùng trường "exact_relationship" để trả lời ngay lập tức (VD: "Người A gọi B là: Dượng"). 
+6. Nếu tìm người: In ra Thông tin cá nhân và Quan hệ gia đình. Bắt buộc có link hồ sơ ở cuối mỗi người:
 [Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
 7. Không in các trường _debug hoặc JSON ra màn hình.`;
 
