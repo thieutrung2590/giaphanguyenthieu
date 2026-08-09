@@ -171,7 +171,7 @@ export default async function DashboardLaunchpad() {
       description: "Ghi chép lại những cột mốc và sự kiện quan trọng",
       icon: BookOpen,
       iconColor: "text-stone-600",
-      href: "/history",
+      href: "/dashboard/history",
       iconBg: "bg-stone-100",
       cardBorder: "border-stone-200/60",
       cardHover: "hover:border-stone-400 hover:shadow-stone-100",
