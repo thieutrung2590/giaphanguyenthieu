@@ -4,6 +4,7 @@ import { getIsAdmin, getSupabase } from "@/utils/supabase/queries";
 import {
   ArrowRight,
   BarChart2,
+  BookOpen,
   Cake,
   Calendar,
   CalendarDays,
@@ -13,14 +14,16 @@ import {
   HeartHandshake,
   Image as ImageIcon,
   Network,
-  Sparkles, // Đã thêm icon Sparkles cho Tử vi
+  Sparkles,
   Star,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 
-/* ── Event type helpers ───────────────────────────────────────────── */
-const eventTypeConfig = {
+/* ── ĐIỂM SỬA 3: KHAI BÁO TYPE RÕ RÀNG CHO EVENT ────────────────────────── */
+type EventType = "birthday" | "death_anniversary" | "custom_event";
+
+const eventTypeConfig: Record<EventType, { icon: any; label: string; color: string; bg: string }> = {
   birthday: {
     icon: Cake,
     label: "Sinh nhật",
@@ -63,88 +66,89 @@ export default async function DashboardLaunchpad() {
 
   const lunar = getTodayLunar();
 
-  /* ── Feature lists ────────────────────────────────────────────── */
+  /* ── ĐIỂM SỬA 1: VIẾT FULL CHUỖI CLASS ĐỂ TAILWIND KHÔNG XÓA (PURGE) ─── */
   const publicFeatures = [
     {
       title: "Cây gia phả",
       description: "Xem và tương tác với sơ đồ dòng họ",
       icon: <Network className="size-8 text-amber-600" />,
       href: "/dashboard/members",
-      bgColor: "bg-amber-50",
-      borderColor: "border-amber-200/60",
-      hoverColor: "hover:border-amber-400 hover:shadow-amber-100",
+      iconBg: "bg-amber-50",
+      cardBorder: "border-amber-200/60",
+      cardHover: "hover:border-amber-400 hover:shadow-amber-100",
+      iconGroupHoverBorder: "group-hover:border-amber-200/60",
     },
     {
       title: "Lịch Âm Dương",
       description: "Tra cứu ngày tháng và quy đổi Âm - Dương",
       icon: <Calendar className="size-8 text-indigo-600" />,
       href: "/dashboard/calendar",
-      bgColor: "bg-indigo-50",
-      borderColor: "border-indigo-200/60",
-      hoverColor: "hover:border-indigo-400 hover:shadow-indigo-100",
+      iconBg: "bg-indigo-50",
+      cardBorder: "border-indigo-200/60",
+      cardHover: "hover:border-indigo-400 hover:shadow-indigo-100",
+      iconGroupHoverBorder: "group-hover:border-indigo-200/60",
     },
     {
       title: "Xem tử vi",
       description: "Lập lá số và luận giải tử vi trọn đời",
       icon: <Sparkles className="size-8 text-fuchsia-600" />,
       href: "/dashboard/tu-vi",
-      bgColor: "bg-fuchsia-50",
-      borderColor: "border-fuchsia-200/60",
-      hoverColor: "hover:border-fuchsia-400 hover:shadow-fuchsia-100",
+      iconBg: "bg-fuchsia-50",
+      cardBorder: "border-fuchsia-200/60",
+      cardHover: "hover:border-fuchsia-400 hover:shadow-fuchsia-100",
+      iconGroupHoverBorder: "group-hover:border-fuchsia-200/60",
     },
     {
       title: "Tra cứu danh xưng",
       description: "Hệ thống gọi tên họ hàng chuẩn xác",
       icon: <GitMerge className="size-8 text-blue-600" />,
       href: "/dashboard/kinship",
-      bgColor: "bg-blue-50",
-      borderColor: "border-blue-200/60",
-      hoverColor: "hover:border-blue-400 hover:shadow-blue-100",
+      iconBg: "bg-blue-50",
+      cardBorder: "border-blue-200/60",
+      cardHover: "hover:border-blue-400 hover:shadow-blue-100",
+      iconGroupHoverBorder: "group-hover:border-blue-200/60",
     },
     {
       title: "Thống kê gia phả",
       description: "Tổng quan dữ liệu và biểu đồ phân tích",
       icon: <BarChart2 className="size-8 text-purple-600" />,
       href: "/dashboard/stats",
-      bgColor: "bg-purple-50",
-      borderColor: "border-purple-200/60",
-      hoverColor: "hover:border-purple-400 hover:shadow-purple-100",
+      iconBg: "bg-purple-50",
+      cardBorder: "border-purple-200/60",
+      cardHover: "hover:border-purple-400 hover:shadow-purple-100",
+      iconGroupHoverBorder: "group-hover:border-purple-200/60",
     },
     {
       title: "Công đức dòng họ",
       description: "Ghi nhận đóng góp xây dựng quỹ",
       icon: <HeartHandshake className="size-8 text-rose-600" />,
       href: "/dashboard/donations",
-      bgColor: "bg-rose-50",
-      borderColor: "border-rose-200/60",
-      hoverColor: "hover:border-rose-400 hover:shadow-rose-100",
+      iconBg: "bg-rose-50",
+      cardBorder: "border-rose-200/60",
+      cardHover: "hover:border-rose-400 hover:shadow-rose-100",
+      iconGroupHoverBorder: "group-hover:border-rose-200/60",
     },
     {
       title: "Ảnh kỷ niệm",
       description: "Lưu giữ và chia sẻ những khoảnh khắc đáng nhớ",
       icon: <ImageIcon className="size-8 text-green-600" />,
       href: "/dashboard/photos",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-200/60",
-      hoverColor: "hover:border-green-400 hover:shadow-green-100",
+      iconBg: "bg-green-50",
+      cardBorder: "border-green-200/60",
+      cardHover: "hover:border-green-400 hover:shadow-green-100",
+      iconGroupHoverBorder: "group-hover:border-green-200/60",
+    },
+    {
+      title: "Lịch sử dòng họ",
+      description: "Ghi chép lại những cột mốc và sự kiện quan trọng",
+      icon: <BookOpen className="size-8 text-stone-600" />,
+      href: "/history",
+      iconBg: "bg-stone-100",
+      cardBorder: "border-stone-200/60",
+      cardHover: "hover:border-stone-400 hover:shadow-stone-100",
+      iconGroupHoverBorder: "group-hover:border-stone-200/60",
     },
   ];
-  {/* Bạn nhớ import icon BookOpen từ lucide-react ở đầu file nếu chưa có: import { BookOpen } from "lucide-react"; */}
-
-<Link
-  href="/history"
-  className="flex flex-col p-5 bg-white border border-stone-200/60 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-200 transition-all group"
->
-  <div className="w-10 h-10 mb-3 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-    <BookOpen className="w-5 h-5" />
-  </div>
-  <div>
-    <h3 className="font-bold text-stone-800 text-base">Lịch sử dòng họ</h3>
-    <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-      Ghi chép lại những cột mốc và sự kiện quan trọng
-    </p>
-  </div>
-</Link>
 
   const adminFeatures = [
     {
@@ -152,27 +156,30 @@ export default async function DashboardLaunchpad() {
       description: "Phê duyệt tài khoản và phân quyền",
       icon: <Users className="size-8 text-rose-600" />,
       href: "/dashboard/users",
-      bgColor: "bg-rose-50",
-      borderColor: "border-rose-200/60",
-      hoverColor: "hover:border-rose-400 hover:shadow-rose-100",
+      iconBg: "bg-rose-50",
+      cardBorder: "border-rose-200/60",
+      cardHover: "hover:border-rose-400 hover:shadow-rose-100",
+      iconGroupHoverBorder: "group-hover:border-rose-200/60",
     },
     {
       title: "Thứ tự gia phả",
       description: "Sắp xếp và xem cấu trúc hệ thống",
       icon: <Network className="size-8 text-indigo-600" />,
       href: "/dashboard/lineage",
-      bgColor: "bg-indigo-50",
-      borderColor: "border-indigo-200/60",
-      hoverColor: "hover:border-indigo-400 hover:shadow-indigo-100",
+      iconBg: "bg-indigo-50",
+      cardBorder: "border-indigo-200/60",
+      cardHover: "hover:border-indigo-400 hover:shadow-indigo-100",
+      iconGroupHoverBorder: "group-hover:border-indigo-200/60",
     },
     {
       title: "Sao lưu & Phục hồi",
       description: "Xuất/Nhập dữ liệu toàn hệ thống",
       icon: <Database className="size-8 text-teal-600" />,
       href: "/dashboard/data",
-      bgColor: "bg-teal-50",
-      borderColor: "border-teal-200/60",
-      hoverColor: "hover:border-teal-400 hover:shadow-teal-100",
+      iconBg: "bg-teal-50",
+      cardBorder: "border-teal-200/60",
+      cardHover: "hover:border-teal-400 hover:shadow-teal-100",
+      iconGroupHoverBorder: "group-hover:border-teal-200/60",
     },
   ];
 
@@ -183,7 +190,6 @@ export default async function DashboardLaunchpad() {
         href="/dashboard/events"
         className="group relative block overflow-hidden rounded-3xl bg-white border border-stone-200/60 shadow-sm hover:shadow-stone-100 hover:border-stone-400 mb-10 transition-all duration-300 hover:-translate-y-1"
       >
-        {/* Subtle background flair */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none opacity-50"></div>
 
         <div className="relative p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-center">
@@ -226,11 +232,18 @@ export default async function DashboardLaunchpad() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {upcomingEvents.slice(0, 4).map((evt, i) => {
-                    const cfg = eventTypeConfig[evt.type];
+                    
+                    /* ── ĐIỂM SỬA 3: ÉP KIỂU AN TOÀN VÀ FALLBACK EVENT TYPE ── */
+                    const typeKey = (evt.type as EventType) || "custom_event";
+                    const cfg = eventTypeConfig[typeKey] || eventTypeConfig.custom_event;
                     const Icon = cfg.icon;
+                    
+                    /* ── ĐIỂM SỬA 2: DÙNG UNIQUE KEY THAY VÌ INDEX CHAY ── */
+                    const uniqueKey = `${typeKey}-${evt.id || i}`;
+
                     return (
                       <div
-                        key={i}
+                        key={uniqueKey}
                         className="flex items-center gap-3.5 p-3 rounded-2xl bg-stone-50/50 hover:bg-stone-50 border border-transparent hover:border-stone-100 transition-all duration-300 cursor-pointer"
                       >
                         <div
@@ -287,10 +300,10 @@ export default async function DashboardLaunchpad() {
               <Link
                 key={feat.href}
                 href={feat.href}
-                className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.borderColor} ${feat.hoverColor} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
+                className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.cardBorder} ${feat.cardHover} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
               >
                 <div
-                  className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.bgColor} transition-colors duration-300 group-hover:bg-white border border-transparent group-hover:${feat.borderColor}`}
+                  className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.iconBg} transition-colors duration-300 group-hover:bg-white border border-transparent ${feat.iconGroupHoverBorder}`}
                 >
                   {feat.icon}
                 </div>
@@ -316,10 +329,10 @@ export default async function DashboardLaunchpad() {
                 <Link
                   key={feat.href}
                   href={feat.href}
-                  className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.borderColor} ${feat.hoverColor} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
+                  className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.cardBorder} ${feat.cardHover} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
                 >
                   <div
-                    className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.bgColor} transition-colors duration-300 group-hover:bg-white border border-transparent group-hover:${feat.borderColor}`}
+                    className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.iconBg} transition-colors duration-300 group-hover:bg-white border border-transparent ${feat.iconGroupHoverBorder}`}
                   >
                     {feat.icon}
                   </div>
