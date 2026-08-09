@@ -30,7 +30,7 @@ export default async function HistoryDetailPage({ params }: Props) {
       <main className="w-full relative z-20 py-8 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
         
         <Link 
-            href="/history" 
+            href="/dashboard/history" 
             className="inline-flex items-center gap-2 text-sm font-medium text-stone-500 hover:text-amber-600 transition-colors mb-8 bg-white border border-stone-200 px-4 py-2 rounded-full shadow-sm"
         >
           <ArrowLeft className="size-4" />
