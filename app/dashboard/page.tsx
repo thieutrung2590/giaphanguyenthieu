@@ -17,32 +17,42 @@ import {
   Sparkles,
   Star,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 
-/* ── ĐIỂM SỬA 3: KHAI BÁO TYPE RÕ RÀNG CHO EVENT ────────────────────────── */
+/* ── TYPE & CONFIG: SỬ DỤNG TRỰC TIẾP COMPONENT REFERENCE ───────────────── */
 type EventType = "birthday" | "death_anniversary" | "custom_event";
 
-const eventTypeConfig: Record<EventType, { icon: any; label: string; color: string; bg: string }> = {
+const eventTypeConfig: Record<EventType, { icon: LucideIcon; color: string; bg: string }> = {
   birthday: {
     icon: Cake,
-    label: "Sinh nhật",
     color: "text-amber-600",
     bg: "bg-amber-50",
   },
   death_anniversary: {
     icon: Flower2,
-    label: "Ngày giỗ",
     color: "text-purple-600",
     bg: "bg-purple-50",
   },
   custom_event: {
     icon: Star,
-    label: "Sự kiện",
     color: "text-emerald-600",
     bg: "bg-emerald-50",
   },
 };
+
+interface Feature {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  iconColor: string;
+  href: string;
+  iconBg: string;
+  cardBorder: string;
+  cardHover: string;
+  iconGroupHoverBorder: string;
+}
 
 export default async function DashboardLaunchpad() {
   const isAdmin = await getIsAdmin();
@@ -60,18 +70,30 @@ export default async function DashboardLaunchpad() {
     .select("id, name, content, event_date, location, created_by");
 
   const allEvents = computeEvents(persons ?? [], customEvents ?? []);
-  const upcomingEvents = allEvents.filter(
-    (e) => e.daysUntil >= 0 && e.daysUntil <= 30,
-  );
+  
+  // Dọn dẹp logic: Tính toán trước tất cả thông tin sự kiện để JSX phía dưới được sạch sẽ
+  const mappedUpcomingEvents = allEvents
+    .filter((e) => e.daysUntil >= 0 && e.daysUntil <= 30)
+    .slice(0, 4)
+    .map((evt, i) => {
+      const typeKey = (evt.type === 'birthday' || evt.type === 'death_anniversary' || evt.type === 'custom_event') 
+          ? evt.type 
+          : 'custom_event';
+      const cfg = eventTypeConfig[typeKey];
+      const uniqueKey = `${typeKey}-${evt.personName}-${i}`;
+      return { ...evt, cfg, uniqueKey };
+    });
 
+  const totalUpcomingCount = allEvents.filter((e) => e.daysUntil >= 0 && e.daysUntil <= 30).length;
   const lunar = getTodayLunar();
 
-  /* ── ĐIỂM SỬA 1: VIẾT FULL CHUỖI CLASS ĐỂ TAILWIND KHÔNG XÓA (PURGE) ─── */
-  const publicFeatures = [
+  /* ── KHÔNG DÙNG JSX TRONG MẢNG ĐỂ TRÁNH LỖI BIÊN DỊCH BỊ XÓA CODE ─── */
+  const publicFeatures: Feature[] = [
     {
       title: "Cây gia phả",
       description: "Xem và tương tác với sơ đồ dòng họ",
-      icon: <Network className="size-8 text-amber-600" />,
+      icon: Network,
+      iconColor: "text-amber-600",
       href: "/dashboard/members",
       iconBg: "bg-amber-50",
       cardBorder: "border-amber-200/60",
@@ -81,7 +103,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Lịch Âm Dương",
       description: "Tra cứu ngày tháng và quy đổi Âm - Dương",
-      icon: <Calendar className="size-8 text-indigo-600" />,
+      icon: Calendar,
+      iconColor: "text-indigo-600",
       href: "/dashboard/calendar",
       iconBg: "bg-indigo-50",
       cardBorder: "border-indigo-200/60",
@@ -91,7 +114,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Xem tử vi",
       description: "Lập lá số và luận giải tử vi trọn đời",
-      icon: <Sparkles className="size-8 text-fuchsia-600" />,
+      icon: Sparkles,
+      iconColor: "text-fuchsia-600",
       href: "/dashboard/tu-vi",
       iconBg: "bg-fuchsia-50",
       cardBorder: "border-fuchsia-200/60",
@@ -101,7 +125,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Tra cứu danh xưng",
       description: "Hệ thống gọi tên họ hàng chuẩn xác",
-      icon: <GitMerge className="size-8 text-blue-600" />,
+      icon: GitMerge,
+      iconColor: "text-blue-600",
       href: "/dashboard/kinship",
       iconBg: "bg-blue-50",
       cardBorder: "border-blue-200/60",
@@ -111,7 +136,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Thống kê gia phả",
       description: "Tổng quan dữ liệu và biểu đồ phân tích",
-      icon: <BarChart2 className="size-8 text-purple-600" />,
+      icon: BarChart2,
+      iconColor: "text-purple-600",
       href: "/dashboard/stats",
       iconBg: "bg-purple-50",
       cardBorder: "border-purple-200/60",
@@ -121,7 +147,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Công đức dòng họ",
       description: "Ghi nhận đóng góp xây dựng quỹ",
-      icon: <HeartHandshake className="size-8 text-rose-600" />,
+      icon: HeartHandshake,
+      iconColor: "text-rose-600",
       href: "/dashboard/donations",
       iconBg: "bg-rose-50",
       cardBorder: "border-rose-200/60",
@@ -131,7 +158,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Ảnh kỷ niệm",
       description: "Lưu giữ và chia sẻ những khoảnh khắc đáng nhớ",
-      icon: <ImageIcon className="size-8 text-green-600" />,
+      icon: ImageIcon,
+      iconColor: "text-green-600",
       href: "/dashboard/photos",
       iconBg: "bg-green-50",
       cardBorder: "border-green-200/60",
@@ -141,7 +169,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Lịch sử dòng họ",
       description: "Ghi chép lại những cột mốc và sự kiện quan trọng",
-      icon: <BookOpen className="size-8 text-stone-600" />,
+      icon: BookOpen,
+      iconColor: "text-stone-600",
       href: "/history",
       iconBg: "bg-stone-100",
       cardBorder: "border-stone-200/60",
@@ -150,11 +179,12 @@ export default async function DashboardLaunchpad() {
     },
   ];
 
-  const adminFeatures = [
+  const adminFeatures: Feature[] = [
     {
       title: "Quản lý Người dùng",
       description: "Phê duyệt tài khoản và phân quyền",
-      icon: <Users className="size-8 text-rose-600" />,
+      icon: Users,
+      iconColor: "text-rose-600",
       href: "/dashboard/users",
       iconBg: "bg-rose-50",
       cardBorder: "border-rose-200/60",
@@ -164,7 +194,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Thứ tự gia phả",
       description: "Sắp xếp và xem cấu trúc hệ thống",
-      icon: <Network className="size-8 text-indigo-600" />,
+      icon: Network,
+      iconColor: "text-indigo-600",
       href: "/dashboard/lineage",
       iconBg: "bg-indigo-50",
       cardBorder: "border-indigo-200/60",
@@ -174,7 +205,8 @@ export default async function DashboardLaunchpad() {
     {
       title: "Sao lưu & Phục hồi",
       description: "Xuất/Nhập dữ liệu toàn hệ thống",
-      icon: <Database className="size-8 text-teal-600" />,
+      icon: Database,
+      iconColor: "text-teal-600",
       href: "/dashboard/data",
       iconBg: "bg-teal-50",
       cardBorder: "border-teal-200/60",
@@ -218,7 +250,7 @@ export default async function DashboardLaunchpad() {
 
           {/* Events summary */}
           <div className="md:w-[65%] w-full flex-1">
-            {upcomingEvents.length > 0 ? (
+            {totalUpcomingCount > 0 ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-stone-500 uppercase tracking-widest flex items-center gap-2.5">
@@ -226,30 +258,23 @@ export default async function DashboardLaunchpad() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full size-2 bg-amber-500"></span>
                     </span>
-                    Sự kiện 30 ngày tới ({upcomingEvents.length})
+                    Sự kiện 30 ngày tới ({totalUpcomingCount})
                   </p>
                   <ArrowRight className="size-5 text-stone-300 group-hover:text-stone-500 group-hover:translate-x-1 transition-all duration-300" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {upcomingEvents.slice(0, 4).map((evt, i) => {
-                    
-                    /* ── ĐIỂM SỬA 3: ÉP KIỂU AN TOÀN VÀ FALLBACK EVENT TYPE ── */
-                    const typeKey = (evt.type as EventType) || "custom_event";
-                    const cfg = eventTypeConfig[typeKey] || eventTypeConfig.custom_event;
-                    const Icon = cfg.icon;
-                    
-                    /* ── ĐIỂM SỬA 2: DÙNG UNIQUE KEY THAY VÌ INDEX CHAY ── */
-                    const uniqueKey = `${typeKey}-${evt.id || i}`;
-
+                  {/* JSX HIỆN TẠI RẤT SẠCH SẼ */}
+                  {mappedUpcomingEvents.map((evt) => {
+                    const Icon = evt.cfg.icon;
                     return (
                       <div
-                        key={uniqueKey}
+                        key={evt.uniqueKey}
                         className="flex items-center gap-3.5 p-3 rounded-2xl bg-stone-50/50 hover:bg-stone-50 border border-transparent hover:border-stone-100 transition-all duration-300 cursor-pointer"
                       >
                         <div
-                          className={`size-10 rounded-xl ${cfg.bg} flex items-center justify-center shrink-0 shadow-sm border border-white`}
+                          className={`size-10 rounded-xl ${evt.cfg.bg} flex items-center justify-center shrink-0 shadow-sm border border-white`}
                         >
-                          <Icon className={`size-4 ${cfg.color}`} />
+                          <Icon className={`size-4 ${evt.cfg.color}`} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <span className="text-sm font-semibold text-stone-700 truncate block">
@@ -268,9 +293,9 @@ export default async function DashboardLaunchpad() {
                     );
                   })}
                 </div>
-                {upcomingEvents.length > 4 && (
+                {totalUpcomingCount > 4 && (
                   <p className="text-xs text-stone-400 mt-2 text-center sm:text-left font-medium">
-                    + {upcomingEvents.length - 4} sự kiện khác đang chờ...
+                    + {totalUpcomingCount - 4} sự kiện khác đang chờ...
                   </p>
                 )}
               </div>
@@ -296,25 +321,28 @@ export default async function DashboardLaunchpad() {
       <div className="space-y-12">
         <section>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {publicFeatures.map((feat) => (
-              <Link
-                key={feat.href}
-                href={feat.href}
-                className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.cardBorder} ${feat.cardHover} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
-              >
-                <div
-                  className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.iconBg} transition-colors duration-300 group-hover:bg-white border border-transparent ${feat.iconGroupHoverBorder}`}
+            {publicFeatures.map((feat) => {
+              const Icon = feat.icon;
+              return (
+                <Link
+                  key={feat.href}
+                  href={feat.href}
+                  className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.cardBorder} ${feat.cardHover} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
                 >
-                  {feat.icon}
-                </div>
-                <h4 className="text-lg font-bold text-stone-800 mb-2 group-hover:text-amber-700 transition-colors">
-                  {feat.title}
-                </h4>
-                <p className="text-sm text-stone-500 line-clamp-2">
-                  {feat.description}
-                </p>
-              </Link>
-            ))}
+                  <div
+                    className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.iconBg} transition-colors duration-300 group-hover:bg-white border border-transparent ${feat.iconGroupHoverBorder}`}
+                  >
+                    <Icon className={`size-8 ${feat.iconColor}`} />
+                  </div>
+                  <h4 className="text-lg font-bold text-stone-800 mb-2 group-hover:text-amber-700 transition-colors">
+                    {feat.title}
+                  </h4>
+                  <p className="text-sm text-stone-500 line-clamp-2">
+                    {feat.description}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
         </section>
 
@@ -325,25 +353,28 @@ export default async function DashboardLaunchpad() {
               Quản trị viên
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {adminFeatures.map((feat) => (
-                <Link
-                  key={feat.href}
-                  href={feat.href}
-                  className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.cardBorder} ${feat.cardHover} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
-                >
-                  <div
-                    className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.iconBg} transition-colors duration-300 group-hover:bg-white border border-transparent ${feat.iconGroupHoverBorder}`}
+              {adminFeatures.map((feat) => {
+                const Icon = feat.icon;
+                return (
+                  <Link
+                    key={feat.href}
+                    href={feat.href}
+                    className={`group flex flex-col p-6 rounded-2xl bg-white border ${feat.cardBorder} ${feat.cardHover} transition-all duration-300 hover:-translate-y-1 shadow-sm`}
                   >
-                    {feat.icon}
-                  </div>
-                  <h4 className="text-lg font-bold text-stone-800 mb-2 group-hover:text-rose-700 transition-colors">
-                    {feat.title}
-                  </h4>
-                  <p className="text-sm text-stone-500 line-clamp-2">
-                    {feat.description}
-                  </p>
-                </Link>
-              ))}
+                    <div
+                      className={`size-14 rounded-xl flex items-center justify-center mb-5 ${feat.iconBg} transition-colors duration-300 group-hover:bg-white border border-transparent ${feat.iconGroupHoverBorder}`}
+                    >
+                      <Icon className={`size-8 ${feat.iconColor}`} />
+                    </div>
+                    <h4 className="text-lg font-bold text-stone-800 mb-2 group-hover:text-rose-700 transition-colors">
+                      {feat.title}
+                    </h4>
+                    <p className="text-sm text-stone-500 line-clamp-2">
+                      {feat.description}
+                    </p>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}
