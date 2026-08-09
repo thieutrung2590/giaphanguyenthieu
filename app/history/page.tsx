@@ -1,6 +1,7 @@
-import { getSupabase, getIsAdmin } from "@/utils/supabase/queries"; // <-- Import getIsAdmin của bạn
-import { History, AlertCircle } from "lucide-react";
+import { getSupabase, getIsAdmin } from "@/utils/supabase/queries";
+import { History, AlertCircle, ArrowRight } from "lucide-react";
 import { AddHistoryForm, DeleteHistoryButton } from "./ClientActions";
+import Link from "next/link";
 
 export const metadata = {
   title: "Lịch sử dòng họ",
@@ -18,8 +19,6 @@ function safeFormatDate(dateStr: string | null) {
 
 export default async function HistoryPage() {
   const supabase = await getSupabase();
-  
-  // SỬ DỤNG HÀM PHÂN QUYỀN SUPABASE CÓ SẴN CỦA BẠN
   const isAdmin = await getIsAdmin(); 
 
   const { data: histories, error } = await supabase
@@ -48,7 +47,6 @@ export default async function HistoryPage() {
           </div>
         )}
         
-        {/* Nếu getIsAdmin() trả về true, form này sẽ lập tức hiện ra */}
         {isAdmin && <AddHistoryForm />}
 
         {!error && (
@@ -60,23 +58,32 @@ export default async function HistoryPage() {
                   <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
                 </div>
 
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white border border-stone-200/60 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
+                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white border border-stone-200/60 p-4 sm:p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-300 transition-all group/card">
+                  <div className="flex items-center justify-between gap-3">
+                    
+                    {/* KHU VỰC TIÊU ĐỀ LÀ LINK (Bấm vào để xem chi tiết) */}
+                    <Link href={`/history/${item.id}`} className="flex-1 block">
                       {item.event_date && (
-                        <time className="text-xs font-semibold text-amber-600 uppercase tracking-wider">
+                        <time className="text-[11px] sm:text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
                           {safeFormatDate(item.event_date)}
                         </time>
                       )}
-                      <h3 className="text-base font-bold text-stone-800 mt-1">{item.title}</h3>
-                    </div>
+                      <h3 className="text-base font-bold text-stone-800 group-hover/card:text-amber-700 transition-colors line-clamp-2">
+                        {item.title}
+                      </h3>
+                      <div className="flex items-center gap-1 mt-2 text-xs font-medium text-stone-400 group-hover/card:text-amber-600 transition-colors">
+                        Đọc bài viết <ArrowRight className="size-3" />
+                      </div>
+                    </Link>
                     
-                    {isAdmin && <DeleteHistoryButton id={item.id} />}
+                    {/* NÚT XÓA BỊ ĐẨY SANG PHẢI (Không nằm trong Link) */}
+                    {isAdmin && (
+                      <div className="shrink-0 relative z-20">
+                        <DeleteHistoryButton id={item.id} />
+                      </div>
+                    )}
+
                   </div>
-                  
-                  <p className="text-sm text-stone-600 leading-relaxed whitespace-pre-wrap">
-                    {item.content}
-                  </p>
                 </div>
               </div>
             ))}
