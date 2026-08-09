@@ -129,6 +129,22 @@ export default async function DashboardLaunchpad() {
       hoverColor: "hover:border-green-400 hover:shadow-green-100",
     },
   ];
+  {/* Bạn nhớ import icon BookOpen từ lucide-react ở đầu file nếu chưa có: import { BookOpen } from "lucide-react"; */}
+
+<Link
+  href="/history"
+  className="flex flex-col p-5 bg-white border border-stone-200/60 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-200 transition-all group"
+>
+  <div className="w-10 h-10 mb-3 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+    <BookOpen className="w-5 h-5" />
+  </div>
+  <div>
+    <h3 className="font-bold text-stone-800 text-base">Lịch sử dòng họ</h3>
+    <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+      Ghi chép lại những cột mốc và sự kiện quan trọng
+    </p>
+  </div>
+</Link>
 
   const adminFeatures = [
     {
