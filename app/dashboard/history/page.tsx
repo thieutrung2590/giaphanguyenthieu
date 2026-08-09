@@ -1,5 +1,5 @@
 import { getSupabase, getIsAdmin } from "@/utils/supabase/queries";
-import { History, AlertCircle, ArrowRight } from "lucide-react";
+import { History, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { AddHistoryForm, DeleteHistoryButton } from "./ClientActions";
 import Link from "next/link";
 
@@ -29,6 +29,15 @@ export default async function HistoryPage() {
   return (
     <div className="flex-1 w-full relative flex flex-col pb-12">
       <div className="w-full relative z-20 py-6 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
+        
+        <Link 
+            href="/dashboard" 
+            className="inline-flex items-center gap-2 text-sm font-medium text-stone-500 hover:text-amber-600 transition-colors mb-6 bg-white border border-stone-200 px-4 py-2 rounded-full shadow-sm w-fit"
+        >
+          <ArrowLeft className="size-4" />
+          Quay lại Bảng điều khiển
+        </Link>
+
         <h1 className="title flex items-center gap-3">
           <History className="size-8 text-amber-600" />
           Lịch sử dòng họ
@@ -61,8 +70,8 @@ export default async function HistoryPage() {
                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white border border-stone-200/60 p-4 sm:p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-300 transition-all group/card">
                   <div className="flex items-center justify-between gap-3">
                     
-                    {/* KHU VỰC TIÊU ĐỀ LÀ LINK (Bấm vào để xem chi tiết) */}
-                    <Link href={`/history/${item.id}`} className="flex-1 block">
+                    {/* ĐÃ SỬA: ĐƯỜNG LINK TRỎ ĐÚNG VÀO THƯ MỤC DASHBOARD */}
+                    <Link href={`/dashboard/history/${item.id}`} className="flex-1 block">
                       {item.event_date && (
                         <time className="text-[11px] sm:text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
                           {safeFormatDate(item.event_date)}
@@ -76,7 +85,6 @@ export default async function HistoryPage() {
                       </div>
                     </Link>
                     
-                    {/* NÚT XÓA BỊ ĐẨY SANG PHẢI (Không nằm trong Link) */}
                     {isAdmin && (
                       <div className="shrink-0 relative z-20">
                         <DeleteHistoryButton id={item.id} />
