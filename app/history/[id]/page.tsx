@@ -3,76 +3,58 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Calendar } from "lucide-react";
 
-// Format ngày an toàn, tránh lỗi timezone
-function safeFormatDate(dateStr: string | null) {
-  if (!dateStr) return "";
+const safeFormatDate = (d: string | null) => d ? d.split('T')[0].split('-').reverse().join('/') : "";
 
-  const datePart = dateStr.split("T")[0];
-  const [year, month, day] = datePart.split("-");
-
-  if (!year || !month || !day) {
-    return dateStr;
-  }
-
-  return `${day}/${month}/${year}`;
-}
-
-export default async function HistoryDetailPage({
-  params,
-}: {
+type Props = {
   params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+};
+
+export default async function HistoryDetailPage({ params }: Props) {
+  const resolvedParams = await params;
+  const { id } = resolvedParams;
 
   const supabase = await getSupabase();
-
-  // Lấy chi tiết bài viết theo ID
+  
   const { data: history, error } = await supabase
     .from("family_history")
-    .select("*")
+    .select("id, title, content, event_date")
     .eq("id", id)
     .single();
 
-  // Không tìm thấy bài viết hoặc có lỗi
   if (error || !history) {
     notFound();
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <main>
-        {/* Nút quay lại */}
-        <Link
-          href="/history"
-          className="inline-flex items-center gap-2 text-sm font-medium text-stone-500 hover:text-amber-600 transition-colors mb-8 bg-white border border-stone-200 px-4 py-2 rounded-full shadow-sm"
+    <div className="flex-1 w-full relative flex flex-col pb-12 bg-stone-50/30 min-h-screen">
+      <main className="w-full relative z-20 py-8 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
+        
+        <Link 
+            href="/history" 
+            className="inline-flex items-center gap-2 text-sm font-medium text-stone-500 hover:text-amber-600 transition-colors mb-8 bg-white border border-stone-200 px-4 py-2 rounded-full shadow-sm"
         >
           <ArrowLeft className="size-4" />
           Quay lại lịch sử
         </Link>
-
+        
         <article className="bg-white border border-stone-200/60 p-6 sm:p-10 rounded-3xl shadow-sm">
-          {/* Tiêu đề */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-stone-800 mb-4 leading-snug">
-            {history.title}
-          </h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-stone-800 mb-4 leading-snug">
+              {history.title}
+            </h1>
+            
+            {history.event_date && (
+              <div className="flex items-center gap-2 text-amber-600 text-sm mb-8 pb-6 border-b border-stone-100 font-medium">
+                <Calendar className="size-4" />
+                <time>{safeFormatDate(history.event_date)}</time>
+              </div>
+            )}
 
-          {/* Thời gian */}
-          {history.event_date && (
-            <div className="flex items-center gap-2 text-amber-600 text-sm mb-8 pb-6 border-b border-stone-100 font-medium">
-              <Calendar className="size-4" />
-              <time dateTime={history.event_date}>
-                {safeFormatDate(history.event_date)}
-              </time>
+            <div className="prose prose-stone prose-amber max-w-none text-stone-700 whitespace-pre-wrap leading-relaxed text-[15px] sm:text-base">
+              {history.content}
             </div>
-          )}
-
-          {/* Nội dung bài viết */}
-          <div className="prose prose-stone prose-amber max-w-none text-stone-700 whitespace-pre-wrap leading-relaxed text-[15px] sm:text-base">
-            {history.content}
-          </div>
         </article>
+
       </main>
     </div>
   );
 }
-```
