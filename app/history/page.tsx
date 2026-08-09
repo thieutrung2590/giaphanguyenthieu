@@ -1,4 +1,4 @@
-import { getSupabase } from "@/utils/supabase/queries";
+import { getSupabase, getIsAdmin } from "@/utils/supabase/queries"; // <-- Import getIsAdmin của bạn
 import { History, AlertCircle } from "lucide-react";
 import { AddHistoryForm, DeleteHistoryButton } from "./ClientActions";
 
@@ -6,11 +6,9 @@ export const metadata = {
   title: "Lịch sử dòng họ",
 };
 
-// Hàm xử lý ngày an toàn, chống lùi ngày do khác Timezone
 function safeFormatDate(dateStr: string | null) {
   if (!dateStr) return "";
   try {
-      // Tách chuỗi YYYY-MM-DD để tránh JS tự động convert theo múi giờ
       const [year, month, day] = dateStr.split('T')[0].split('-');
       return `${day}/${month}/${year}`;
   } catch {
@@ -21,14 +19,9 @@ function safeFormatDate(dateStr: string | null) {
 export default async function HistoryPage() {
   const supabase = await getSupabase();
   
-  // 1. Kiểm tra Admin qua email với biến môi trường (Bảo mật tuyệt đối)
-  const { data: { user } } = await supabase.auth.getUser();
-  const envAdminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const userEmail = user?.email?.trim().toLowerCase();
-  
-  const isAdmin = Boolean(user && envAdminEmail && userEmail === envAdminEmail);
+  // SỬ DỤNG HÀM PHÂN QUYỀN SUPABASE CÓ SẴN CỦA BẠN
+  const isAdmin = await getIsAdmin(); 
 
-  // 2. Fetch dữ liệu & Bắt lỗi hệ thống
   const { data: histories, error } = await supabase
     .from("family_history")
     .select("*")
@@ -48,7 +41,6 @@ export default async function HistoryPage() {
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 space-y-8">
         
-        {/* CẢNH BÁO LỖI NẾU DB SẬP */}
         {error && (
           <div className="bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 border border-red-200">
             <AlertCircle className="size-5" />
@@ -56,21 +48,18 @@ export default async function HistoryPage() {
           </div>
         )}
         
-        {/* KHU VỰC THÊM MỚI (CHỈ ADMIN MỚI THẤY) */}
+        {/* Nếu getIsAdmin() trả về true, form này sẽ lập tức hiện ra */}
         {isAdmin && <AddHistoryForm />}
 
-        {/* DANH SÁCH LỊCH SỬ (AI CŨNG THẤY) */}
         {!error && (
           <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-stone-200 before:to-transparent">
             {histories?.map((item) => (
               <div key={item.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                 
-                {/* Icon Marker */}
                 <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-stone-100 text-stone-400 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
                   <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
                 </div>
 
-                {/* Card Lịch sử */}
                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white border border-stone-200/60 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
@@ -82,7 +71,6 @@ export default async function HistoryPage() {
                       <h3 className="text-base font-bold text-stone-800 mt-1">{item.title}</h3>
                     </div>
                     
-                    {/* NÚT XÓA TƯƠNG TÁC (CHỈ ADMIN MỚI THẤY) */}
                     {isAdmin && <DeleteHistoryButton id={item.id} />}
                   </div>
                   
