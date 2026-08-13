@@ -5,6 +5,20 @@ const DEEPSEEK_API_ENDPOINT = 'https://api.deepseek.com/chat/completions';
 const DEEPSEEK_MODEL = 'deepseek-v4-flash';
 
 // ============================================================================
+// 0. SYSTEM PROMPT NGL (Bất biến ở cấp Module để tối ưu DeepSeek Cache)
+// ============================================================================
+const SYSTEM_PROMPT_NLG = `Bạn là trợ lý AI ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. Nguyên tắc bắt buộc: Chỉ cung cấp thông tin đã được kiểm chứng từ nguồn JSON CONTEXT được cung cấp trong câu hỏi của người dùng. Không suy đoán, không bịa đặt, không tạo thông tin khi dữ liệu không đủ. Nếu không có dữ liệu chắc chắn, hãy nói rõ “không đủ thông tin để kết luận”.
+
+HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
+1. Nếu có "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi.
+2. Nếu có "note", hãy hiển thị nó như một cảnh báo/lưu ý.
+3. Nếu JSON có mảng "multiple_matches" (Trùng tên), hãy trình bày danh sách LẦN LƯỢT TỪNG NGƯỜI. Bắt buộc chèn Link hồ sơ bên dưới mỗi người.
+4. Nếu có trường "exact_relationship", dùng nó để trả lời trực tiếp (VD: "Người A gọi B là: Dượng"). 
+5. Nếu là xem thông tin: In ra Thông tin cá nhân và Quan hệ gia đình. Bắt buộc có link hồ sơ ở cuối:
+[Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
+6. Tuyệt đối không in mã JSON hoặc dữ liệu thô ra màn hình.`;
+
+// ============================================================================
 // 1. INTERFACES & TYPES 
 // ============================================================================
 interface PersonRecord {
@@ -46,12 +60,6 @@ interface FamilyMember {
   relationship_hint: string;
 }
 
-interface IntentJSON {
-  intent: 'search_person' | 'get_family' | 'find_relationship' | 'count_members' | 'general';
-  name1: string;
-  name2: string;
-}
-
 interface MatchedEntity {
   normalized: string;
   ids: string[];
@@ -64,7 +72,6 @@ interface MultipleMatch {
 
 interface BackendContext {
   _debug_intent?: string;
-  _debug_name?: string;
   total_members?: number;
   person?: Partial<PersonRecord>;
   family?: FamilyMember[];
@@ -129,20 +136,6 @@ class UtilsService {
     return String(str).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
   }
 
-  static parseLLMJson(rawText: string): IntentJSON {
-    try {
-      const cleanedText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const start = cleanedText.indexOf('{');
-      const end = cleanedText.lastIndexOf('}');
-      if (start !== -1 && end !== -1) {
-        return JSON.parse(cleanedText.substring(start, end + 1)) as IntentJSON;
-      }
-      return { intent: 'general', name1: '', name2: '' };
-    } catch (error) {
-      return { intent: 'general', name1: '', name2: '' };
-    }
-  }
-
   static cleanPersonData(person: PersonRecord): Partial<PersonRecord> {
     const clean: Partial<PersonRecord> = { ...person };
     delete clean.created_at; delete clean.updated_at; 
@@ -160,7 +153,7 @@ class UtilsService {
             ancestors.set(id, path);
             const parents = parentsMap.get(id) || [];
             for (const pid of parents) {
-                if (!path.includes(pid)) { // NGĂN CHẶN INFINITE LOOP
+                if (!path.includes(pid)) {
                     queue.push({id: pid, path: [...path, pid]});
                 }
             }
@@ -250,7 +243,6 @@ class UtilsService {
 
     if (candidateMatches.length === 0) return { term: "Không tìm thấy đường huyết thống kết nối trực tiếp.", pathRaw: "" };
 
-    // Ưu tiên LCA là Nam để đảm bảo tính ổn định Nội/Ngoại
     candidateMatches.sort((a, b) => {
         const genderA = personsMap.get(a.lca)?.gender === 'male' ? -1 : 1;
         const genderB = personsMap.get(b.lca)?.gender === 'male' ? -1 : 1;
@@ -277,16 +269,13 @@ class UtilsService {
         isSenior = orderT < orderS; 
     }
 
-    // 1. LẤY MÃ HUYẾT THỐNG
     let bloodCode = this.getBaseBloodCode(distS, distT, isPaternal, isSenior, p_tMale);
 
-    // 2. PHÉP CHIẾU THÔNG GIA (VỢ/CHỒNG CỦA TARGET)
     if (targetIsSpouse) {
         if (distS === 0 && distT === 0) bloodCode = p_tMale ? 'WIFE' : 'HUSBAND';
         else bloodCode = TargetSpouseMap[bloodCode] || bloodCode;
     }
 
-    // 3. XỬ LÝ NỬA DÒNG MÁU VÀ HỌ HÀNG
     let resultTerm = ViDict[bloodCode] || `Họ hàng (cách ${distS} bậc trên, ${distT} bậc dưới)`;
     const isCousin = (distS > 1 && distT >= 1) || (distS >= 1 && distT > 1);
 
@@ -306,7 +295,6 @@ class UtilsService {
         }
     }
 
-    // 4. PHÉP CHIẾU THÔNG GIA DÀNH CHO SOURCE
     if (sourceIsSpouse) {
         const spGender = source.gender === 'male' ? "vợ" : "chồng";
         const tt = resultTerm.toLowerCase();
@@ -322,7 +310,6 @@ class UtilsService {
         }
     }
 
-    // 5. HIỂN THỊ PATH
     let displayPath = [];
     if (sourceIsSpouse) displayPath.push(sourceId);
     displayPath = displayPath.concat(pathS);
@@ -337,7 +324,7 @@ class UtilsService {
 }
 
 // ============================================================================
-// 4. DATA SERVICE 
+// 4. DATA SERVICE (L1 & L2 CACHE MANAGER)
 // ============================================================================
 class FamilyTreeDataService {
   private static personsMap: Map<string, PersonRecord> = new Map();
@@ -352,10 +339,49 @@ class FamilyTreeDataService {
   
   private static isLoaded = false;
   private static CACHE_KEY = 'family_tree_v13_kinship';
+  private static loadPromise: Promise<void> | null = null; // Quản lý concurrency
 
-  static async ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
-    if (this.isLoaded && !forceRefresh) return; 
+  private static buildAncestorsCache() {
+    this.ancestorsCache.clear();
+    for (const pId of this.personsMap.keys()) {
+      const map = new Map<string, string[]>();
+      const queue: { id: string, path: string[] }[] = [{ id: pId, path: [pId] }];
+      while(queue.length > 0) {
+          const {id, path} = queue.shift()!;
+          if (!map.has(id)) {
+              map.set(id, path);
+              const parents = this.parentsMap.get(id) || [];
+              for(const pid of parents) {
+                  if (!path.includes(pid)) {
+                      queue.push({id: pid, path: [...path, pid]});
+                  }
+              }
+          }
+      }
+      this.ancestorsCache.set(pId, map);
+    }
+  }
 
+  static ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
+    // 1. Nếu đã load và không bắt buộc refresh -> trả về ngay
+    if (this.isLoaded && !forceRefresh) {
+        return this.loadPromise || Promise.resolve();
+    }
+    
+    // 2. Chống Race Condition: Nếu đang trong quá trình tải, tái sử dụng promise đó để mọi request cùng chờ
+    if (this.loadPromise) {
+        return this.loadPromise;
+    }
+
+    // 3. Khởi tạo tác vụ tải
+    this.loadPromise = this._loadInternal(supabase, forceRefresh).finally(() => {
+        this.loadPromise = null;
+    });
+    
+    return this.loadPromise;
+  }
+
+  private static async _loadInternal(supabase: SupabaseClient, forceRefresh: boolean): Promise<void> {
     if (!forceRefresh) {
         const { data: cacheRow, error: cacheErr } = await supabase
           .from('api_cache')
@@ -371,15 +397,11 @@ class FamilyTreeDataService {
                 this.childrenMap = new Map(payload.children);
                 this.spousesMap = new Map(payload.spouses);
                 
-                const rawAncestors = payload.ancestors || [];
-                this.ancestorsCache = new Map();
-                for (const [id, rawMap] of rawAncestors) {
-                    this.ancestorsCache.set(id, new Map(rawMap));
-                }
-
                 this.nameIndex = new Map(payload.nameIndex);
                 this.sortedNameKeys = payload.sortedNameKeys;
                 this.maxGram = payload.maxGram || 5;
+                
+                this.buildAncestorsCache();
                 
                 this.isLoaded = true;
                 return;
@@ -399,28 +421,30 @@ class FamilyTreeDataService {
     this.maxGram = 1;
 
     let allPersons: PersonRecord[] = [];
-    let from = 0;
+    let fromPerson = 0;
     const step = 1000;
     while (true) {
       const { data, error } = await supabase.from('persons')
         .select('id, full_name, other_names, gender, birth_year, birth_order, generation, is_in_law, death_year, note')
-        .range(from, from + step - 1);
+        .range(fromPerson, fromPerson + step - 1);
       if (error) throw new Error(`Lỗi tải persons: ${error.message}`);
       if (!data || data.length === 0) break;
       allPersons = allPersons.concat(data as PersonRecord[]);
       if (data.length < step) break;
-      from += step;
+      fromPerson += step;
     }
 
     let allRels: RelationshipRecord[] = [];
-    from = 0;
+    let fromRel = 0;
     while (true) {
-      const { data, error } = await supabase.from('relationships').select('*').range(from, from + step - 1);
-      if (error) break; 
+      const { data, error } = await supabase.from('relationships')
+        .select('id, type, relationship_type, person_a, person_b, person_id, related_person_id')
+        .range(fromRel, fromRel + step - 1);
+      if (error) throw new Error(`Lỗi tải relationships: ${error.message}`);
       if (!data || data.length === 0) break;
       allRels = allRels.concat(data as RelationshipRecord[]);
       if (data.length < step) break;
-      from += step;
+      fromRel += step;
     }
 
     for (const p of allPersons) {
@@ -467,25 +491,7 @@ class FamilyTreeDataService {
       }
     }
 
-    // Build ancestorsCache with cycle detection
-    for (const pId of this.personsMap.keys()) {
-      const map = new Map<string, string[]>();
-      const queue: { id: string, path: string[] }[] = [{ id: pId, path: [pId] }];
-      while(queue.length > 0) {
-          const {id, path} = queue.shift()!;
-          if (!map.has(id)) {
-              map.set(id, path);
-              const parents = this.parentsMap.get(id) || [];
-              for(const pid of parents) {
-                  if (!path.includes(pid)) {
-                      queue.push({id: pid, path: [...path, pid]});
-                  }
-              }
-          }
-      }
-      this.ancestorsCache.set(pId, map);
-    }
-
+    this.buildAncestorsCache();
     this.isLoaded = true;
 
     const payload = {
@@ -493,7 +499,6 @@ class FamilyTreeDataService {
         parents: Array.from(this.parentsMap.entries()),
         children: Array.from(this.childrenMap.entries()),
         spouses: Array.from(this.spousesMap.entries()),
-        ancestors: Array.from(this.ancestorsCache.entries()).map(([id, map]) => [id, Array.from(map.entries())]),
         nameIndex: Array.from(this.nameIndex.entries()),
         sortedNameKeys: this.sortedNameKeys,
         maxGram: this.maxGram
@@ -576,10 +581,10 @@ class FamilyTreeDataService {
 }
 
 // ============================================================================
-// 5. LLM SERVICE 
+// 5. LLM SERVICE
 // ============================================================================
 class LLMService {
-  static async generate(apiKey: string, prompt: string, message: string, useJSON: boolean): Promise<any> {
+  static async generate(apiKey: string, prompt: string, message: string): Promise<any> {
     const response = await fetch(DEEPSEEK_API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -588,7 +593,9 @@ class LLMService {
       },
       body: JSON.stringify({
         model: DEEPSEEK_MODEL,
-        response_format: useJSON ? { type: 'json_object' } : undefined,
+        thinking: {
+          type: 'disabled'
+        },
         messages: [
           { role: 'system', content: prompt },
           { role: 'user', content: message },
@@ -603,6 +610,14 @@ class LLMService {
     }
 
     const data = await response.json();
+    
+    console.log('DeepSeek usage:', {
+      promptTokens: data.usage?.prompt_tokens,
+      cacheHitTokens: data.usage?.prompt_cache_hit_tokens,
+      cacheMissTokens: data.usage?.prompt_cache_miss_tokens,
+      completionTokens: data.usage?.completion_tokens,
+    });
+    
     return data.choices?.[0]?.message?.content;
   }
 }
@@ -613,20 +628,27 @@ class LLMService {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
     const isWebhookRefresh = body.action === 'refresh_cache';
     const message = body.message || '';
     
     const deepseekApiKey = (process.env.DEEPSEEK_API_KEY || '').trim();
     const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
     const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+    const envWebhookSecret = (process.env.WEBHOOK_SECRET || '').trim();
 
     if (!deepseekApiKey || !supabaseUrl || !supabaseKey) {
       return NextResponse.json({ reply: 'Lỗi cấu hình: Thiếu biến môi trường API Key hoặc Supabase.' }, { status: 500 });
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Xác thực Webhook bằng Header Authorization hoặc x-webhook-secret
     if (isWebhookRefresh) {
+        const authHeader = req.headers.get('authorization') || req.headers.get('x-webhook-secret') || '';
+        const token = authHeader.replace('Bearer ', '').trim();
+        
+        if (!envWebhookSecret || token !== envWebhookSecret) {
+            return NextResponse.json({ reply: 'Unauthorized: Sai mã bí mật webhook.' }, { status: 401 });
+        }
         await FamilyTreeDataService.ensureLoaded(supabase, true);
         return NextResponse.json({ reply: 'Cache đã được làm mới thành công từ Database!' });
     }
@@ -635,104 +657,69 @@ export async function POST(req: Request) {
 
     await FamilyTreeDataService.ensureLoaded(supabase, false);
 
-    const intentPrompt = `Phân tích câu hỏi và trả về DUY NHẤT JSON. 
-Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members" | "general", "name1": "Tên 1", "name2": "Tên 2" }
-LƯU Ý: Bỏ qua danh xưng (cụ, kỵ, ông, bà, anh, chị, chú, bác, dì, cô, dượng, mợ, thím...) khi trích xuất tên.
-Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa tên người đều có intent là "search_person".`;
-    
-    const intentText = await LLMService.generate(deepseekApiKey, intentPrompt, message, true);
-    const parsedIntent = UtilsService.parseLLMJson(intentText);
-    
     const matchedEntities = FamilyTreeDataService.extractMatchedEntities(message);
-    const entity1 = matchedEntities[0] || null;
-    const entity2 = matchedEntities[1] || null;
+    let entity1 = matchedEntities[0] || null;
+    let entity2 = matchedEntities[1] || null;
 
-    if (parsedIntent.intent === 'general' && entity1) {
-       parsedIntent.intent = entity2 ? 'find_relationship' : 'search_person';
-    }
-
-    const backendContext: BackendContext = { _debug_intent: parsedIntent.intent };
-
-    let fallbackEntity: MatchedEntity | null = null;
-    if (!entity1 && parsedIntent.intent === 'search_person') {
-      const fallbackName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà|cụ|kỵ|kị|chú|bác|cô|dì|dượng|mợ|thím)/gi, '').replace(/[?.,!]/g, '').trim();
+    if (!entity1) {
+      const fallbackName = message.replace(/(thông tin|chi tiết|cho biết|hỏi về|ai là|tìm kiếm|tìm|về|của|những|người|tên|cha|mẹ|vợ|chồng|con|cái|gia đình|tiểu sử|dòng họ|anh|chị|em|ông|bà|cụ|kỵ|kị|chú|bác|cô|dì|dượng|mợ|thím|giữa|và)/gi, '').replace(/[?.,!]/g, '').trim();
       const foundEntity = FamilyTreeDataService.searchFallbackEntity(fallbackName);
-      if (foundEntity) fallbackEntity = foundEntity;
+      if (foundEntity) entity1 = foundEntity;
     }
 
-    const targetEntity = entity1 || fallbackEntity;
+    const backendContext: BackendContext = {};
+    const lowerMessage = message.toLowerCase();
 
-    if (parsedIntent.intent === 'count_members') {
-      backendContext.total_members = FamilyTreeDataService.getTotalMembers();
-    } 
-    else if (parsedIntent.intent === 'find_relationship') {
-      if (entity1 && entity2) {
+    // Rẽ nhánh logic được sắp xếp đúng thứ tự ưu tiên
+    if (entity1 && entity2) {
+        backendContext._debug_intent = 'find_relationship';
         if (entity1.ids.length > 1 || entity2.ids.length > 1) {
-            backendContext.error = `Hệ thống tìm thấy nhiều người trùng tên "${entity1.ids.length > 1 ? entity1.normalized : entity2.normalized}" trong gia phả. Vui lòng cung cấp thêm thông tin để tra cứu quan hệ chính xác.`;
+            backendContext.error = `Hệ thống tìm thấy nhiều người trùng tên "${entity1.ids.length > 1 ? entity1.normalized : entity2.normalized}" trong gia phả. Vui lòng cung cấp rõ hơn.`;
         } else {
-            const id1 = entity1.ids[0];
-            const id2 = entity2.ids[0];
-
-            const personsMap = FamilyTreeDataService.getPersonsMap();
-            const parentsMap = FamilyTreeDataService.getParentsMap();
-            const spousesMap = FamilyTreeDataService.getSpousesMap();
-            const ancestorsCache = FamilyTreeDataService.getAncestorsCache();
-
-            const result = UtilsService.inferExactKinship(id1, id2, personsMap, parentsMap, spousesMap, ancestorsCache);
-            
-            if (result.term.includes("Không tìm thấy")) {
-                backendContext.error = result.term;
-            } else {
+            const result = UtilsService.inferExactKinship(
+                entity1.ids[0], entity2.ids[0], 
+                FamilyTreeDataService.getPersonsMap(), 
+                FamilyTreeDataService.getParentsMap(), 
+                FamilyTreeDataService.getSpousesMap(), 
+                FamilyTreeDataService.getAncestorsCache()
+            );
+            if (result.term.includes("Không tìm thấy")) backendContext.error = result.term;
+            else {
                 backendContext.exact_relationship = result.term;
                 backendContext.path_raw = result.pathRaw;
             }
         }
-      } else {
-        backendContext.error = 'Cần cung cấp rõ tên 2 người có trong gia phả để kiểm tra quan hệ.';
-      }
     } 
-    else if (parsedIntent.intent === 'search_person' || parsedIntent.intent === 'get_family' || fallbackEntity) {
-      if (targetEntity && targetEntity.ids.length > 0) {
-        if (targetEntity.ids.length === 1) {
-            const pId = targetEntity.ids[0];
+    else if (entity1) {
+        // "Nguyễn Văn A có bao nhiêu con?" lọt vào đây. LLM sẽ đếm list con dựa trên context `family`.
+        backendContext._debug_intent = 'search_person';
+        if (entity1.ids.length === 1) {
+            const pId = entity1.ids[0];
             const pData = FamilyTreeDataService.getPerson(pId);
             if (pData) {
                 backendContext.person = UtilsService.cleanPersonData(pData);
                 backendContext.family = FamilyTreeDataService.getFamily(pId);
             }
         } else {
-            backendContext.multiple_matches = targetEntity.ids.map(pId => ({
+            backendContext.multiple_matches = entity1.ids.map(pId => ({
                 person: UtilsService.cleanPersonData(FamilyTreeDataService.getPerson(pId)!),
                 family: FamilyTreeDataService.getFamily(pId)
             }));
         }
-      } else {
-        backendContext.error = 'Hệ thống không nhận diện được tên người cần tìm.';
-      }
+    } 
+    else if (lowerMessage.includes("bao nhiêu") || lowerMessage.includes("tổng số") || lowerMessage.includes("có bao nhiêu người")) {
+        // Hỏi chung chung: "Dòng họ có bao nhiêu người?"
+        backendContext._debug_intent = 'count_members';
+        backendContext.total_members = FamilyTreeDataService.getTotalMembers();
     } 
     else {
-      backendContext.note = 'Câu hỏi ngoài lề hoặc giao tiếp thông thường.';
+        backendContext._debug_intent = 'general';
+        backendContext.note = 'Câu hỏi ngoài lề hoặc hệ thống không nhận diện được tên người trong gia phả.';
     }
 
-    // ------------------------------------------------------------------------
-    // BƯỚC 7: LLM NLG 
-    // ------------------------------------------------------------------------
-    const systemPromptNLG = `Bạn là trợ lý AI ưu tiên tuyệt đối tính CHÍNH XÁC và ĐÁNG TIN CẬY. Nguyên tắc bắt buộc: Chỉ cung cấp thông tin đã được kiểm chứng từ nguồn JSON CONTEXT bên dưới. Không suy đoán, không bịa đặt, không tạo thông tin khi dữ liệu không đủ. Nếu không có dữ liệu chắc chắn, hãy nói rõ “không đủ thông tin để kết luận”.
+    const userMessageWithContext = `Câu hỏi của tôi: ${message}\n\nJSON CONTEXT bạn cần dựa vào để trả lời:\n${JSON.stringify(backendContext)}`;
 
-JSON CONTEXT:
-${JSON.stringify(backendContext)}
-
-HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
-1. Nếu có "error", BẮT BUỘC trả lời Y HỆT câu báo lỗi.
-2. Nếu có "note", hãy hiển thị nó như một cảnh báo/lưu ý.
-3. Nếu JSON có mảng "multiple_matches" (Trùng tên), hãy trình bày danh sách LẦN LƯỢT TỪNG NGƯỜI. Bắt buộc chèn Link hồ sơ bên dưới mỗi người.
-4. Nếu hỏi Quan hệ (find_relationship): Dùng trường "exact_relationship" để trả lời ngay lập tức (VD: "Người A gọi B là: Dượng"). 
-5. Nếu tìm người: In ra Thông tin cá nhân và Quan hệ gia đình. Bắt buộc có link hồ sơ ở cuối mỗi người:
-[Nhấn vào đây để xem chi tiết tiểu sử của {Tên}](/dashboard/members?memberModalId={id})
-6. Không in các trường _debug hoặc JSON ra màn hình.
-7. Xóa bỏ các menu tùy chọn số/dấu đầu dòng ở cuối câu trả lời.`;
-
-    const finalReply = await LLMService.generate(deepseekApiKey, systemPromptNLG, message, false);
+    const finalReply = await LLMService.generate(deepseekApiKey, SYSTEM_PROMPT_NLG, userMessageWithContext);
     return NextResponse.json({ reply: finalReply || 'Không đủ thông tin để kết luận.' });
 
   } catch (error: any) {
