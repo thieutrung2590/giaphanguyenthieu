@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const DEEPSEEK_API_ENDPOINT = 'https://api.deepseek.com/chat/completions';
+const DEEPSEEK_MODEL = 'deepseek-chat';
 
 // ============================================================================
 // 1. INTERFACES & TYPES 
@@ -580,14 +580,14 @@ class FamilyTreeDataService {
 // ============================================================================
 class LLMService {
   static async generate(apiKey: string, prompt: string, message: string, useJSON: boolean): Promise<any> {
-    const response = await fetch(GROQ_API_ENDPOINT, {
+    const response = await fetch(DEEPSEEK_API_ENDPOINT, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: DEEPSEEK_MODEL,
         response_format: useJSON ? { type: 'json_object' } : undefined,
         messages: [
           { role: 'system', content: prompt },
@@ -617,11 +617,11 @@ export async function POST(req: Request) {
     const isWebhookRefresh = body.action === 'refresh_cache';
     const message = body.message || '';
     
-    const groqApiKey = (process.env.GROQ_API_KEY || '').trim();
+    const deepseekApiKey = (process.env.DEEPSEEK_API_KEY || '').trim();
     const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
     const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
 
-    if (!groqApiKey || !supabaseUrl || !supabaseKey) {
+    if (!deepseekApiKey || !supabaseUrl || !supabaseKey) {
       return NextResponse.json({ reply: 'Lỗi cấu hình: Thiếu biến môi trường API Key hoặc Supabase.' }, { status: 500 });
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -640,7 +640,7 @@ Cấu trúc: { "intent": "search_person" | "find_relationship" | "count_members"
 LƯU Ý: Bỏ qua danh xưng (cụ, kỵ, ông, bà, anh, chị, chú, bác, dì, cô, dượng, mợ, thím...) khi trích xuất tên.
 Các câu hỏi bắt đầu bằng "thông tin", "hỏi về", "ai là" chứa tên người đều có intent là "search_person".`;
     
-    const intentText = await LLMService.generate(groqApiKey, intentPrompt, message, true);
+    const intentText = await LLMService.generate(deepseekApiKey, intentPrompt, message, true);
     const parsedIntent = UtilsService.parseLLMJson(intentText);
     
     const matchedEntities = FamilyTreeDataService.extractMatchedEntities(message);
@@ -732,7 +732,7 @@ HƯỚNG DẪN TRÌNH BÀY (BẮT BUỘC):
 6. Không in các trường _debug hoặc JSON ra màn hình.
 7. Xóa bỏ các menu tùy chọn số/dấu đầu dòng ở cuối câu trả lời.`;
 
-    const finalReply = await LLMService.generate(groqApiKey, systemPromptNLG, message, false);
+    const finalReply = await LLMService.generate(deepseekApiKey, systemPromptNLG, message, false);
     return NextResponse.json({ reply: finalReply || 'Không đủ thông tin để kết luận.' });
 
   } catch (error: any) {
