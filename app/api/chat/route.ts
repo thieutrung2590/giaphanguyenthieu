@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const DEEPSEEK_API_ENDPOINT = 'https://api.deepseek.com/chat/completions';
-const DEEPSEEK_MODEL = 'deepseek-v4-flash-0731';
+const DEEPSEEK_MODEL = 'deepseek-v4-flash';
 
 // ============================================================================
 // 1. INTERFACES & TYPES 
