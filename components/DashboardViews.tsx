@@ -7,7 +7,6 @@ import { Person, Relationship } from "@/types";
 import { useMemo } from "react";
 import dynamic from "next/dynamic";
 
-// Thêm tuỳ chọn ssr: false và trạng thái loading cho các component nặng
 const FamilyTree = dynamic(() => import("@/components/FamilyTree"), {
   ssr: false,
   loading: () => (
@@ -30,18 +29,21 @@ interface DashboardViewsProps {
   persons: Person[];
   relationships: Relationship[];
   canEdit?: boolean;
+  rootId?: string; // Đã bổ sung biến này để fix lỗi Type error trên Vercel
 }
 
 export default function DashboardViews({
   persons,
   relationships,
   canEdit = false,
+  rootId: propRootId, // Nhận prop rootId từ page.tsx (nếu có)
 }: DashboardViewsProps) {
-  const { view: currentView, rootId } = useDashboard();
+  // Ưu tiên dùng rootId từ Context, nếu không có thì dùng từ prop
+  const { view: currentView, rootId: contextRootId } = useDashboard();
+  const rootId = contextRootId || propRootId;
 
   // Prepare map and roots for tree views
   const { personsMap, roots, defaultRootId } = useMemo(() => {
-    // Khởi tạo Map trực tiếp từ mảng giúp code ngắn và chạy nhanh hơn
     const pMap = new Map<string, Person>(persons.map((p) => [p.id, p]));
 
     const childIds = new Set(
@@ -66,7 +68,6 @@ export default function DashboardViews({
         };
 
         if (gen1.length > 0) {
-          // Dùng spread operator [...] để tránh mutate mảng gốc khi sort
           finalRootId = [...gen1].sort(sortByBirthYear)[0].id;
         } else {
           finalRootId = [...rootsFallback].sort(sortByBirthYear)[0].id;
