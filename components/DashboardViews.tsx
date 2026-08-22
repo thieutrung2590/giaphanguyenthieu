@@ -7,8 +7,24 @@ import { Person, Relationship } from "@/types";
 import { useMemo } from "react";
 import dynamic from "next/dynamic";
 
-const FamilyTree = dynamic(() => import("@/components/FamilyTree"));
-const MindmapTree = dynamic(() => import("@/components/MindmapTree"));
+// Thêm tuỳ chọn ssr: false và trạng thái loading cho các component nặng
+const FamilyTree = dynamic(() => import("@/components/FamilyTree"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full p-8 text-stone-500">
+      Đang tải sơ đồ gia phả...
+    </div>
+  ),
+});
+
+const MindmapTree = dynamic(() => import("@/components/MindmapTree"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full p-8 text-stone-500">
+      Đang tải sơ đồ tư duy...
+    </div>
+  ),
+});
 
 interface DashboardViewsProps {
   persons: Person[];
@@ -25,15 +41,15 @@ export default function DashboardViews({
 
   // Prepare map and roots for tree views
   const { personsMap, roots, defaultRootId } = useMemo(() => {
-    const pMap = new Map<string, Person>();
-    persons.forEach((p) => pMap.set(p.id, p));
+    // Khởi tạo Map trực tiếp từ mảng giúp code ngắn và chạy nhanh hơn
+    const pMap = new Map<string, Person>(persons.map((p) => [p.id, p]));
 
     const childIds = new Set(
       relationships
         .filter(
-          (r) => r.type === "biological_child" || r.type === "adopted_child",
+          (r) => r.type === "biological_child" || r.type === "adopted_child"
         )
-        .map((r) => r.person_b),
+        .map((r) => r.person_b)
     );
 
     let finalRootId = rootId;
@@ -50,9 +66,10 @@ export default function DashboardViews({
         };
 
         if (gen1.length > 0) {
-          finalRootId = gen1.sort(sortByBirthYear)[0].id;
+          // Dùng spread operator [...] để tránh mutate mảng gốc khi sort
+          finalRootId = [...gen1].sort(sortByBirthYear)[0].id;
         } else {
-          finalRootId = rootsFallback.sort(sortByBirthYear)[0].id;
+          finalRootId = [...rootsFallback].sort(sortByBirthYear)[0].id;
         }
       } else if (persons.length > 0) {
         finalRootId = persons[0].id; // ultimate fallback
@@ -74,47 +91,45 @@ export default function DashboardViews({
   const activeRootId = rootId || defaultRootId;
 
   return (
-    <>
-      <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col">
-        {currentView !== "list" && persons.length > 0 && activeRootId && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2 w-full flex flex-col sm:flex-row flex-wrap items-center sm:justify-between gap-4 relative z-20">
-            <RootSelector persons={persons} currentRootId={activeRootId} />
-            <div
-              id="tree-toolbar-portal"
-              className="flex items-center gap-2 flex-wrap justify-center"
-            />
-          </div>
-        )}
-
-        {currentView === "list" && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full relative z-10">
-            <DashboardMemberList
-              initialPersons={persons}
-              relationships={relationships}
-              canEdit={canEdit}
-            />
-          </div>
-        )}
-
-        <div className="flex-1 w-full relative z-10">
-          {currentView === "tree" && (
-            <FamilyTree
-              personsMap={personsMap}
-              relationships={relationships}
-              roots={roots}
-              canEdit={canEdit}
-            />
-          )}
-          {currentView === "mindmap" && (
-            <MindmapTree
-              personsMap={personsMap}
-              relationships={relationships}
-              roots={roots}
-              canEdit={canEdit}
-            />
-          )}
+    <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col">
+      {currentView !== "list" && persons.length > 0 && activeRootId && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2 w-full flex flex-col sm:flex-row flex-wrap items-center sm:justify-between gap-4 relative z-20">
+          <RootSelector persons={persons} currentRootId={activeRootId} />
+          <div
+            id="tree-toolbar-portal"
+            className="flex items-center gap-2 flex-wrap justify-center"
+          />
         </div>
-      </main>
-    </>
+      )}
+
+      {currentView === "list" && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full relative z-10">
+          <DashboardMemberList
+            initialPersons={persons}
+            relationships={relationships}
+            canEdit={canEdit}
+          />
+        </div>
+      )}
+
+      <div className="flex-1 w-full relative z-10">
+        {currentView === "tree" && (
+          <FamilyTree
+            personsMap={personsMap}
+            relationships={relationships}
+            roots={roots}
+            canEdit={canEdit}
+          />
+        )}
+        {currentView === "mindmap" && (
+          <MindmapTree
+            personsMap={personsMap}
+            relationships={relationships}
+            roots={roots}
+            canEdit={canEdit}
+          />
+        )}
+      </div>
+    </main>
   );
 }
