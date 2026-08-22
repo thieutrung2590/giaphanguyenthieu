@@ -50,12 +50,11 @@ export async function getLuangiaiAI(data: {
   
   LƯU Ý ĐẶC BIỆT: Nếu có thông tin Tuần/Triệt, hãy phân tích kỹ sự ảnh hưởng của Tuần Không / Triệt Lộ đến những khó khăn, cản trở của đương số. Không dùng định dạng quá phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng rõ ràng, độ dài khoảng 250 - 350 chữ.`;
 
-  const modelsToTry = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-70b-versatile",
-    "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768"
-  ];
+const modelsToTry = [
+  "openai/gpt-oss-120b",
+  "qwen/qwen3.6-27b",
+  "openai/gpt-oss-20b"
+];
 
   let lastErrorMessage = "";
 
