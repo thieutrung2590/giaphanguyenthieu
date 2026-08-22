@@ -9,13 +9,12 @@ export async function getLuangiaiAI(data: {
   chinhTinh: string;
   tuanTriet?: string; 
   category?: string;
-  viewYear?: string; // Bổ sung thông tin Năm xem hạn
+  viewYear?: string;
 }) {
-  // Đã chuyển sang dùng OPENROUTER_API_KEY
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   
   if (!apiKey) {
-    return "Lỗi: Không tìm thấy OPENROUTER_API_KEY trên Vercel.";
+    return "Lỗi: Không tìm thấy GROQ_API_KEY trên Vercel.";
   }
 
   let specificPrompt = "";
@@ -51,36 +50,44 @@ export async function getLuangiaiAI(data: {
   
   LƯU Ý ĐẶC BIỆT: Nếu có thông tin Tuần/Triệt, hãy phân tích kỹ sự ảnh hưởng của Tuần Không / Triệt Lộ đến những khó khăn, cản trở của đương số. Không dùng định dạng quá phức tạp, chỉ dùng văn bản thuần túy có dấu xuống dòng rõ ràng, độ dài khoảng 250 - 350 chữ.`;
 
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        // OpenRouter khuyến nghị thêm 2 header này (có thể để URL mặc định của bạn)
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-        "X-Title": "TuVi App"
-      },
-      body: JSON.stringify({
-        model: "openrouter/free", // Sử dụng model free của OpenRouter
-        messages: [
-          { role: "system", content: "Bạn là một chuyên gia Tử Vi Đẩu Số am hiểu sâu sắc văn hóa phương Đông." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.7, 
-        max_tokens: 2048, 
-      }),
-    });
+  const modelsToTry = [
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-20b"
+  ];
 
-    const result = await response.json();
+  let lastErrorMessage = "";
 
-    if (response.ok && result.choices && result.choices.length > 0) {
-      return result.choices[0].message.content;
-    } else {
-      const errorMsg = result.error?.message || "Lỗi không xác định từ OpenRouter";
-      return `LỖI TỪ AI: ${errorMsg}`;
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: "system", content: "Bạn là một chuyên gia Tử Vi Đẩu Số am hiểu sâu sắc văn hóa phương Đông." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7, 
+          max_tokens: 1500, 
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.choices && result.choices.length > 0) {
+        return result.choices[0].message.content;
+      } else {
+        lastErrorMessage = result.error?.message || "Lỗi không xác định";
+      }
+    } catch (error: any) {
+      lastErrorMessage = error.message;
     }
-  } catch (error: any) {
-    return `LỖI TỪ AI: ${error.message}`;
   }
+
+  return `LỖI TỪ AI: ${lastErrorMessage}`;
 }
