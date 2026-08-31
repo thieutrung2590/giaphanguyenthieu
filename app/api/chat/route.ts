@@ -398,31 +398,54 @@ class FamilyTreeDataService {
     }
   }
 
-  static ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
-    if (this.isLoaded && !forceRefresh) {
-        return this.loadPromise || Promise.resolve();
-    }
-    
+  private static lastCheckTime = 0;
+
+  static async ensureLoaded(supabase: SupabaseClient, forceRefresh: boolean = false): Promise<void> {
     if (this.loadPromise) {
         return this.loadPromise;
     }
 
-    this.loadPromise = this._loadInternal(supabase, forceRefresh).finally(() => {
-        this.loadPromise = null;
-    });
+    this.loadPromise = (async () => {
+        try {
+            if (!forceRefresh) {
+                const [{ data: pData }, { data: rData }] = await Promise.all([
+                    supabase.from('persons').select('updated_at, created_at').order('updated_at', { ascending: false }).limit(1).single(),
+                    supabase.from('relationships').select('updated_at, created_at').order('updated_at', { ascending: false }).limit(1).single()
+                ]);
+
+                const getLatest = (row: any) => Math.max(new Date(row?.updated_at || 0).getTime(), new Date(row?.created_at || 0).getTime());
+                const latestDbUpdate = Math.max(getLatest(pData), getLatest(rData));
+
+                if (this.isLoaded && latestDbUpdate <= this.lastCheckTime) {
+                    return; // Memory đã mới nhất
+                }
+
+                await this._loadInternal(supabase, false, latestDbUpdate);
+                this.lastCheckTime = Math.max(Date.now(), latestDbUpdate);
+            } else {
+                await this._loadInternal(supabase, true, Date.now());
+                this.lastCheckTime = Date.now();
+            }
+        } finally {
+            this.loadPromise = null;
+        }
+    })();
     
     return this.loadPromise;
   }
 
-  private static async _loadInternal(supabase: SupabaseClient, forceRefresh: boolean): Promise<void> {
+  private static async _loadInternal(supabase: SupabaseClient, forceRefresh: boolean, latestDbUpdate: number): Promise<void> {
     if (!forceRefresh) {
         const { data: cacheRow, error: cacheErr } = await supabase
           .from('api_cache')
-          .select('payload')
+          .select('payload, updated_at')
           .eq('key', this.CACHE_KEY)
           .single();
 
-        if (!cacheErr && cacheRow && cacheRow.payload) {
+        const cacheTime = new Date(cacheRow?.updated_at || 0).getTime();
+        const isCacheValid = !cacheErr && cacheRow && cacheRow.payload && (cacheTime >= latestDbUpdate);
+
+        if (isCacheValid) {
             try {
                 const payload = cacheRow.payload;
                 this.personsMap = new Map(payload.persons);
