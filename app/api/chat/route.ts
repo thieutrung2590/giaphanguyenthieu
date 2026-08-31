@@ -483,7 +483,7 @@ class FamilyTreeDataService {
     const step = 1000;
     while (true) {
       const { data, error } = await supabase.from('persons')
-        .select('id, full_name, other_names, gender, birth_year, birth_order, generation, is_in_law, death_year, note')
+        .select('*')
         .range(fromPerson, fromPerson + step - 1);
       if (error) throw new Error(`Lỗi tải persons: ${error.message}`);
       if (!data || data.length === 0) break;
@@ -496,7 +496,7 @@ class FamilyTreeDataService {
     let fromRel = 0;
     while (true) {
       const { data, error } = await supabase.from('relationships')
-        .select('id, type, relationship_type, person_a, person_b, person_id, related_person_id')
+        .select('*')
         .range(fromRel, fromRel + step - 1);
       if (error) throw new Error(`Lỗi tải relationships: ${error.message}`);
       if (!data || data.length === 0) break;
