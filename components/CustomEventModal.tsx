@@ -50,8 +50,8 @@ export default function CustomEventModal({
   useEffect(() => {
     if (isOpen) {
       if (eventToEdit) {
-        setName(eventToEdit.name);
-        setEventDate(eventToEdit.event_date);
+        setName(eventToEdit.name || "");
+        setEventDate(eventToEdit.event_date || "");
         setLocation(eventToEdit.location || "");
         setContent(eventToEdit.content || "");
         
@@ -321,7 +321,7 @@ export default function CustomEventModal({
                         onClick={() => {
                           if (dateMode === "solar") {
                             // Cố gắng convert eventDate (Dương) sang Âm để điền sẵn
-                            if (eventDate) {
+                            if (eventDate && typeof eventDate === "string") {
                               const [sy, sm, sd] = eventDate.split("-").map(Number);
                               if (sy && sm && sd) {
                                 try {
@@ -431,7 +431,7 @@ export default function CustomEventModal({
                             {lunarConvertError}
                           </p>
                         )}
-                        {eventDate && !lunarConvertError && (
+                        {eventDate && !lunarConvertError && typeof eventDate === "string" && (
                           <p className="text-xs text-stone-500 flex items-center gap-1.5">
                             <Sun className="size-3 text-amber-500" />
                             Dương lịch:{" "}
