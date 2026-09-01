@@ -31,6 +31,10 @@ export interface CustomEventRecord {
   event_date: string;
   location: string | null;
   created_by: string | null;
+  lunar_day?: number | null;
+  lunar_month?: number | null;
+  lunar_year?: number | null;
+  is_leap_month?: boolean | null;
 }
 
 /**
