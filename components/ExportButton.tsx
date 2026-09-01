@@ -29,24 +29,68 @@ export default function ExportButton() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleExport = async (format: "png" | "pdf") => {
+  const handleExport = async (format: "png" | "pdf_image" | "pdf_vector") => {
     try {
       setIsExporting(true);
       setShowMenu(false);
       setError(null);
 
-      // Add a small delay to allow UI to update (close menu) before capturing
+      // Thêm delay nhỏ để UI đóng menu trước khi chụp
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const element = document.getElementById("export-container");
       if (!element) throw new Error("Không tìm thấy vùng dữ liệu để xuất.");
 
+      if (format === "pdf_vector") {
+        // Xuất PDF thông qua hộp thoại in
+        const style = document.createElement("style");
+        style.innerHTML = `
+          @media print {
+            body * { visibility: hidden !important; }
+            #export-container, #export-container * { visibility: visible !important; }
+            #export-container {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              margin: 0 !important;
+              padding: 20px !important;
+              transform: none !important;
+              width: 100% !important;
+              overflow: visible !important;
+            }
+            .css-tree { overflow: visible !important; }
+            @page {
+              size: landscape;
+              margin: 0.5cm;
+            }
+          }
+        `;
+        document.head.appendChild(style);
+        
+        const cleanupPrint = () => {
+          if (document.head.contains(style)) {
+            document.head.removeChild(style);
+          }
+          window.removeEventListener("afterprint", cleanupPrint);
+          setIsExporting(false);
+        };
+        
+        window.addEventListener("afterprint", cleanupPrint);
+        window.print();
+        
+        return;
+      }
+
       element.classList.add("exporting");
 
+      // Đợi font load xong trước khi chụp để không bị lỗi chữ
+      await document.fonts.ready;
+
+      // Tăng pixelRatio lên 3 để đạt độ phân giải siêu cao (Gấp 3 lần màn hình thực tế)
       const exportOptions = {
         cacheBust: true,
         backgroundColor: "#f5f5f4",
-        pixelRatio: 2,
+        pixelRatio: 3, 
         width: element.scrollWidth,
         height: element.scrollHeight,
         style: {
@@ -65,22 +109,20 @@ export default function ExportButton() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-      } else if (format === "pdf") {
-        const imgData = await toJpeg(element, {
-          ...exportOptions,
-          quality: 0.95,
-        });
+      } else if (format === "pdf_image") {
+        const imgData = await toPng(element, exportOptions);
 
-        // Get the actual width and height of the element to calculate PDF dimensions
         const width = element.scrollWidth;
         const height = element.scrollHeight;
 
+        // Giữ nguyên kích thước thực tế thay vì nhét vào A4 để chữ không bị nhỏ xíu khi cây quá to
         const pdf = new jsPDF({
           orientation: width > height ? "landscape" : "portrait",
           unit: "px",
           format: [width, height],
         });
-        pdf.addImage(imgData, "JPEG", 0, 0, width, height);
+        
+        pdf.addImage(imgData, "PNG", 0, 0, width, height);
         pdf.save(`giapha-sodo-${new Date().toISOString().split("T")[0]}.pdf`);
       }
     } catch (err) {
@@ -88,11 +130,13 @@ export default function ExportButton() {
       setError("Đã xảy ra lỗi khi xuất file. Vui lòng thử lại.");
       setTimeout(() => setError(null), 5000);
     } finally {
-      const element = document.getElementById("export-container");
-      if (element) {
-        element.classList.remove("exporting");
+      if (format !== "pdf_vector") {
+        const element = document.getElementById("export-container");
+        if (element) {
+          element.classList.remove("exporting");
+        }
+        setIsExporting(false);
       }
-      setIsExporting(false);
     }
   };
 
@@ -120,21 +164,31 @@ export default function ExportButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute top-full right-0 sm:right-auto sm:left-0 mt-2 w-48 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-stone-200/60 py-2 z-50 overflow-hidden"
+            className="absolute top-full right-0 sm:right-auto sm:left-0 mt-2 w-64 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-stone-200/60 py-2 z-50 overflow-hidden"
           >
             <button
               onClick={() => handleExport("png")}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors text-left"
             >
-              <FileImage className="size-4" />
-              Lưu thành Ảnh (PNG)
+              <FileImage className="size-4 shrink-0" />
+              Lưu Ảnh PNG (Siêu nét)
             </button>
             <button
-              onClick={() => handleExport("pdf")}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors text-left"
+              onClick={() => handleExport("pdf_image")}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors text-left border-t border-stone-100"
             >
-              <FileText className="size-4" />
-              Lưu thành PDF
+              <FileImage className="size-4 shrink-0" />
+              Lưu PDF (Ảnh chất lượng cao)
+            </button>
+            <button
+              onClick={() => handleExport("pdf_vector")}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors text-left border-t border-stone-100"
+            >
+              <FileText className="size-4 shrink-0" />
+              <div className="flex flex-col">
+                 <span>Lưu PDF (Bản in)</span>
+                 <span className="text-[10px] text-stone-400">Chọn "Lưu thành PDF" ở hộp thoại in</span>
+              </div>
             </button>
           </motion.div>
         )}
