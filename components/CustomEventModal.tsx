@@ -13,7 +13,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { Lunar } from "lunar-javascript";
+import { Lunar, Solar } from "lunar-javascript";
 import { useEffect, useState } from "react";
 
 interface CustomEventModalProps {
@@ -42,6 +42,7 @@ export default function CustomEventModal({
   const [lunarDay, setLunarDay] = useState<number | "">("");
   const [lunarMonth, setLunarMonth] = useState<number | "">("");
   const [lunarYear, setLunarYear] = useState<number | "">("");
+  const [isLeapMonth, setIsLeapMonth] = useState<boolean>(false);
   const [lunarConvertError, setLunarConvertError] = useState<string | null>(
     null,
   );
@@ -53,9 +54,22 @@ export default function CustomEventModal({
         setEventDate(eventToEdit.event_date);
         setLocation(eventToEdit.location || "");
         setContent(eventToEdit.content || "");
+        
+        if (eventToEdit.lunar_day && eventToEdit.lunar_month && eventToEdit.lunar_year) {
+          setDateMode("lunar");
+          setLunarDay(eventToEdit.lunar_day);
+          setLunarMonth(Math.abs(eventToEdit.lunar_month));
+          setLunarYear(eventToEdit.lunar_year);
+          setIsLeapMonth(!!eventToEdit.is_leap_month);
+        } else {
+          setDateMode("solar");
+          setLunarDay("");
+          setLunarMonth("");
+          setLunarYear("");
+          setIsLeapMonth(false);
+        }
       } else {
         setName("");
-        // Default to today
         const now = new Date();
         const y = now.getFullYear();
         const m = String(now.getMonth() + 1).padStart(2, "0");
@@ -63,42 +77,50 @@ export default function CustomEventModal({
         setEventDate(`${y}-${m}-${d}`);
         setLocation("");
         setContent("");
+        setDateMode("solar");
+        setLunarDay("");
+        setLunarMonth("");
+        setLunarYear("");
+        setIsLeapMonth(false);
       }
       setError(null);
-      setDateMode("solar");
-      setLunarDay("");
-      setLunarMonth("");
-      setLunarYear("");
       setLunarConvertError(null);
     }
   }, [isOpen, eventToEdit]);
 
-  // Auto-convert lunar → solar when all 3 fields are filled
   useEffect(() => {
-    if (
-      dateMode === "lunar" &&
-      lunarDay !== "" &&
-      lunarMonth !== "" &&
-      lunarYear !== "" &&
-      lunarYear > 100
-    ) {
+    if (dateMode === "lunar") {
+      if (lunarDay === "" || lunarMonth === "" || lunarYear === "") {
+        setEventDate("");
+        setLunarConvertError(null);
+        return;
+      }
+
+      const numD = Number(lunarDay);
+      const numM = Number(lunarMonth);
+      const numY = Number(lunarYear);
+
+      if (numD < 1 || numD > 30 || numM < 1 || numM > 12 || numY < 100) {
+        setEventDate("");
+        setLunarConvertError("Ngày/tháng/năm âm lịch vượt quá phạm vi.");
+        return;
+      }
+
       try {
-        const lunar = Lunar.fromYmd(
-          lunarYear as number,
-          lunarMonth as number,
-          lunarDay as number,
-        );
+        const m = isLeapMonth ? -Math.abs(numM) : Math.abs(numM);
+        const lunar = Lunar.fromYmd(numY, m, numD);
         const solar = lunar.getSolar();
-        const y = solar.getYear();
-        const m = String(solar.getMonth()).padStart(2, "0");
-        const d = String(solar.getDay()).padStart(2, "0");
-        setEventDate(`${y}-${m}-${d}`);
+        const sy = solar.getYear();
+        const sm = String(solar.getMonth()).padStart(2, "0");
+        const sd = String(solar.getDay()).padStart(2, "0");
+        setEventDate(`${sy}-${sm}-${sd}`);
         setLunarConvertError(null);
       } catch {
-        setLunarConvertError("Ngày âm lịch không hợp lệ.");
+        setEventDate("");
+        setLunarConvertError("Ngày âm lịch không tồn tại (vd: 30/2).");
       }
     }
-  }, [dateMode, lunarDay, lunarMonth, lunarYear]);
+  }, [dateMode, lunarDay, lunarMonth, lunarYear, isLeapMonth]);
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -114,16 +136,35 @@ export default function CustomEventModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (dateMode === "lunar") {
+      if (!lunarDay || !lunarMonth || !lunarYear || lunarConvertError) {
+        setError("Vui lòng nhập ngày tháng năm âm lịch hợp lệ trước khi lưu.");
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       const supabase = createClient();
-      const payload = {
+      const payload: Partial<CustomEventRecord> = {
         name,
         event_date: eventDate,
         location: location || null,
         content: content || null,
+        ...(dateMode === "lunar" ? {
+          lunar_day: Number(lunarDay) || null,
+          lunar_month: lunarMonth ? Math.abs(Number(lunarMonth)) : null,
+          lunar_year: Number(lunarYear) || null,
+          is_leap_month: isLeapMonth,
+        } : {
+          lunar_day: null,
+          lunar_month: null,
+          lunar_year: null,
+          is_leap_month: false,
+        })
       };
 
       let resultError;
@@ -278,10 +319,31 @@ export default function CustomEventModal({
                       <button
                         type="button"
                         onClick={() => {
-                          setDateMode((m) =>
-                            m === "solar" ? "lunar" : "solar",
-                          );
-                          setLunarConvertError(null);
+                          if (dateMode === "solar") {
+                            // Cố gắng convert eventDate (Dương) sang Âm để điền sẵn
+                            if (eventDate) {
+                              const [sy, sm, sd] = eventDate.split("-").map(Number);
+                              if (sy && sm && sd) {
+                                try {
+                                  const solar = Solar.fromYmd(sy, sm, sd);
+                                  const lunar = solar.getLunar();
+                                  setLunarDay(lunar.getDay());
+                                  setLunarMonth(Math.abs(lunar.getMonth()));
+                                  setLunarYear(lunar.getYear());
+                                  setIsLeapMonth(lunar.getMonth() < 0);
+                                  setLunarConvertError(null);
+                                } catch {}
+                              }
+                            } else {
+                              setLunarDay("");
+                              setLunarMonth("");
+                              setLunarYear("");
+                              setIsLeapMonth(false);
+                            }
+                            setDateMode("lunar");
+                          } else {
+                            setDateMode("solar");
+                          }
                         }}
                         className="flex items-center gap-1.5 text-xs font-medium text-stone-500 hover:text-amber-700 transition-colors px-2.5 py-1 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200/60"
                       >
@@ -350,6 +412,18 @@ export default function CustomEventModal({
                             }
                             className={inputClasses}
                           />
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <input
+                            type="checkbox"
+                            id="leapMonth"
+                            checked={isLeapMonth}
+                            onChange={(e) => setIsLeapMonth(e.target.checked)}
+                            className="w-4 h-4 rounded border-stone-300 text-amber-600 focus:ring-amber-600"
+                          />
+                          <label htmlFor="leapMonth" className="text-sm font-medium text-stone-700">
+                            Đây là tháng nhuận
+                          </label>
                         </div>
                         {lunarConvertError && (
                           <p className="text-xs text-rose-500 font-medium flex items-center gap-1">
