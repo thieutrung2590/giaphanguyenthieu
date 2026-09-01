@@ -20,7 +20,7 @@ export default function MemberDetailModal() {
   } = useDashboard();
   const { isAdmin, isEditor: canEdit, supabase } = useUser();
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = !!(memberId || showCreateMember);
   const [isEditing, setIsEditing] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -39,7 +39,7 @@ export default function MemberDetailModal() {
   };
 
   const fetchData = useCallback(
-    async (id: string) => {
+    async (id: string, signal?: AbortSignal) => {
       setLoading(true);
       setError(null);
       try {
@@ -50,59 +50,52 @@ export default function MemberDetailModal() {
           .eq("id", id)
           .single();
 
+        if (signal?.aborted) return;
+        
         if (personError || !personData) {
           throw new Error("Không thể tải thông tin thành viên.");
         }
         setPerson(personData);
 
-        // 2. MỞ KHÓA: Cho phép cả Admin và Editor tải thông tin liên hệ (Private Data)
+        // 2. Chỉ Admin và Editor xem Private Data
         if (isAdmin || canEdit) {
           const { data: privData } = await supabase
             .from("person_details_private")
             .select("*")
             .eq("person_id", id)
-            .single();
+            .maybeSingle();
+            
+          if (signal?.aborted) return;
           setPrivateData(privData || {});
         } else {
           setPrivateData(null);
         }
       } catch (err) {
+        if (signal?.aborted) return;
         console.error("Error fetching member details:", err);
-        // @ts-expect-error - err is caught as unknown, but we check for message
-        setError(err?.message || "Đã xảy ra lỗi hệ thống.");
+        setError(err instanceof Error ? err.message : "Đã xảy ra lỗi hệ thống.");
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
     },
-    [isAdmin, canEdit, supabase], // Đã thêm canEdit vào dependency
+    [isAdmin, canEdit, supabase]
   );
 
-  // Sync state with URL parameter or create mode
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
-
+    const abortController = new AbortController();
+    
     if (memberId) {
-      setIsOpen(true);
-      setIsEditing(false); // always start on detail view when opening
-      fetchData(memberId);
+      setIsEditing(false); // luôn về dạng view mode khi mở
+      fetchData(memberId, abortController.signal);
     } else if (showCreateMember) {
-      setIsOpen(true);
       setIsEditing(false);
       setPerson(null);
       setPrivateData(null);
       setError(null);
-    } else {
-      setIsOpen(false);
-      timeoutId = setTimeout(() => {
-        setPerson(null);
-        setPrivateData(null);
-        setError(null);
-        setIsEditing(false);
-      }, 300);
     }
-
+    
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
+      abortController.abort();
     };
   }, [memberId, showCreateMember, fetchData]);
 
@@ -131,9 +124,7 @@ export default function MemberDetailModal() {
   const handleCreateSuccess = (savedPersonId: string) => {
     setShowCreateMember(false);
     setMemberModalId(savedPersonId);
-    setTimeout(() => {
-      router.refresh();
-    }, 100);
+    router.refresh();
   };
 
   const formInitialData = person
@@ -260,7 +251,8 @@ export default function MemberDetailModal() {
                       >[0]["initialData"]
                     }
                     isEditing={true}
-                    isAdmin={isAdmin || canEdit} // MỞ KHÓA form Private Data cho Editor
+                    isAdmin={isAdmin}
+                    canEditPrivate={isAdmin || canEdit}
                     onSuccess={handleEditSuccess}
                     onCancel={() => setIsEditing(false)}
                   />
@@ -279,7 +271,8 @@ export default function MemberDetailModal() {
                     Thêm thành viên mới
                   </h2>
                   <MemberForm
-                    isAdmin={isAdmin || canEdit} // MỞ KHÓA form tạo Private Data
+                    isAdmin={isAdmin}
+                    canEditPrivate={isAdmin || canEdit}
                     onSuccess={handleCreateSuccess}
                     onCancel={closeModal}
                   />
@@ -297,8 +290,9 @@ export default function MemberDetailModal() {
                   <MemberDetailContent
                     person={person}
                     privateData={privateData}
-                    isAdmin={isAdmin || canEdit} // Cho phép Editor xem Private Data trên thẻ
+                    isAdmin={isAdmin}
                     canEdit={canEdit}
+                    canViewPrivate={isAdmin || canEdit}
                   />
                 </motion.div>
               ) : null}
