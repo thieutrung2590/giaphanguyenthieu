@@ -32,6 +32,7 @@ interface MemberDetailContentProps {
   privateData: Record<string, unknown> | null;
   isAdmin: boolean;
   canEdit?: boolean;
+  canViewPrivate?: boolean;
 }
 
 export default function MemberDetailContent({
@@ -39,6 +40,7 @@ export default function MemberDetailContent({
   privateData,
   isAdmin,
   canEdit = false,
+  canViewPrivate = false,
 }: MemberDetailContentProps) {
   const [isNoteExpanded, setIsNoteExpanded] = useState(false);
   const [relStats, setRelStats] = useState<{
@@ -568,7 +570,7 @@ export default function MemberDetailContent({
           {/* Sidebar / Private Info */}
           <div className="space-y-6">
             <motion.div layout variants={itemVariants}>
-              {isAdmin ? (
+              {canViewPrivate ? (
                 <div className="bg-stone-50 p-5 sm:p-6 rounded-2xl border border-stone-200/80 shadow-sm">
                   <h3 className="font-bold text-stone-900 mb-4 flex items-center gap-2 text-sm sm:text-base border-b border-stone-200/60 pb-3">
                     <span className="bg-amber-100/80 text-amber-700 p-1.5 rounded-lg border border-amber-200/50">
