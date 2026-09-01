@@ -38,12 +38,10 @@ export default async function EventsPage() {
   const [personsRes, customEventsRes] = await Promise.all([
     supabase
       .from("persons")
-      .select(
-        "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, death_lunar_is_leap_month, is_deceased, avatar_url",
-      ),
+      .select("*"),
     supabase
       .from("custom_events")
-      .select("id, name, content, event_date, location, created_by"),
+      .select("*"),
   ]);
 
   if (personsRes.error) {
