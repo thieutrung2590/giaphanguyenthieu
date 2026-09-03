@@ -2,6 +2,7 @@ import { getSupabase } from "@/utils/supabase/queries";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Calendar } from "lucide-react";
+import HistoryContentRenderer from "../HistoryContentRenderer";
 
 const safeFormatDate = (d: string | null) => d ? d.split('T')[0].split('-').reverse().join('/') : "";
 
@@ -49,9 +50,7 @@ export default async function HistoryDetailPage({ params }: Props) {
               </div>
             )}
 
-            <div className="prose prose-stone prose-amber max-w-none text-stone-700 whitespace-pre-wrap leading-relaxed text-[15px] sm:text-base">
-              {history.content}
-            </div>
+            <HistoryContentRenderer content={history.content} />
         </article>
 
       </main>

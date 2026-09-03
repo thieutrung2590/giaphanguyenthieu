@@ -2,7 +2,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
-import { getIsAdmin } from "@/utils/supabase/queries"; // <-- Dùng hàm của bạn
+import { getIsAdmin } from "@/utils/supabase/queries";
+import { put } from '@vercel/blob';
 
 function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -20,8 +21,39 @@ function getAdminClient() {
   });
 }
 
+/**
+ * Tải ảnh bài viết lên Vercel Blob và trả về URL công khai
+ */
+export async function uploadHistoryImageAction(formData: FormData): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const isAdmin = await getIsAdmin();
+    if (!isAdmin) {
+      return { success: false, error: "Truy cập bị từ chối: Yêu cầu quyền Quản trị viên." };
+    }
+
+    const file = formData.get('file') as File;
+    if (!file) {
+      return { success: false, error: "Không tìm thấy dữ liệu ảnh." };
+    }
+
+    const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9.-]/g, '_') : 'image.jpg';
+    const filename = `history/${Date.now()}-${safeName}`;
+
+    const blob = await put(filename, file, {
+      access: 'public',
+    });
+
+    return { success: true, url: blob.url };
+  } catch (error) {
+    console.error("Lỗi khi tải ảnh bài viết lên kho lưu trữ:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Đã xảy ra lỗi trong quá trình tải ảnh."
+    };
+  }
+}
+
 export async function addHistoryEntry(formData: FormData): Promise<void> {
-  // GỌI HÀM CỦA BẠN ĐỂ CHECK QUYỀN
   const isAdmin = await getIsAdmin();
   if (!isAdmin) {
     throw new Error("Truy cập bị từ chối: Yêu cầu quyền Quản trị viên.");
@@ -61,11 +93,10 @@ export async function addHistoryEntry(formData: FormData): Promise<void> {
     throw new Error(`Lỗi cập nhật CSDL: ${error.message}`);
   }
 
-  revalidatePath('/history');
+  revalidatePath('/dashboard/history');
 }
 
 export async function deleteHistoryEntry(id: string): Promise<void> {
-  // GỌI HÀM CỦA BẠN ĐỂ CHECK QUYỀN
   const isAdmin = await getIsAdmin();
   if (!isAdmin) {
     throw new Error("Truy cập bị từ chối: Yêu cầu quyền Quản trị viên.");
@@ -85,5 +116,5 @@ export async function deleteHistoryEntry(id: string): Promise<void> {
     throw new Error(`Lỗi cập nhật CSDL: ${error.message}`);
   }
 
-  revalidatePath('/history');
+  revalidatePath('/dashboard/history');
 }
