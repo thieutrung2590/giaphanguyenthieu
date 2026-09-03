@@ -70,3 +70,10 @@ export interface PersonWithDetails extends Person {
   children?: Person[];
   parents?: Person[];
 }
+
+export interface BranchConfig {
+  id: number;
+  name: string;
+  headId: string | null;
+  description?: string;
+}

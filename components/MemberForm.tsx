@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Lunar, Solar } from "lunar-javascript";
 import imageCompression from "browser-image-compression";
+import { setBranchHead } from "@/app/actions/branch";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
@@ -24,6 +25,7 @@ interface MemberFormProps {
   initialData?: Person;
   isEditing?: boolean;
   canEditPrivate?: boolean;
+  branchId?: number;
   /** Called with the saved person's ID after a successful save. Overrides default router.push. */
   onSuccess?: (personId: string) => void;
   /** Called when user clicks Cancel. Overrides default router.back(). */
@@ -34,6 +36,7 @@ export default function MemberForm({
   initialData,
   isEditing = false,
   canEditPrivate = false,
+  branchId,
   onSuccess,
   onCancel,
 }: MemberFormProps) {
@@ -392,6 +395,14 @@ export default function MemberForm({
         throw new Error("Không lấy được ID thành viên sau khi lưu.");
       if (onSuccess) {
         onSuccess(personId);
+      } else if (branchId) {
+        try {
+          await setBranchHead(branchId, personId);
+        } catch (branchErr) {
+          console.error("Error setting branch head:", branchErr);
+        }
+        router.push(`/dashboard/members?branch=${branchId}&view=tree`);
+        router.refresh();
       } else {
         router.push("/dashboard/members/" + personId);
         router.refresh();

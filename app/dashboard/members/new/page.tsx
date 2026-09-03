@@ -3,7 +3,14 @@ import { getProfile } from "@/utils/supabase/queries";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-export default async function NewMemberPage() {
+interface PageProps {
+  searchParams: Promise<{ branch?: string }>;
+}
+
+export default async function NewMemberPage({ searchParams }: PageProps) {
+  const { branch } = await searchParams;
+  const branchId = branch ? parseInt(branch, 10) : undefined;
+
   const profile = await getProfile();
 
   const canEdit = profile?.role === "admin" || profile?.role === "editor";
@@ -50,7 +57,7 @@ export default async function NewMemberPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 w-full flex-1">
-        <MemberForm canEditPrivate={canEdit} />
+        <MemberForm canEditPrivate={canEdit} branchId={branchId} />
       </main>
     </div>
   );

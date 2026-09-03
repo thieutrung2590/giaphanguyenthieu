@@ -1,3 +1,4 @@
+import { getBranchConfigs } from "@/app/actions/branch";
 import { DashboardProvider } from "@/components/DashboardContext";
 import DashboardViews from "@/components/DashboardViews";
 import MemberDetailModal from "@/components/MemberDetailModal";
@@ -5,21 +6,23 @@ import ViewToggle, { ViewMode } from "@/components/ViewToggle";
 import { getProfile, getSupabase } from "@/utils/supabase/queries";
 
 interface PageProps {
-  searchParams: Promise<{ view?: string; rootId?: string }>;
+  searchParams: Promise<{ view?: string; rootId?: string; branch?: string }>;
 }
 
 export default async function FamilyTreePage({ searchParams }: PageProps) {
-  const { rootId, view } = await searchParams;
+  const { rootId, view, branch } = await searchParams;
+  const currentBranchNum = branch ? parseInt(branch, 10) : null;
 
   const supabase = await getSupabase();
 
-  const [profile, personsRes, relsRes] = await Promise.all([
+  const [profile, personsRes, relsRes, branches] = await Promise.all([
     getProfile(),
     supabase
       .from("persons")
       .select("*")
       .order("birth_year", { ascending: true, nullsFirst: false }),
     supabase.from("relationships").select("*"),
+    getBranchConfigs(),
   ]);
 
   const canEdit = profile?.role === "admin" || profile?.role === "editor";
@@ -34,18 +37,24 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
   // Khởi tạo Map ngắn gọn hơn
   const personsMap = new Map(persons.map((p) => [p.id, p]));
 
-  const childIds = new Set(
-    relationships
-      .filter(
-        (r) => r.type === "biological_child" || r.type === "adopted_child"
-      )
-      .map((r) => r.person_b)
-  );
-
   let finalRootId = rootId;
 
-  // Nếu không có rootId hợp lệ, lấy fallback thông minh ưu tiên Cụ Tổ đời 1 trực hệ
-  if (!finalRootId || !personsMap.has(finalRootId)) {
+  // Nếu đang xem một Cành cụ thể và cành đó có người đứng đầu:
+  const activeBranch = currentBranchNum
+    ? branches.find((b) => b.id === currentBranchNum)
+    : null;
+
+  if (activeBranch && activeBranch.headId && personsMap.has(activeBranch.headId)) {
+    finalRootId = activeBranch.headId;
+  } else if (!finalRootId || !personsMap.has(finalRootId)) {
+    const childIds = new Set(
+      relationships
+        .filter(
+          (r) => r.type === "biological_child" || r.type === "adopted_child"
+        )
+        .map((r) => r.person_b)
+    );
+
     const rootsFallback = persons.filter((p) => !childIds.has(p.id));
     if (rootsFallback.length > 0) {
       const bloodlineGen1 = rootsFallback.filter(
@@ -81,11 +90,13 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
     <DashboardProvider
       initialView={view as ViewMode}
       initialRootId={finalRootId}
+      initialBranch={currentBranchNum}
     >
       <ViewToggle />
       <DashboardViews
         persons={persons}
         relationships={relationships}
+        branches={branches}
         canEdit={canEdit}
         rootId={finalRootId}
       />

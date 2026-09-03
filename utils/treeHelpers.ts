@@ -104,3 +104,38 @@ export function getFilteredTreeData(
     children: childrenList,
   };
 }
+
+/**
+ * Lấy toàn bộ ID của các thành viên thuộc về một Cành (từ người đầu cành duyệt xuống con cháu và vợ/chồng)
+ */
+export function getBranchMemberIds(
+  headId: string,
+  adj: AdjacencyLists,
+): Set<string> {
+  const memberIds = new Set<string>();
+  const queue: string[] = [headId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (memberIds.has(currentId)) continue;
+    memberIds.add(currentId);
+
+    // Thêm vợ/chồng của thành viên này
+    const spouses = adj.spousesByPersonId.get(currentId) || [];
+    for (const s of spouses) {
+      if (!memberIds.has(s.person.id)) {
+        memberIds.add(s.person.id);
+      }
+    }
+
+    // Thêm các con của thành viên này vào hàng đợi duyệt tiếp
+    const children = adj.childrenByPersonId.get(currentId) || [];
+    for (const c of children) {
+      if (!memberIds.has(c.id)) {
+        queue.push(c.id);
+      }
+    }
+  }
+
+  return memberIds;
+}

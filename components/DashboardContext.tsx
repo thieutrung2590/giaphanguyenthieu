@@ -15,6 +15,8 @@ interface DashboardState {
   setView: (view: ViewMode) => void;
   rootId: string | null;
   setRootId: (id: string | null) => void;
+  branch: number | null;
+  setBranch: (branch: number | null) => void;
 }
 
 export const DashboardContext = createContext<DashboardState | undefined>(
@@ -25,10 +27,12 @@ export function DashboardProvider({
   children,
   initialView,
   initialRootId,
+  initialBranch,
 }: {
   children: React.ReactNode;
   initialView?: ViewMode;
   initialRootId?: string | null;
+  initialBranch?: number | null;
 }) {
   const searchParams = useSearchParams();
   const [memberModalId, setMemberModalId] = useState<string | null>(null);
@@ -37,6 +41,9 @@ export function DashboardProvider({
   const [view, setViewState] = useState<ViewMode>(initialView || "list");
   const [rootId, setRootIdState] = useState<string | null>(
     initialRootId || null,
+  );
+  const [branch, setBranchState] = useState<number | null>(
+    initialBranch ?? null,
   );
 
   // Initialize from URL and listen to Next.js route changes
@@ -57,6 +64,14 @@ export function DashboardProvider({
 
       const modalId = sp.get("memberModalId");
       setMemberModalId(modalId);
+
+      const branchParam = sp.get("branch");
+      if (branchParam) {
+        const num = parseInt(branchParam, 10);
+        setBranchState(isNaN(num) ? null : num);
+      } else {
+        setBranchState(null);
+      }
     };
 
     syncFromURL();
@@ -111,6 +126,19 @@ export function DashboardProvider({
     }
   };
 
+  const setBranch = (b: number | null) => {
+    setBranchState(b);
+    if (typeof window !== "undefined") {
+      const newUrl = new URL(window.location.href);
+      if (b !== null) {
+        newUrl.searchParams.set("branch", b.toString());
+      } else {
+        newUrl.searchParams.delete("branch");
+      }
+      window.history.replaceState(null, "", newUrl.toString());
+    }
+  };
+
   return (
     <DashboardContext.Provider
       value={{
@@ -124,6 +152,8 @@ export function DashboardProvider({
         setView,
         rootId,
         setRootId,
+        branch,
+        setBranch,
       }}
     >
       {children}
@@ -147,6 +177,8 @@ export function useDashboard(): DashboardState {
       setView: () => {},
       rootId: null,
       setRootId: () => {},
+      branch: null,
+      setBranch: () => {},
     };
   }
   return context;
