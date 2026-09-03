@@ -63,6 +63,7 @@ const LUNAR_CACHE = new Map<string, Lunar>();
 function getCachedLunar(y: number, m: number, d: number): Lunar {
   const key = `${y}-${m}-${d}`;
   if (LUNAR_CACHE.has(key)) return LUNAR_CACHE.get(key)!;
+  if (LUNAR_CACHE.size > 500) LUNAR_CACHE.clear();
   const lunar = Solar.fromYmd(y, m, d).getLunar();
   LUNAR_CACHE.set(key, lunar);
   return lunar;
@@ -205,12 +206,12 @@ export default function LunisolarCalendar() {
     if (type === 'd') d = value;
 
     try {
-      const tempLunar = Lunar.fromYmd(y, m, 1) as any;
+      const tempLunar = Lunar.fromYmd(y, m, 1) as Lunar & { getDayCount: () => number };
       const maxLunarDays = tempLunar.getDayCount();
 
       if (d > maxLunarDays) d = maxLunarDays;
 
-      const lunarObj = Lunar.fromYmd(y, m, d) as any;
+      const lunarObj = Lunar.fromYmd(y, m, d) as Lunar & { getSolar: () => Solar };
       const solarObj = lunarObj.getSolar();
       const newDate = new Date(solarObj.getYear(), solarObj.getMonth() - 1, solarObj.getDay());
       
@@ -264,7 +265,16 @@ export default function LunisolarCalendar() {
     const sMonth = selectedDate.getMonth() + 1;
     const sDay = selectedDate.getDate();
     
-    const lunar = getCachedLunar(sYear, sMonth, sDay) as any;
+    const lunar = getCachedLunar(sYear, sMonth, sDay) as Lunar & {
+      getYearInGanZhi: () => string;
+      getMonthInGanZhi: () => string;
+      getDayInGanZhi: () => string;
+      getDayNaYin: () => string;
+      getDayChongDesc: () => string;
+      getDaySha: () => string;
+      getDayTianShenType: () => string;
+      getDayZhi: () => string;
+    };
 
     const lYearStr = translateToVN(lunar.getYearInGanZhi());
     const lMonthStr = translateToVN(lunar.getMonthInGanZhi());
@@ -313,7 +323,10 @@ export default function LunisolarCalendar() {
       const sMonth = d.getMonth() + 1;
       const sDay = d.getDate();
       
-      const lunar = getCachedLunar(sYear, sMonth, sDay) as any;
+      const lunar = getCachedLunar(sYear, sMonth, sDay) as Lunar & {
+        getDayInGanZhi: () => string;
+        getDayTianShenType: () => string;
+      };
       
       const lDay = lunar.getDay();
       const lMonth = Math.abs(lunar.getMonth());

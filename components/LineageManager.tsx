@@ -2,12 +2,8 @@
 
 import { Person, Relationship } from "@/types";
 import { createClient } from "@/utils/supabase/client";
-import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   RefreshCw,
   Sparkles,
@@ -57,8 +53,8 @@ function computeGenerations(persons: Person[], relationships: Relationship[]): M
   // 1.5. DỰ PHÒNG: Quét trực tiếp từ cột cha/mẹ trong bảng Persons (nếu có)
   persons.forEach(p => {
     const pid = p.id;
-    const pAny = p as any;
-    const parents = [pAny.father_id, pAny.mother_id].filter(Boolean);
+    const pAny = p as unknown as { father_id?: string; mother_id?: string };
+    const parents = [pAny.father_id, pAny.mother_id].filter(Boolean) as string[];
     
     parents.forEach(parentId => {
       if (!childToParents.get(pid)?.includes(parentId)) {
@@ -147,8 +143,8 @@ function computeBirthOrders(persons: Person[], relationships: Relationship[]): M
   // DỰ PHÒNG: Quét cột trực tiếp
   persons.forEach(p => {
     const pid = p.id;
-    const pAny = p as any;
-    const parents = [pAny.father_id, pAny.mother_id].filter(Boolean);
+    const pAny = p as unknown as { father_id?: string; mother_id?: string };
+    const parents = [pAny.father_id, pAny.mother_id].filter(Boolean) as string[];
     parents.forEach(parentId => {
       if (!parentChildren.has(parentId)) parentChildren.set(parentId, []);
       if (!parentChildren.get(parentId)!.includes(pid)) {
@@ -219,8 +215,8 @@ export default function LineageManager({ persons, relationships }: LineageManage
         });
 
         setUpdates(result);
-      } catch (err: any) {
-        setError(err.message || "Lỗi tính toán dữ liệu.");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Lỗi tính toán dữ liệu.");
       } finally {
         setComputing(false);
       }
@@ -243,7 +239,7 @@ export default function LineageManager({ persons, relationships }: LineageManage
       }
       setApplied(true);
       setUpdates(null);
-    } catch (err) {
+    } catch (_err) {
       setError("Không thể lưu dữ liệu vào Supabase.");
     } finally {
       setApplying(false);

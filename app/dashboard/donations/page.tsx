@@ -1,5 +1,5 @@
 import { getIsAdmin, getSupabase } from "@/utils/supabase/queries";
-import { HeartHandshake, TrendingDown, Wallet, History, Receipt } from "lucide-react";
+import { HeartHandshake, TrendingDown, Wallet, Receipt } from "lucide-react";
 import DonationForm from "./DonationForm";
 import ExpenseForm from "./ExpenseForm";
 

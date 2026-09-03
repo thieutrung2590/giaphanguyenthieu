@@ -9,6 +9,7 @@ export const createClient = (
   cookieStore: Awaited<ReturnType<typeof cookies>>,
 ) => {
   if (!supabaseUrl || !supabaseKey) {
+    console.warn("[Supabase Server] Thiếu biến môi trường NEXT_PUBLIC_SUPABASE_URL hoặc NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY. Các truy vấn sẽ trả về rỗng.");
     // Return a dummy client to avoid crashing the render if accessed before redirect
     return {
       from: () => ({

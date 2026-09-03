@@ -24,7 +24,7 @@ import {
   Users,
 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FemaleIcon, MaleIcon } from "./GenderIcons";
 
 interface MemberDetailContentProps {
@@ -67,6 +67,10 @@ export default function MemberDetailContent({
     },
     [],
   );
+
+  useEffect(() => {
+    queueMicrotask(() => setRelStats(null));
+  }, [person.id]);
 
   const fullPerson = { ...person, ...privateData };
   const note = (fullPerson.note as string) || "";

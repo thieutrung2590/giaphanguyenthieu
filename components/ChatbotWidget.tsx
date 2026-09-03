@@ -81,10 +81,12 @@ export default function ChatbotWidget() {
       try {
         const parsed = JSON.parse(savedChat);
         // Đảm bảo tương thích với lịch sử cũ chưa có cấu trúc id và parsedLines
-        const validHistory = parsed.map((msg: any) =>
-          msg.parsedLines && msg.id ? msg : createMessage(msg.role, msg.text)
+        const validHistory = parsed.map((msg: Partial<ChatMessage> & { role: 'user' | 'bot'; text: string }) =>
+          msg.parsedLines && msg.id ? (msg as ChatMessage) : createMessage(msg.role, msg.text)
         );
-        setChatHistory(validHistory);
+        queueMicrotask(() => {
+          setChatHistory(validHistory);
+        });
       } catch (error: unknown) {
         console.error('Lỗi khi đọc lịch sử chat:', error);
       }

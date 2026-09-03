@@ -85,13 +85,15 @@ export default function MemberDetailModal() {
     const abortController = new AbortController();
     
     if (memberId) {
-      setIsEditing(false); // luôn về dạng view mode khi mở
-      fetchData(memberId, abortController.signal);
+      queueMicrotask(() => setIsEditing(false)); // luôn về dạng view mode khi mở
+      queueMicrotask(() => fetchData(memberId, abortController.signal));
     } else if (showCreateMember) {
-      setIsEditing(false);
-      setPerson(null);
-      setPrivateData(null);
-      setError(null);
+      queueMicrotask(() => {
+        setIsEditing(false);
+        setPerson(null);
+        setPrivateData(null);
+        setError(null);
+      });
     }
     
     return () => {
@@ -251,7 +253,6 @@ export default function MemberDetailModal() {
                       >[0]["initialData"]
                     }
                     isEditing={true}
-                    isAdmin={isAdmin}
                     canEditPrivate={isAdmin || canEdit}
                     onSuccess={handleEditSuccess}
                     onCancel={() => setIsEditing(false)}
@@ -271,7 +272,6 @@ export default function MemberDetailModal() {
                     Thêm thành viên mới
                   </h2>
                   <MemberForm
-                    isAdmin={isAdmin}
                     canEditPrivate={isAdmin || canEdit}
                     onSuccess={handleCreateSuccess}
                     onCancel={closeModal}

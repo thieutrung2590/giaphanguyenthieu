@@ -1,19 +1,12 @@
 // utils/lunarConverter.ts
-
-/**
- * Tiện ích chuyển đổi lịch Âm - Dương theo tiêu chuẩn Việt Nam
- * Dựa trên thuật toán Hồ Ngọc Đức (Múi giờ UTC+7)
- */
-
-// @ts-ignore: Bỏ qua cảnh báo TypeScript vì thư viện am-lich được viết bằng JS thuần
-import { lunar2solar, solar2lunar } from "am-lich";
+import { Lunar, Solar } from "lunar-javascript";
 
 /**
  * Chuyển đổi ngày Âm lịch sang Dương lịch
  * @param lunarDay Ngày âm lịch (1-30)
  * @param lunarMonth Tháng âm lịch (1-12)
  * @param lunarYear Năm âm lịch
- * @param isLeapMonth Đánh dấu tháng nhuận (0: không nhuận, 1: nhuận). Gia phả thường dùng 0.
+ * @param isLeapMonth Đánh dấu tháng nhuận (0: không nhuận, 1: nhuận)
  * @returns Mảng [ngày, tháng, năm] dương lịch
  */
 export function getSolarDate(
@@ -23,11 +16,12 @@ export function getSolarDate(
   isLeapMonth: number = 0
 ): [number, number, number] {
   try {
-    // Số 7 ở cuối là timeZone của Việt Nam (UTC+7)
-    const solarDate = lunar2solar(lunarDay, lunarMonth, lunarYear, isLeapMonth, 7);
+    const m = isLeapMonth === 1 ? -Math.abs(lunarMonth) : Math.abs(lunarMonth);
+    const lunar = Lunar.fromYmd(lunarYear, m, lunarDay);
+    const solar = lunar.getSolar();
     
     // Đảm bảo trả về đúng định dạng mảng [ngày, tháng, năm]
-    return [solarDate[0], solarDate[1], solarDate[2]];
+    return [solar.getDay(), solar.getMonth(), solar.getYear()];
   } catch (error) {
     console.error("Lỗi khi chuyển đổi Âm sang Dương:", error);
     // Trả về dữ liệu an toàn để không làm sập giao diện nếu có lỗi
@@ -36,7 +30,7 @@ export function getSolarDate(
 }
 
 /**
- * Chuyển đổi ngày Dương lịch sang Âm lịch (Dùng khi muốn hiển thị ngày âm hiện tại)
+ * Chuyển đổi ngày Dương lịch sang Âm lịch
  * @param solarDay Ngày dương lịch
  * @param solarMonth Tháng dương lịch
  * @param solarYear Năm dương lịch
@@ -48,14 +42,13 @@ export function getLunarDate(
   solarYear: number
 ): { day: number; month: number; year: number; isLeap: boolean } {
   try {
-    // Số 7 ở cuối là timeZone của Việt Nam (UTC+7)
-    const lunarDate = solar2lunar(solarDay, solarMonth, solarYear, 7);
-    
+    const solar = Solar.fromYmd(solarYear, solarMonth, solarDay);
+    const lunar = solar.getLunar();
     return {
-      day: lunarDate[0],
-      month: lunarDate[1],
-      year: lunarDate[2],
-      isLeap: lunarDate[3] === 1,
+      day: lunar.getDay(),
+      month: Math.abs(lunar.getMonth()),
+      year: lunar.getYear(),
+      isLeap: lunar.getMonth() < 0,
     };
   } catch (error) {
     console.error("Lỗi khi chuyển đổi Dương sang Âm:", error);

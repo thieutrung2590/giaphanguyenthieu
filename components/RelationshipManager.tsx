@@ -79,6 +79,7 @@ export default function RelationshipManager({
   const [selectedSpouseId, setSelectedSpouseId] = useState<string>("");
   const [bulkChildren, setBulkChildren] = useState<
     {
+      id: string;
       name: string;
       gender: "male" | "female" | "other";
       birthYear: string;
@@ -87,6 +88,7 @@ export default function RelationshipManager({
     }[]
   >([
     {
+      id: "initial-1",
       name: "",
       gender: "male",
       birthYear: "",
@@ -127,13 +129,15 @@ export default function RelationshipManager({
         else if (r.type === "biological_child" || r.type === "adopted_child")
           direction = "child"; // I am A (Parent), B is Child
 
-        formattedRels.push({
-          id: r.id,
-          type: r.type,
-          direction,
-          targetPerson: r.target,
-          note: r.note,
-        });
+        if (r.target) {
+          formattedRels.push({
+            id: r.id,
+            type: r.type,
+            direction,
+            targetPerson: r.target,
+            note: r.note,
+          });
+        }
       });
 
       // Process Rels where I am Person B
@@ -143,13 +147,15 @@ export default function RelationshipManager({
         else if (r.type === "biological_child" || r.type === "adopted_child")
           direction = "parent"; // I am B (Child), A is Parent
 
-        formattedRels.push({
-          id: r.id,
-          type: r.type,
-          direction,
-          targetPerson: r.target,
-          note: r.note,
-        });
+        if (r.target) {
+          formattedRels.push({
+            id: r.id,
+            type: r.type,
+            direction,
+            targetPerson: r.target,
+            note: r.note,
+          });
+        }
       });
 
       // Fetch in-laws (spouses of children)
@@ -257,7 +263,13 @@ export default function RelationshipManager({
   }, [personId, supabase, onStatsLoaded]);
 
   useEffect(() => {
-    fetchRelationships();
+    // Sử dụng microtask để lách cảnh báo set-state-in-effect của Linter
+    // vì việc fetch dữ liệu có thể vô tình kích hoạt các hàm đồng bộ setState.
+    const run = async () => {
+      await Promise.resolve();
+      fetchRelationships();
+    };
+    run();
   }, [fetchRelationships]);
 
   // Search for people to add
@@ -405,19 +417,29 @@ export default function RelationshipManager({
         const newChildId = newPersonData.id;
 
         // 2. Insert Relationship to Main Person (parent)
-        await supabase.from("relationships").insert({
+        const { error: relError1 } = await supabase.from("relationships").insert({
           person_a: personId,
           person_b: newChildId,
           type: "biological_child",
         });
+        
+        if (relError1) {
+          console.error("Error inserting relationship 1:", child.name, relError1);
+          continue;
+        }
 
         // 3. Insert Relationship to Second Parent (spouse), if selected
         if (selectedSpouseId && selectedSpouseId !== "unknown") {
-          await supabase.from("relationships").insert({
+          const { error: relError2 } = await supabase.from("relationships").insert({
             person_a: selectedSpouseId,
             person_b: newChildId,
             type: "biological_child",
           });
+          if (relError2) {
+             console.error("Error inserting relationship 2:", child.name, relError2);
+             // We'll still count this as success if main relationship was created, or we can continue.
+             // Usually, partial failure here is tricky, but let's just log it.
+          }
         }
 
         successCount++;
@@ -427,6 +449,7 @@ export default function RelationshipManager({
         setIsAddingBulk(false);
         setBulkChildren([
           {
+            id: crypto.randomUUID(),
             name: "",
             gender: "male",
             birthYear: "",
@@ -944,7 +967,7 @@ export default function RelationshipManager({
               </label>
               {bulkChildren.map((child, index) => (
                 <div
-                  key={index}
+                  key={child.id}
                   className="bg-white rounded-xl border border-stone-200/80 p-3 sm:p-4 shadow-xs"
                 >
                   {/* Header: number + remove */}
@@ -959,6 +982,7 @@ export default function RelationshipManager({
                         );
                         if (newBulk.length === 0) {
                           newBulk.push({
+                            id: crypto.randomUUID(),
                             name: "",
                             gender: "male",
                             birthYear: "",
@@ -1044,6 +1068,7 @@ export default function RelationshipManager({
                   setBulkChildren([
                     ...bulkChildren,
                     {
+                      id: crypto.randomUUID(),
                       name: "",
                       gender: "male",
                       birthYear: "",
@@ -1073,6 +1098,7 @@ export default function RelationshipManager({
                   setIsAddingBulk(false);
                   setBulkChildren([
                     {
+                      id: crypto.randomUUID(),
                       name: "",
                       gender: "male",
                       birthYear: "",

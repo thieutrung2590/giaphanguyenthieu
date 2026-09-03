@@ -37,7 +37,7 @@ interface PersonRecord {
   uuid?: string;
   image?: string;
   avatar_url?: string;
-  [key: string]: any; 
+  [key: string]: unknown; 
 }
 
 interface RelationshipRecord {
@@ -51,7 +51,7 @@ interface RelationshipRecord {
   note?: string;
   created_at?: string;
   updated_at?: string;
-  [key: string]: any; 
+  [key: string]: unknown; 
 }
 
 interface FamilyMember {
@@ -68,21 +68,6 @@ interface MatchedEntity {
 interface MultipleMatch {
   person: Partial<PersonRecord>;
   family: FamilyMember[];
-}
-
-interface BackendContext {
-  _debug_intent?: string;
-  total_members?: number;
-  person?: Partial<PersonRecord>;
-  family?: FamilyMember[];
-  multiple_matches?: MultipleMatch[]; 
-  multiple_matches_name1?: MultipleMatch[]; 
-  multiple_matches_name2?: MultipleMatch[]; 
-  path_raw?: string;
-  exact_relationship?: string;
-  message?: string;
-  error?: string;
-  note?: string;
 }
 
 // ============================================================================
@@ -285,7 +270,7 @@ class UtilsService {
     const sProxies = [sourceId, ...(spousesMap.get(sourceId) || [])];
     const tProxies = [targetId, ...(spousesMap.get(targetId) || [])];
 
-    let candidateMatches: any[] = [];
+    let candidateMatches: { lca: string, pathS: string[], pathT: string[], distS: number, distT: number, sp: string, tp: string }[] = [];
     let minCombinedDist = Infinity;
 
     for (const sp of sProxies) {
@@ -413,7 +398,7 @@ class FamilyTreeDataService {
                     supabase.from('relationships').select('updated_at, created_at').order('updated_at', { ascending: false }).limit(1).single()
                 ]);
 
-                const getLatest = (row: any) => Math.max(new Date(row?.updated_at || 0).getTime(), new Date(row?.created_at || 0).getTime());
+                const getLatest = (row: { updated_at?: string; created_at?: string } | null) => Math.max(new Date(row?.updated_at || 0).getTime(), new Date(row?.created_at || 0).getTime());
                 const latestDbUpdate = Math.max(getLatest(pData), getLatest(rData));
 
                 if (this.isLoaded && latestDbUpdate <= this.lastCheckTime) {
@@ -462,7 +447,7 @@ class FamilyTreeDataService {
                 
                 this.isLoaded = true;
                 return;
-            } catch (err) {
+            } catch (_err) {
                 console.error("Cache hỏng, tiến hành nạp lại toàn bộ...");
             }
         }
@@ -735,8 +720,8 @@ class LLMService {
     }
   ];
 
-  static async generateWithTools(apiKey: string, systemPrompt: string, userMessage: string): Promise<any> {
-    let messages: any[] = [
+  static async generateWithTools(apiKey: string, systemPrompt: string, userMessage: string): Promise<string> {
+    const messages: { role: string; content?: string; [key: string]: unknown }[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ];
@@ -745,7 +730,7 @@ class LLMService {
     const MAX_TOOL_ROUNDS = 2; // Cho phép tối đa 2 vòng gọi công cụ
 
     while (toolRounds < MAX_TOOL_ROUNDS) {
-      let response = await fetch(DEEPSEEK_API_ENDPOINT, {
+      const response = await fetch(DEEPSEEK_API_ENDPOINT, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -764,8 +749,8 @@ class LLMService {
         throw new Error(`LLM Error at tool round ${toolRounds + 1}: ${err.error?.message || response.statusText}`);
       }
 
-      let data = await response.json();
-      let responseMessage = data.choices?.[0]?.message;
+      const data = await response.json();
+      const responseMessage = data.choices?.[0]?.message;
 
       // Nếu LLM KHÔNG gọi tool nào, hoặc chỉ sinh ra text, trả về câu trả lời luôn
       if (!responseMessage?.tool_calls || responseMessage.tool_calls.length === 0) {
@@ -779,13 +764,13 @@ class LLMService {
       // Duyệt qua từng công cụ AI muốn gọi
       for (const toolCall of responseMessage.tool_calls) {
         const functionName = toolCall.function.name;
-        let args: any = {};
-        let functionResult: any = {};
+        let args: { name?: string; name1?: string; name2?: string } = {};
+        const functionResult: Record<string, unknown> = {};
 
         try {
             args = JSON.parse(toolCall.function.arguments);
-        } catch(e: any) {
-            functionResult.error = `JSON Parse Error: ${e.message}. Vui lòng gọi lại với JSON arguments hợp lệ.`;
+        } catch(e: unknown) {
+            functionResult.error = `JSON Parse Error: ${e instanceof Error ? e.message : String(e)}. Vui lòng gọi lại với JSON arguments hợp lệ.`;
             messages.push({
                 role: "tool",
                 tool_call_id: toolCall.id,
@@ -794,24 +779,32 @@ class LLMService {
             continue; // Bỏ qua việc thực thi hàm vì JSON lỗi
         }
 
-        if (functionName === 'search_member') {
+        if (functionName === 'search_member' && args.name) {
           const matches = FamilyTreeDataService.searchByQuery(args.name);
           if (matches.length > 0 && matches[0].ids.length > 0) {
             const ids = matches[0].ids;
             if (ids.length === 1) {
-               functionResult.person = UtilsService.cleanPersonData(FamilyTreeDataService.getPerson(ids[0])!);
-               functionResult.family = FamilyTreeDataService.getFamily(ids[0]);
+               const p = FamilyTreeDataService.getPerson(ids[0]);
+               if (p) {
+                   functionResult.person = UtilsService.cleanPersonData(p);
+                   functionResult.family = FamilyTreeDataService.getFamily(ids[0]);
+               } else {
+                   functionResult.error = `Không tìm thấy dữ liệu cho id ${ids[0]}`;
+               }
             } else {
-               functionResult.multiple_matches = ids.map(id => ({
-                   person: UtilsService.cleanPersonData(FamilyTreeDataService.getPerson(id)!),
-                   family: FamilyTreeDataService.getFamily(id)
-               }));
+               functionResult.multiple_matches = ids.map(id => {
+                   const p = FamilyTreeDataService.getPerson(id);
+                   return p ? {
+                       person: UtilsService.cleanPersonData(p),
+                       family: FamilyTreeDataService.getFamily(id)
+                   } : null;
+               }).filter(Boolean);
             }
           } else {
             functionResult.error = `Không tìm thấy ai có tên "${args.name}" trong gia phả.`;
           }
         } 
-        else if (functionName === 'find_relationship') {
+        else if (functionName === 'find_relationship' && args.name1 && args.name2) {
           const m1 = FamilyTreeDataService.searchByQuery(args.name1);
           const m2 = FamilyTreeDataService.searchByQuery(args.name2);
           
@@ -822,16 +815,22 @@ class LLMService {
               if (ids1.length > 1 || ids2.length > 1) {
                   functionResult.error = "Phát hiện trùng tên, không thể tự động xác định mối quan hệ.";
                   if (ids1.length > 1) {
-                      functionResult.multiple_matches_name1 = ids1.map(id => ({
-                          person: UtilsService.cleanPersonData(FamilyTreeDataService.getPerson(id)!),
-                          family: FamilyTreeDataService.getFamily(id)
-                      }));
+                      functionResult.multiple_matches_name1 = ids1.map(id => {
+                          const p = FamilyTreeDataService.getPerson(id);
+                          return p ? {
+                              person: UtilsService.cleanPersonData(p),
+                              family: FamilyTreeDataService.getFamily(id)
+                          } : null;
+                      }).filter(Boolean);
                   }
                   if (ids2.length > 1) {
-                      functionResult.multiple_matches_name2 = ids2.map(id => ({
-                          person: UtilsService.cleanPersonData(FamilyTreeDataService.getPerson(id)!),
-                          family: FamilyTreeDataService.getFamily(id)
-                      }));
+                      functionResult.multiple_matches_name2 = ids2.map(id => {
+                          const p = FamilyTreeDataService.getPerson(id);
+                          return p ? {
+                              person: UtilsService.cleanPersonData(p),
+                              family: FamilyTreeDataService.getFamily(id)
+                          } : null;
+                      }).filter(Boolean);
                   }
                   functionResult.instruction = "Hệ thống phát hiện có nhiều người trùng tên. Bạn HÃY DỪNG LẠI việc tìm kiếm, in ra danh sách những người trùng tên (bao gồm thế hệ, năm sinh, tên cha/mẹ) và LỊCH SỰ HỎI người dùng xem họ đang muốn nhắc đến ai để tiếp tục tra cứu.";
               } else {
@@ -865,7 +864,7 @@ class LLMService {
     }
 
     // Sau khi kết thúc số vòng tool (do quá trình tra cứu quá dài), buộc gọi request cuối cùng KHÔNG có parameters "tools"
-    let finalResponse = await fetch(DEEPSEEK_API_ENDPOINT, {
+    const finalResponse = await fetch(DEEPSEEK_API_ENDPOINT, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -884,7 +883,7 @@ class LLMService {
         throw new Error(`LLM Error at final answering round: ${err.error?.message || finalResponse.statusText}`);
     }
 
-    let finalData = await finalResponse.json();
+    const finalData = await finalResponse.json();
     return finalData.choices?.[0]?.message?.content || "Hệ thống không đủ thông tin để kết luận.";
   }
 }
@@ -930,8 +929,8 @@ export async function POST(req: Request) {
     
     return NextResponse.json({ reply: finalReply });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Family Tree API Error:', error);
-    return NextResponse.json({ reply: `Hệ thống gián đoạn: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ reply: `Hệ thống gián đoạn. Vui lòng thử lại sau.` }, { status: 500 });
   }
 }

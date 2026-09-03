@@ -2,9 +2,17 @@
 
 import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass, Zap, Download, History, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useMemo, useState, useEffect, ElementType, ReactNode } from "react";
-// Ép kiểu module chưa có types bằng as unknown
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
+import { 
+  CHI, 
+  getBanMenh, 
+  getPalaceCan, 
+  calculateDaiVan, 
+  getElementColor, 
+  formatStarStatus, 
+  getFourPillars 
+} from "./tuvi-helper";
 
 // --- TYPES & INTERFACES ---
 interface ThemeConfig {
@@ -27,17 +35,36 @@ interface FormDataState {
 }
 
 interface Star {
-  Name: string; NguHanh: string; DacTinh?: string;
+  Name: string; 
+  NguHanh: string | number; 
+  DacTinh?: string;
+  Status?: string;
 }
 
 interface House {
-  Name: string; Than?: number; Tuan?: number; Triet?: number;
-  ChinhTinh: Star[]; Saotot: Star[]; Saoxau: Star[];
+  Name: string; 
+  Than?: number; 
+  Tuan?: number; 
+  Triet?: number;
+  ChinhTinh: Star[]; 
+  Saotot: Star[]; 
+  Saoxau: Star[];
+  TrangSinh?: string;
+  CanCung?: string;
+  ChiCungName?: string;
+  DaiVan?: number;
 }
 
 interface ChartInfo {
-  Name: string; Nam: string; Thang: string; Ngay: string;
-  Gio: string; BanMenh: string; Cuc: string; AmDuong: string;
+  Name: string; 
+  Nam: string; 
+  Thang: string; 
+  Ngay: string;
+  Gio: string; 
+  BanMenh: string; 
+  Cuc: string; 
+  AmDuong: string;
+  ThanCu?: string;
 }
 
 interface ChartData {
@@ -82,36 +109,27 @@ interface TuViNeoInfoOutput {
   ngay?: string; Ngay?: string; ngayCanChi?: string;
   gio?: string; Gio?: string; gioCanChi?: string;
   cuc?: string; Cuc?: string;
+  cucNH?: number; CucNH?: number;
   amDuong?: string; AmDuong?: string;
   nguHanh?: string; NguHanh?: string; ban_menh?: string; BanMenh?: string; menh?: string;
+  chuMenh?: string; ChuMenh?: string;
+  chuThan?: string; ChuThan?: string;
+  thanCu?: string; ThanCu?: string;
+  VTMenh?: number;
 }
 
 interface TuViNeoOutput {
   Info?: TuViNeoInfoOutput;
   info?: TuViNeoInfoOutput;
   Cac_cung: House[];
+  rawLaso?: {
+    dnan?: boolean;
+    cuc?: number;
+    menh?: number;
+  };
 }
 
-// --- BỘ TỪ ĐIỂN 60 HOA GIÁP ---
-const NGU_HANH_NAP_AM: Record<string, string> = {
-  "giáp tý": "Hải Trung Kim", "ất sửu": "Hải Trung Kim", "bính dần": "Lư Trung Hỏa", "đinh mão": "Lư Trung Hỏa",
-  "mậu thìn": "Đại Lâm Mộc", "kỷ tỵ": "Đại Lâm Mộc", "canh ngọ": "Lộ Bàng Thổ", "tân mùi": "Lộ Bàng Thổ",
-  "nhâm thân": "Kiếm Phong Kim", "quý dậu": "Kiếm Phong Kim", "giáp tuất": "Sơn Đầu Hỏa", "ất hợi": "Sơn Đầu Hỏa",
-  "bính tý": "Giản Hạ Thủy", "đinh sửu": "Giản Hạ Thủy", "mậu dần": "Thành Đầu Thổ", "kỷ mão": "Thành Đầu Thổ",
-  "canh thìn": "Bạch Lạp Kim", "tân tỵ": "Bạch Lạp Kim", "nhâm ngọ": "Dương Liễu Mộc", "quý mùi": "Dương Liễu Mộc",
-  "giáp thân": "Tuyền Trung Thủy", "ất dậu": "Tuyền Trung Thủy", "bính tuất": "Ốc Thượng Thổ", "đinh hợi": "Ốc Thượng Thổ",
-  "mậu tý": "Thích Lịch Hỏa", "kỷ sửu": "Thích Lịch Hỏa", "canh dần": "Tùng Bách Mộc", "tân mão": "Tùng Bách Mộc",
-  "nhâm thìn": "Trường Lưu Thủy", "quý tỵ": "Trường Lưu Thủy", "giáp ngọ": "Sa Trung Kim", "ất mùi": "Sa Trung Kim",
-  "bính thân": "Sơn Hạ Hỏa", "đinh dậu": "Sơn Hạ Hỏa", "mậu tuất": "Bình Địa Mộc", "kỷ hợi": "Bình Địa Mộc",
-  "canh tý": "Bích Thượng Thổ", "tân sửu": "Bích Thượng Thổ", "nhâm dần": "Kim Bạch Kim", "quý mão": "Kim Bạch Kim",
-  "giáp thìn": "Phú Đăng Hỏa", "ất tỵ": "Phú Đăng Hỏa", "bính ngọ": "Thiên Hà Thủy", "đinh mùi": "Thiên Hà Thủy",
-  "mậu thân": "Đại Trạch Thổ", "kỷ dậu": "Đại Trạch Thổ", "canh tuất": "Thoa Xuyến Kim", "tân hợi": "Thoa Xuyến Kim",
-  "nhâm tý": "Tang Đố Mộc", "quý sửu": "Tang Đố Mộc", "giáp dần": "Đại Khê Thủy", "ất mão": "Đại Khê Thủy",
-  "bính thìn": "Sa Trung Thổ", "đinh tỵ": "Sa Trung Thổ", "mậu ngọ": "Thiên Thượng Hỏa", "kỷ mùi": "Thiên Thượng Hỏa",
-  "canh thân": "Thạch Lựu Mộc", "tân dậu": "Thạch Lựu Mộc", "nhâm tuất": "Đại Hải Thủy", "quý hợi": "Đại Hải Thủy"
-};
-
-// --- BỘ TỪ ĐIỂN CHỦ ĐỀ (THEMES) DỰA THEO NGŨ HÀNH ---
+// --- BỘ TỪ ĐIỂN CHỦ ĐỀ (THEMES) DỰA THEO NGŨ HÀNH BẢN MỆNH ---
 const THEMES: Record<string, ThemeConfig> = {
   default: {
     glow1: "bg-fuchsia-200/40", glow2: "bg-purple-300/30", shadowBox: "shadow-purple-900/10",
@@ -217,20 +235,12 @@ const THEMES: Record<string, ThemeConfig> = {
   }
 };
 
-function getBanMenhFallback(canChi: string): string {
-  if (!canChi || typeof canChi !== 'string') return "Chưa xác định";
-  let key = canChi.toLowerCase().replace("năm", "").trim();
-  key = key.replace(/quí/g, "quý").replace(/kỉ/g, "kỷ").replace(/\s+/g, " ").trim();
-  return NGU_HANH_NAP_AM[key] || "Chưa xác định";
-}
-
 function getHourCanChiName(hourStr: string): string {
   if (!hourStr) return "Giờ";
   const h = parseInt(hourStr);
   if (isNaN(h)) return "Giờ";
-  const HO_CHI = ["Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"];
   const index = Math.floor((h + 1) / 2) % 12;
-  return `Giờ ${HO_CHI[index] || ""}`;
+  return `Giờ ${CHI[index] || ""}`;
 }
 
 function getYearCanChi(yearStr: string): string {
@@ -238,22 +248,10 @@ function getYearCanChi(yearStr: string): string {
   const y = parseInt(yearStr);
   if (isNaN(y)) return "";
   const CAN = ["Canh", "Tân", "Nhâm", "Quý", "Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ"];
-  const CHI = ["Thân", "Dậu", "Tuất", "Hợi", "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi"];
-  return `Năm ${CAN[y % 10] || ""} ${CHI[y % 12] || ""}`;
+  const CHI_ARR = ["Thân", "Dậu", "Tuất", "Hợi", "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi"];
+  return `Năm ${CAN[y % 10] || ""} ${CHI_ARR[y % 12] || ""}`;
 }
 
-function getElementColor(nguHanh: string, isChinhTinh: boolean = false): string {
-  if (!nguHanh || typeof nguHanh !== 'string') return isChinhTinh ? "text-stone-800" : "text-stone-600";
-  const nh = nguHanh.toLowerCase();
-  if (nh.includes("kim") || nh === "k") return "text-slate-500";
-  if (nh.includes("mộc") || nh === "m" || nh.includes("moc")) return "text-emerald-600";
-  if (nh.includes("thủy") || nh === "t" || nh.includes("thuy")) return "text-blue-600";
-  if (nh.includes("hỏa") || nh === "h" || nh.includes("hoa")) return "text-red-600";
-  if (nh.includes("thổ") || nh === "o" || nh.includes("tho")) return "text-amber-600";
-  return isChinhTinh ? "text-stone-800" : "text-stone-600";
-}
-
-// Hàm bổ sung: Kiểm tra tính hợp lệ của ngày/tháng/năm
 function isValidDate(day: number, month: number, year: number, isLunar: boolean): boolean {
   if (month < 1 || month > 12 || day < 1 || day > 31) return false;
   if (!isLunar) {
@@ -264,13 +262,11 @@ function isValidDate(day: number, month: number, year: number, isLunar: boolean)
       testDate.getDate() === day
     );
   } else {
-    // Với âm lịch, hiện tại giới hạn ở mức cơ bản (max 30 ngày mỗi tháng)
     if (day > 30) return false;
     return true;
   }
 }
 
-// Hàm bổ sung: Tạo key duy nhất để quản lý lịch sử không trùng lặp
 function generateHistoryKey(data: FormDataState): string {
   return `${data.name.trim().toLowerCase()}-${data.day}-${data.month}-${data.year}-${data.hour}-${data.minute}-${data.calendar}`;
 }
@@ -282,7 +278,12 @@ const InputWrapper = ({ icon: Icon, children, themeObj }: { icon: ElementType; c
   </div>
 );
 
-const CHI_OF_GRID: Record<number, string> = { 0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 4: "Thìn", 7: "Dậu", 8: "Mão", 11: "Tuất", 12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" };
+const CHI_OF_GRID: Record<number, string> = { 
+  0: "Tỵ", 1: "Ngọ", 2: "Mùi", 3: "Thân", 
+  4: "Thìn", 7: "Dậu", 
+  8: "Mão", 11: "Tuất", 
+  12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" 
+};
 
 export default function TuViPage() {
   const currentYear = new Date().getFullYear();
@@ -323,7 +324,7 @@ export default function TuViPage() {
     if (savedHistory) {
       try {
         const parsed = JSON.parse(savedHistory) as FormDataState[];
-        if (Array.isArray(parsed)) setHistory(parsed);
+        if (Array.isArray(parsed)) queueMicrotask(() => setHistory(parsed));
       } catch (error) {
         console.error("Lỗi parse history:", error);
         localStorage.removeItem('tuvi_history');
@@ -411,7 +412,26 @@ export default function TuViPage() {
     setAiReading("");
 
     const menhCung = currentChartData.gridCung.find((c): c is House => c !== null && c.Name === "Mệnh");
-    const chinhTinhMenh = (menhCung?.ChinhTinh || []).map(s => s.Name).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
+    const quanLocCung = currentChartData.gridCung.find((c): c is House => c !== null && c.Name === "Quan lộc");
+    const taiBachCung = currentChartData.gridCung.find((c): c is House => c !== null && c.Name === "Tài bạch");
+    const phuTheCung = currentChartData.gridCung.find((c): c is House => c !== null && c.Name === "Phu thê");
+    const phucDucCung = currentChartData.gridCung.find((c): c is House => c !== null && c.Name === "Phúc đức");
+    const thienDiCung = currentChartData.gridCung.find((c): c is House => c !== null && c.Name === "Di");
+
+    const formatCungStars = (cung?: House) => {
+      if (!cung) return "Không rõ";
+      const ct = (cung.ChinhTinh || []).map(s => `${s.Name} ${s.Status ? `(${s.Status})` : ""}`).join(", ") || "Vô chính diệu";
+      const st = (cung.Saotot || []).map(s => s.Name).slice(0, 6).join(", ");
+      const sx = (cung.Saoxau || []).map(s => s.Name).slice(0, 5).join(", ");
+      let res = `Chính tinh: ${ct}`;
+      if (st) res += ` | Cát tinh: ${st}`;
+      if (sx) res += ` | Hung tinh: ${sx}`;
+      if (cung.Tuan) res += " [Có Tuần Không]";
+      if (cung.Triet) res += " [Có Triệt Lộ]";
+      return res;
+    };
+
+    const chinhTinhMenh = (menhCung?.ChinhTinh || []).map(s => `${s.Name} ${s.Status ? `(${s.Status})` : ""}`).join(", ") || "Không có chính tinh (Vô Chính Diệu)";
     
     const tuanTrietArr: string[] = [];
     if (menhCung?.Tuan === 1) tuanTrietArr.push("Tuần Không");
@@ -425,9 +445,15 @@ export default function TuViPage() {
       banMenh: currentChartData.info.BanMenh,
       cuc: currentChartData.info.Cuc,
       chinhTinh: chinhTinhMenh,
+      thanCu: currentChartData.info.ThanCu,
       tuanTriet: tuanTrietStr,
       category: cat,
-      viewYear: formData.viewYear 
+      viewYear: formData.viewYear,
+      quanLocInfo: formatCungStars(quanLocCung),
+      taiBachInfo: formatCungStars(taiBachCung),
+      phuTheInfo: formatCungStars(phuTheCung),
+      phucDucInfo: formatCungStars(phucDucCung),
+      thienDiInfo: formatCungStars(thienDiCung)
     };
 
     try {
@@ -453,9 +479,10 @@ export default function TuViPage() {
     const y = parseInt(formData.year) || 1990;
     const m = parseInt(formData.month) || 1;
     const d = parseInt(formData.day) || 1;
+    const h = parseInt(formData.hour) || 0;
+    const min = parseInt(formData.minute) || 0;
     const isLunar = formData.calendar === "Âm lịch";
 
-    // Kiểm tra tính hợp lệ của ngày tháng năm
     if (!isValidDate(d, m, y, isLunar)) {
       return showToast(`Ngày ${d}/${m}/${y} không hợp lệ theo ${formData.calendar}!`);
     }
@@ -464,54 +491,103 @@ export default function TuViPage() {
     setAiReading("");
     setAiCache({}); 
 
-    // Quản lý lưu lịch sử bằng Unique Key
     const curHistoryKey = generateHistoryKey(formData);
     const dataToSave = { ...formData, historyKey: curHistoryKey };
-    
-    // Loại bỏ mục cũ nếu bị trùng key, đẩy mục mới lên đầu
     const newHistory = [
       dataToSave, 
       ...history.filter(h => h.historyKey !== curHistoryKey)
-    ].slice(0, 5); // Giữ tối đa 5 lịch sử
+    ].slice(0, 5);
 
     setHistory(newHistory);
     localStorage.setItem('tuvi_history', JSON.stringify(newHistory));
 
     setTimeout(() => {
       try {
-        const h = parseInt(formData.hour) || 0;
-        const min = parseInt(formData.minute) || 0;
+        // Tính toán Can Chi Tứ Trụ chuẩn xác (Năm, Tháng, Ngày, Giờ)
+        const fourPillars = getFourPillars({
+          isLunar,
+          day: d,
+          month: m,
+          year: y,
+          hour: h,
+          minute: min,
+        });
+
+        // Xử lý tháng nhuận theo chuẩn Tử Vi: từ ngày 16 trở đi tính sang tháng tiếp theo
+        let calcMonth = m;
+        if (isLunar && formData.isLeapMonth && d >= 16) {
+          calcMonth = m + 1;
+        }
 
         const inputArgs: TuViNeoInput = {
           name: formData.name,
           gender: formData.gender === "Nam giới" ? 'male' : 'female',
-          birth: { isLunar: isLunar, year: y, month: m, day: d, hour: h, minute: min, isLeapMonth: formData.isLeapMonth },
+          birth: { 
+            isLunar: isLunar, 
+            year: y, 
+            month: calcMonth, 
+            day: d, 
+            hour: h, 
+            minute: min, 
+            isLeapMonth: formData.isLeapMonth 
+          },
         };
 
-        // Ép kiểu tường minh, không sử dụng any
-        const laso = generateLaSo(inputArgs as unknown as any) as unknown as TuViNeoOutput;
+        const laso = generateLaSo(inputArgs as never) as unknown as TuViNeoOutput;
         if (!laso || !laso.Cac_cung) throw new Error("Thư viện trả về dữ liệu rỗng");
 
+        const rawInfo = laso.Info || laso.info || {};
+        
+        // Bản Mệnh nạp âm chuẩn hóa 60 Hoa Giáp
+        const computedBanMenh = getBanMenh(fourPillars.nam);
+        const finalBanMenh = computedBanMenh !== "Chưa xác định" ? computedBanMenh : "Chưa xác định";
+
+        // Xác định số Cục (2, 3, 4, 5, 6)
+        let cucNum = 2;
+        const cucText = (rawInfo.Cuc || rawInfo.cuc || "").toLowerCase();
+        if (cucText.includes("thủy") || cucText.includes("nhị")) cucNum = 2;
+        else if (cucText.includes("mộc") || cucText.includes("tam")) cucNum = 3;
+        else if (cucText.includes("kim") || cucText.includes("tứ")) cucNum = 4;
+        else if (cucText.includes("thổ") || cucText.includes("ngũ")) cucNum = 5;
+        else if (cucText.includes("hỏa") || cucText.includes("lục")) cucNum = 6;
+        else if (rawInfo.CucNH) cucNum = rawInfo.CucNH;
+
+        // Xác định chiều Đại Vận (Dương Nam / Âm Nữ đi thuận; Âm Nam / Dương Nữ đi nghịch)
+        const isThuan = laso.rawLaso?.dnan ?? (
+          (formData.gender === "Nam giới" && (fourPillars.yearCanIndex % 2 === 0)) ||
+          (formData.gender === "Nữ giới" && (fourPillars.yearCanIndex % 2 === 1))
+        );
+
+        // Vị trí cung Mệnh (0..11)
+        const menhChiIdx = rawInfo.VTMenh !== undefined ? (rawInfo.VTMenh - 1 + 12) % 12 : 0;
+        const daiVanMap = calculateDaiVan(cucNum, menhChiIdx, isThuan);
+
+        // Ánh xạ 12 cung lên lưới bàn cờ 4x4 (16 ô)
         const GRID_TO_CUNG: Record<number, number> = { 
           0: 5, 1: 6, 2: 7, 3: 8, 4: 4, 7: 9, 8: 3, 11: 10, 12: 2, 13: 1, 14: 0, 15: 11 
         };
         
         const gridCacCung: (House | null)[] = Array(16).fill(null);
         Object.keys(GRID_TO_CUNG).forEach((str) => {
-            const gridIdx = parseInt(str);
-            gridCacCung[gridIdx] = laso.Cac_cung[GRID_TO_CUNG[gridIdx]];
+          const gridIdx = parseInt(str);
+          const chiIdx = GRID_TO_CUNG[gridIdx]; // 0: Tý .. 11: Hợi
+          const rawHouse = laso.Cac_cung[chiIdx];
+
+          if (rawHouse) {
+            // Gán thêm Can Cung (theo Ngũ Hổ Độn) và số tuổi Đại Vận
+            const palaceCan = getPalaceCan(fourPillars.yearCanIndex, chiIdx);
+            const palaceChi = CHI[chiIdx];
+            const enrichedHouse: House = {
+              ...rawHouse,
+              CanCung: `${palaceCan} ${palaceChi}`,
+              ChiCungName: palaceChi,
+              DaiVan: daiVanMap[chiIdx]
+            };
+            gridCacCung[gridIdx] = enrichedHouse;
+          }
         });
 
-        const rawInfo = laso.Info || laso.info || {};
-        
-        const namCanChi = rawInfo.Nam || rawInfo.nam || rawInfo.namCanChi || getYearCanChi(String(y)) || "Chưa xác định";
-        const thangCanChi = rawInfo.Thang || rawInfo.thang || rawInfo.thangCanChi || "Chưa xác định";
-        const ngayCanChi = rawInfo.Ngay || rawInfo.ngay || rawInfo.ngayCanChi || "Chưa xác định";
-        const gioCanChi = rawInfo.Gio || rawInfo.gio || rawInfo.gioCanChi || "Chưa xác định";
-
-        const computedBanMenh = getBanMenhFallback(namCanChi);
-        const finalBanMenh = computedBanMenh !== "Chưa xác định" ? computedBanMenh : (rawInfo.nguHanh || rawInfo.NguHanh || rawInfo.ban_menh || rawInfo.BanMenh || rawInfo.menh || "Chưa xác định");
-
+        // Đổi màu chủ đề theo Bản Mệnh ngũ hành
         let newTheme = "default";
         const bmLower = finalBanMenh.toLowerCase();
         if (bmLower.includes("kim")) newTheme = "kim";
@@ -523,13 +599,14 @@ export default function TuViPage() {
 
         const safeInfo: ChartInfo = {
           Name: formData.name,
-          Nam: namCanChi,
-          Thang: thangCanChi,
-          Ngay: ngayCanChi,
-          Gio: gioCanChi,
+          Nam: fourPillars.nam,
+          Thang: fourPillars.thang,
+          Ngay: fourPillars.ngay,
+          Gio: fourPillars.gio,
           BanMenh: finalBanMenh,
-          Cuc: rawInfo.cuc || rawInfo.Cuc || "Chưa xác định",
-          AmDuong: rawInfo.amDuong || rawInfo.AmDuong || "Chưa xác định"
+          Cuc: rawInfo.Cuc || rawInfo.cuc || "Chưa xác định",
+          AmDuong: rawInfo.AmDuong || rawInfo.amDuong || (formData.gender === "Nam giới" ? "Dương Nam" : "Âm Nữ"),
+          ThanCu: rawInfo.ThanCu || rawInfo.thanCu || ""
         };
 
         const newChartData: ChartData = { info: safeInfo, gridCung: gridCacCung };
@@ -706,41 +783,42 @@ export default function TuViPage() {
                 </button>
               </div>
 
-              <div id="laso-chart" className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[600px] sm:h-[750px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
+              <div id="laso-chart" className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[620px] sm:h-[780px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
                 {Array.from({ length: 16 }).map((_, i) => {
                   const isCenter = [5, 6, 9, 10].includes(i);
                   if (isCenter) {
                     if (i === 5) return (
                       <div key={i} className="col-span-2 row-span-2 bg-[#fffcfa] rounded-lg flex flex-col items-center justify-center border-2 border-stone-200 p-2 sm:p-4 text-center">
-                        <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-2">{chartData?.info?.Name || "Không rõ"}</h3>
-                        <p className="text-[11px] sm:text-sm font-semibold text-stone-700 mb-1">
-                          Sinh: <span className={theme.selectText}>{String(formData.hour).padStart(2, '0')}:{String(formData.minute).padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} {formData.calendar === "Âm lịch" && formData.isLeapMonth ? "(Nhuận)" : ""}</span>
+                        <h3 className="text-xl sm:text-2xl font-bold text-red-700 uppercase mb-1">{chartData?.info?.Name || "Không rõ"}</h3>
+                        <p className="text-[11px] sm:text-xs font-semibold text-stone-600 mb-1">
+                          Sinh: <span className={theme.selectText}>{String(formData.hour).padStart(2, '0')}:{String(formData.minute).padStart(2, '0')} ngày {formData.day}/{formData.month}/{formData.year} ({formData.calendar}{formData.calendar === "Âm lịch" && formData.isLeapMonth ? " - Nhuận" : ""})</span>
                         </p>
                         
-                        <div className={`w-full max-w-[360px] p-2 sm:p-3 rounded-lg border mt-3 sm:mt-4 ${theme.centerBoxBg}`}>
+                        <div className={`w-full max-w-[360px] p-2 sm:p-3 rounded-lg border mt-2 sm:mt-3 ${theme.centerBoxBg}`}>
                           <div className={`grid grid-cols-4 gap-1 text-[10px] sm:text-xs text-center border-b pb-2 mb-2 ${theme.centerBoxBorder}`}>
                             <div className="flex flex-col items-center">
-                              <span className="text-stone-500 mb-0.5">Năm</span>
-                              <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Nam || "-"}</strong>
+                              <span className="text-stone-500 mb-0.5 font-medium">Năm</span>
+                              <strong className="text-stone-800 capitalize leading-tight font-bold">{chartData?.info?.Nam || "-"}</strong>
                             </div>
                             <div className="flex flex-col items-center">
-                              <span className="text-stone-500 mb-0.5">Tháng</span>
-                              <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Thang || "-"}</strong>
+                              <span className="text-stone-500 mb-0.5 font-medium">Tháng</span>
+                              <strong className="text-stone-800 capitalize leading-tight font-bold">{chartData?.info?.Thang || "-"}</strong>
                             </div>
                             <div className="flex flex-col items-center">
-                              <span className="text-stone-500 mb-0.5">Ngày</span>
-                              <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Ngay || "-"}</strong>
+                              <span className="text-stone-500 mb-0.5 font-medium">Ngày</span>
+                              <strong className="text-stone-800 capitalize leading-tight font-bold">{chartData?.info?.Ngay || "-"}</strong>
                             </div>
                             <div className="flex flex-col items-center">
-                              <span className="text-stone-500 mb-0.5">Giờ</span>
-                              <strong className="text-stone-800 capitalize leading-tight">{chartData?.info?.Gio || "-"}</strong>
+                              <span className="text-stone-500 mb-0.5 font-medium">Giờ</span>
+                              <strong className="text-stone-800 capitalize leading-tight font-bold">{chartData?.info?.Gio || "-"}</strong>
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] sm:text-sm text-left px-1">
-                            <p><span className="text-stone-500">Mệnh:</span> <strong className="text-stone-800">{chartData?.info?.BanMenh || "-"}</strong></p>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] sm:text-xs text-left px-1">
+                            <p><span className="text-stone-500">Bản Mệnh:</span> <strong className="text-stone-800">{chartData?.info?.BanMenh || "-"}</strong></p>
                             <p><span className="text-stone-500">Cục:</span> <strong className="text-stone-800">{chartData?.info?.Cuc || "-"}</strong></p>
-                            <p className="col-span-2"><span className="text-stone-500">Âm Dương:</span> <strong className="text-stone-800">{chartData?.info?.AmDuong || "-"}</strong></p>
+                            <p><span className="text-stone-500">Âm Dương:</span> <strong className="text-stone-800">{chartData?.info?.AmDuong || "-"}</strong></p>
+                            <p><span className="text-stone-500">Cung Thân:</span> <strong className="text-stone-800">{chartData?.info?.ThanCu || "-"}</strong></p>
                           </div>
                         </div>
                       </div>
@@ -754,37 +832,72 @@ export default function TuViPage() {
                   const isThan = house.Than === 1;
 
                   let highlightClass = "border border-stone-200 bg-white";
-                  if (isMenh) highlightClass = "border-[2px] border-red-400 bg-red-50";
-                  else if (isThan) highlightClass = "border-[2px] border-fuchsia-400 bg-fuchsia-50";
+                  if (isMenh) highlightClass = "border-[2px] border-red-400 bg-red-50/50 shadow-sm";
+                  else if (isThan) highlightClass = "border-[2px] border-fuchsia-400 bg-fuchsia-50/50 shadow-sm";
 
                   return (
                     <div key={i} className={`relative rounded-lg p-1.5 flex flex-col justify-between overflow-hidden ${highlightClass}`}>
-                      <div className="flex justify-between items-start border-b border-stone-100 pb-1 mb-1">
-                        <span className={`text-[12px] sm:text-[14px] font-bold ${isMenh ? 'text-red-600' : isThan ? 'text-fuchsia-700' : 'text-stone-700'}`}>
-                          {house.Name} {isThan && !isMenh ? <span className="text-[10px] text-fuchsia-600">(Thân)</span> : ""}
-                        </span>
-                        <span className="text-[10px] text-stone-400 font-semibold bg-stone-50 px-1 rounded-sm">{CHI_OF_GRID[i]}</span>
+                      {/* Tiêu đề Cung: Tên cung, Thân, Can Cung, Tuổi Đại Vận */}
+                      <div className="flex justify-between items-center border-b border-stone-100 pb-1 mb-1">
+                        <div className="flex items-center gap-1">
+                          <span className={`text-[12px] sm:text-[13px] font-bold ${isMenh ? 'text-red-600' : isThan ? 'text-fuchsia-700' : 'text-stone-700'}`}>
+                            {house.Name}
+                          </span>
+                          {isThan && !isMenh && <span className="text-[9px] font-bold text-fuchsia-600 bg-fuchsia-100 px-1 rounded">(Thân)</span>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {house.DaiVan !== undefined && (
+                            <span className="text-[9px] font-bold text-stone-600 bg-stone-100 px-1 py-0.5 rounded border border-stone-200/50" title="Tuổi bắt đầu Đại Vận">
+                              {house.DaiVan}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-stone-500 font-semibold bg-stone-50 px-1 rounded border border-stone-200/60">
+                            {house.CanCung || CHI_OF_GRID[i]}
+                          </span>
+                        </div>
                       </div>
                       
+                      {/* Danh sách sao: Chính tinh & Phụ tinh */}
                       <div className="flex-1 overflow-y-auto space-y-0.5 flex flex-col items-center scrollbar-hide">
                         <div className="flex flex-col items-center mb-1 w-full gap-0.5">
-                          {(house.ChinhTinh || []).map((star: Star, idx: number) => (
-                             <div key={`ct-${idx}`} className={`text-[11px] sm:text-[12px] font-bold uppercase ${getElementColor(star.NguHanh, true)} flex gap-1`}>
-                               {star.Name} {star.DacTinh && <span className="text-[9px] text-gray-400 lowercase font-normal">({star.DacTinh})</span>}
-                             </div>
-                          ))}
+                          {(house.ChinhTinh || []).map((star: Star, idx: number) => {
+                            const statusInfo = formatStarStatus(star.Status || star.DacTinh);
+                            return (
+                              <div key={`ct-${idx}`} className={`text-[11px] sm:text-[12px] font-bold uppercase ${getElementColor(star.NguHanh, true)} flex items-center gap-1`}>
+                                <span>{star.Name}</span>
+                                {statusInfo && <span className={`text-[9px] ${statusInfo.className}`}>{statusInfo.label}</span>}
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="grid grid-cols-2 w-full gap-1 mt-1 border-t border-stone-50 pt-1">
-                          <div className="flex flex-col items-start">{(house.Saotot || []).map((star: Star, idx: number) => <div key={`st-${idx}`} className={`text-[10px] font-medium ${getElementColor(star.NguHanh)}`}>{star.Name}</div>)}</div>
-                          <div className="flex flex-col items-end">{(house.Saoxau || []).map((star: Star, idx: number) => <div key={`sx-${idx}`} className={`text-[10px] font-medium text-right ${getElementColor(star.NguHanh)}`}>{star.Name}</div>)}</div>
+                        <div className="grid grid-cols-2 w-full gap-1 mt-1 border-t border-stone-100 pt-1">
+                          <div className="flex flex-col items-start space-y-0.5">
+                            {(house.Saotot || []).map((star: Star, idx: number) => (
+                              <div key={`st-${idx}`} className={`text-[10px] font-medium leading-tight ${getElementColor(star.NguHanh)}`}>
+                                {star.Name}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex flex-col items-end space-y-0.5">
+                            {(house.Saoxau || []).map((star: Star, idx: number) => (
+                              <div key={`sx-${idx}`} className={`text-[10px] font-medium text-right leading-tight ${getElementColor(star.NguHanh)}`}>
+                                {star.Name}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                      {(house.Tuan === 1 || house.Triet === 1) && (
-                        <div className="absolute bottom-1 right-1 flex flex-col gap-0.5">
-                          {house.Tuan === 1 && <div className="text-[9px] font-bold text-white bg-slate-700 px-1 py-[1px] rounded-sm">Tuần</div>}
-                          {house.Triet === 1 && <div className="text-[9px] font-bold text-white bg-slate-900 px-1 py-[1px] rounded-sm">Triệt</div>}
+
+                      {/* Chân cung: Sao Vòng Tràng Sinh & Tuần / Triệt */}
+                      <div className="flex justify-between items-end pt-1 border-t border-stone-50 text-[9px] mt-0.5">
+                        <span className="text-stone-400 font-medium italic">
+                          {house.TrangSinh || ""}
+                        </span>
+                        <div className="flex gap-0.5">
+                          {house.Tuan === 1 && <span className="text-[9px] font-bold text-white bg-slate-700 px-1 py-[0.5px] rounded-sm shadow-xs">Tuần</span>}
+                          {house.Triet === 1 && <span className="text-[9px] font-bold text-white bg-slate-900 px-1 py-[0.5px] rounded-sm shadow-xs">Triệt</span>}
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}

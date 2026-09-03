@@ -27,8 +27,8 @@ export function AddHistoryForm() {
     try {
       await addHistoryEntry(formData);
       formRef.current?.reset(); // Xóa trắng form sau khi thành công
-    } catch (error: any) {
-      alert(error.message || "Đã xảy ra lỗi khi thêm sự kiện.");
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Đã xảy ra lỗi khi thêm sự kiện.");
     }
   };
 
@@ -72,8 +72,8 @@ export function DeleteHistoryButton({ id }: { id: string }) {
     if (window.confirm("Bạn có chắc chắn muốn xóa mốc lịch sử này không? Hành động này không thể hoàn tác.")) {
       try {
         await deleteHistoryEntry(id);
-      } catch (error: any) {
-        alert(error.message || "Đã xảy ra lỗi khi xóa.");
+      } catch (error: unknown) {
+        alert(error instanceof Error ? error.message : "Đã xảy ra lỗi khi xóa.");
       }
     }
   };

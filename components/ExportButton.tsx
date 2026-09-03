@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { toJpeg, toPng } from "html-to-image";
+import { toPng } from "html-to-image";
 import jsPDF from "jspdf";
 import {
   AlertCircle,
@@ -187,7 +187,7 @@ export default function ExportButton() {
               <FileText className="size-4 shrink-0" />
               <div className="flex flex-col">
                  <span>Lưu PDF (Bản in)</span>
-                 <span className="text-[10px] text-stone-400">Chọn "Lưu thành PDF" ở hộp thoại in</span>
+                 <span className="text-[10px] text-stone-400">Chọn &quot;Lưu thành PDF&quot; ở hộp thoại in</span>
               </div>
             </button>
           </motion.div>

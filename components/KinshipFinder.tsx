@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import DefaultAvatar from "./DefaultAvatar";
 import { FemaleIcon, MaleIcon } from "./GenderIcons";
 
@@ -68,6 +68,28 @@ function PersonSelector({
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+
+    if (open) {
+      document.addEventListener("mousedown", handleOutsideClick);
+      document.addEventListener("keydown", handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
 
   const filtered = useMemo(
     () =>
@@ -75,14 +97,14 @@ function PersonSelector({
         .filter(
           (p) =>
             p.id !== disabledId &&
-            p.full_name.toLowerCase().includes(search.toLowerCase()),
+            (p.full_name || "").toLowerCase().includes(search.toLowerCase()),
         )
         .slice(0, 20),
     [persons, disabledId, search],
   );
 
   return (
-    <div className="w-full flex-1 min-w-0 relative">
+    <div className="w-full flex-1 min-w-0 relative" ref={containerRef}>
       <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-2">
         {label}
       </p>

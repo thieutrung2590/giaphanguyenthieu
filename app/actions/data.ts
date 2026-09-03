@@ -61,10 +61,10 @@ interface CustomEventExport {
 }
 
 // Khai báo kiểu dữ liệu mở rộng cho 4 bảng mới
-type DonationExport = Record<string, any>;
-type ExpenseExport = Record<string, any>;
-type PhotoExport = Record<string, any>;
-type ProfileExport = Record<string, any>;
+type DonationExport = Record<string, unknown>;
+type ExpenseExport = Record<string, unknown>;
+type PhotoExport = Record<string, unknown>;
+type ProfileExport = Record<string, unknown>;
 
 interface BackupPayload {
   version: number;
@@ -131,8 +131,8 @@ function sanitizeCustomEvent(
 }
 
 // Hàm làm sạch dữ liệu chung cho các bảng mới (loại bỏ created_at và updated_at để DB tự tạo)
-function sanitizeGeneric(item: any) {
-  const { created_at, updated_at, ...rest } = item;
+function sanitizeGeneric(item: Record<string, unknown>) {
+  const { created_at: _created_at, updated_at: _updated_at, ...rest } = item;
   return rest;
 }
 
@@ -290,144 +290,203 @@ export async function importData(
     };
   }
 
-  // --- BƯỚC 1: XÓA DỮ LIỆU CŨ THEO THỨ TỰ (Để tránh lỗi khóa ngoại FK) ---
-
-  // Xóa 4 bảng mở rộng
-  const { error: delDonationsError } = await supabase.from("donations").delete().not("id", "is", null);
-  if (delDonationsError) return { error: "Lỗi khi xoá donations cũ: " + delDonationsError.message };
-
-  const { error: delExpensesError } = await supabase.from("expenses").delete().not("id", "is", null);
-  if (delExpensesError) return { error: "Lỗi khi xoá expenses cũ: " + delExpensesError.message };
-
-  const { error: delPhotosError } = await supabase.from("photos").delete().not("id", "is", null);
-  if (delPhotosError) return { error: "Lỗi khi xoá photos cũ: " + delPhotosError.message };
-
-  const { error: delProfilesError } = await supabase.from("profiles").delete().not("id", "is", null);
-  if (delProfilesError) return { error: "Lỗi khi xoá profiles cũ: " + delProfilesError.message };
-
-  // Xóa 4 bảng cốt lõi
-  const { error: delEventsError } = await supabase.from("custom_events").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  if (delEventsError) return { error: "Lỗi khi xoá custom_events cũ: " + delEventsError.message };
-
-  const { error: delRelError } = await supabase.from("relationships").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  if (delRelError) return { error: "Lỗi khi xoá relationships cũ: " + delRelError.message };
-
-  const { error: delPrivateError } = await supabase.from("person_details_private").delete().neq("person_id", "00000000-0000-0000-0000-000000000000");
-  if (delPrivateError) return { error: "Lỗi khi xoá person_details_private cũ: " + delPrivateError.message };
-
-  const { error: delPersonsError } = await supabase.from("persons").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  if (delPersonsError) return { error: "Lỗi khi xoá persons cũ: " + delPersonsError.message };
-
-
-  // --- BƯỚC 2: PHỤC HỒI DỮ LIỆU ---
-  const CHUNK = 200;
-
-  // 1. Insert persons
-  const persons = importPayload.persons.map(sanitizePerson);
-  for (let i = 0; i < persons.length; i += CHUNK) {
-    const chunk = persons.slice(i, i + CHUNK);
-    const { error } = await supabase.from("persons").insert(chunk);
-    if (error) return { error: `Lỗi khi import persons (chunk ${i / CHUNK + 1}): ${error.message}` };
+  // --- BƯỚC 0: BACKUP ---
+  const currentBackup = await exportData();
+  if ('error' in currentBackup) {
+    return { error: "Không thể tạo bản sao lưu trước khi phục hồi: " + currentBackup.error };
   }
 
-  // 2. Insert relationships
-  const relationships = importPayload.relationships
-    .filter((r) => r.person_a !== r.person_b)
-    .map(sanitizeRelationship);
-  for (let i = 0; i < relationships.length; i += CHUNK) {
-    const chunk = relationships.slice(i, i + CHUNK);
-    const { error } = await supabase.from("relationships").insert(chunk);
-    if (error) return { error: `Lỗi khi import relationships: ${error.message}` };
-  }
+  try {
+    // --- BƯỚC 1: XÓA DỮ LIỆU CŨ THEO THỨ TỰ (Để tránh lỗi khóa ngoại FK) ---
 
-  // 3. Insert person_details_private
-  let privateDetailsCount = 0;
-  const privateDetails = importPayload.person_details_private ?? [];
-  if (privateDetails.length > 0) {
-    for (let i = 0; i < privateDetails.length; i += CHUNK) {
-      const chunk = privateDetails.slice(i, i + CHUNK);
-      const { error } = await supabase.from("person_details_private").insert(chunk);
-      if (error) return { error: `Lỗi khi import person_details_private: ${error.message}` };
+    // Xóa 4 bảng mở rộng
+    const { error: delDonationsError } = await supabase.from("donations").delete().not("id", "is", null);
+    if (delDonationsError) throw new Error("Lỗi khi xoá donations cũ: " + delDonationsError.message);
+
+    const { error: delExpensesError } = await supabase.from("expenses").delete().not("id", "is", null);
+    if (delExpensesError) throw new Error("Lỗi khi xoá expenses cũ: " + delExpensesError.message);
+
+    const { error: delPhotosError } = await supabase.from("photos").delete().not("id", "is", null);
+    if (delPhotosError) throw new Error("Lỗi khi xoá photos cũ: " + delPhotosError.message);
+
+    const { error: delProfilesError } = await supabase.from("profiles").delete().not("id", "is", null);
+    if (delProfilesError) throw new Error("Lỗi khi xoá profiles cũ: " + delProfilesError.message);
+
+    // Xóa 4 bảng cốt lõi
+    const { error: delEventsError } = await supabase.from("custom_events").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (delEventsError) throw new Error("Lỗi khi xoá custom_events cũ: " + delEventsError.message);
+
+    const { error: delRelError } = await supabase.from("relationships").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (delRelError) throw new Error("Lỗi khi xoá relationships cũ: " + delRelError.message);
+
+    const { error: delPrivateError } = await supabase.from("person_details_private").delete().neq("person_id", "00000000-0000-0000-0000-000000000000");
+    if (delPrivateError) throw new Error("Lỗi khi xoá person_details_private cũ: " + delPrivateError.message);
+
+    const { error: delPersonsError } = await supabase.from("persons").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (delPersonsError) throw new Error("Lỗi khi xoá persons cũ: " + delPersonsError.message);
+
+    // --- BƯỚC 2: PHỤC HỒI DỮ LIỆU ---
+    const CHUNK = 200;
+
+    // 1. Insert persons
+    const persons = importPayload.persons.map(sanitizePerson);
+    for (let i = 0; i < persons.length; i += CHUNK) {
+      const chunk = persons.slice(i, i + CHUNK);
+      const { error } = await supabase.from("persons").insert(chunk);
+      if (error) throw new Error(`Lỗi khi import persons (chunk ${i / CHUNK + 1}): ${error.message}`);
     }
-    privateDetailsCount = privateDetails.length;
-  }
 
-  // 4. Insert custom_events
-  let customEventsCount = 0;
-  const customEvents = (importPayload.custom_events ?? []).map(sanitizeCustomEvent);
-  if (customEvents.length > 0) {
-    for (let i = 0; i < customEvents.length; i += CHUNK) {
-      const chunk = customEvents.slice(i, i + CHUNK);
-      const { error } = await supabase.from("custom_events").insert(chunk);
-      if (error) return { error: `Lỗi khi import custom_events: ${error.message}` };
+    // 2. Insert relationships
+    const relationships = importPayload.relationships
+      .filter((r) => r.person_a !== r.person_b)
+      .map(sanitizeRelationship);
+    for (let i = 0; i < relationships.length; i += CHUNK) {
+      const chunk = relationships.slice(i, i + CHUNK);
+      const { error } = await supabase.from("relationships").insert(chunk);
+      if (error) throw new Error(`Lỗi khi import relationships: ${error.message}`);
     }
-    customEventsCount = customEvents.length;
-  }
 
-  // 5. Insert donations
-  let donationsCount = 0;
-  const donations = (importPayload.donations ?? []).map(sanitizeGeneric);
-  if (donations.length > 0) {
-    for (let i = 0; i < donations.length; i += CHUNK) {
-      const chunk = donations.slice(i, i + CHUNK);
-      const { error } = await supabase.from("donations").insert(chunk);
-      if (error) return { error: `Lỗi khi import donations: ${error.message}` };
+    // 3. Insert person_details_private
+    let privateDetailsCount = 0;
+    const privateDetails = importPayload.person_details_private ?? [];
+    if (privateDetails.length > 0) {
+      for (let i = 0; i < privateDetails.length; i += CHUNK) {
+        const chunk = privateDetails.slice(i, i + CHUNK);
+        const { error } = await supabase.from("person_details_private").insert(chunk);
+        if (error) throw new Error(`Lỗi khi import person_details_private: ${error.message}`);
+      }
+      privateDetailsCount = privateDetails.length;
     }
-    donationsCount = donations.length;
-  }
 
-  // 6. Insert expenses
-  let expensesCount = 0;
-  const expenses = (importPayload.expenses ?? []).map(sanitizeGeneric);
-  if (expenses.length > 0) {
-    for (let i = 0; i < expenses.length; i += CHUNK) {
-      const chunk = expenses.slice(i, i + CHUNK);
-      const { error } = await supabase.from("expenses").insert(chunk);
-      if (error) return { error: `Lỗi khi import expenses: ${error.message}` };
+    // 4. Insert custom_events
+    let customEventsCount = 0;
+    const customEvents = (importPayload.custom_events ?? []).map(sanitizeCustomEvent);
+    if (customEvents.length > 0) {
+      for (let i = 0; i < customEvents.length; i += CHUNK) {
+        const chunk = customEvents.slice(i, i + CHUNK);
+        const { error } = await supabase.from("custom_events").insert(chunk);
+        if (error) throw new Error(`Lỗi khi import custom_events: ${error.message}`);
+      }
+      customEventsCount = customEvents.length;
     }
-    expensesCount = expenses.length;
-  }
 
-  // 7. Insert photos
-  let photosCount = 0;
-  const photos = (importPayload.photos ?? []).map(sanitizeGeneric);
-  if (photos.length > 0) {
-    for (let i = 0; i < photos.length; i += CHUNK) {
-      const chunk = photos.slice(i, i + CHUNK);
-      const { error } = await supabase.from("photos").insert(chunk);
-      if (error) return { error: `Lỗi khi import photos: ${error.message}` };
+    // 5. Insert donations
+    let donationsCount = 0;
+    const donations = (importPayload.donations ?? []).map(sanitizeGeneric);
+    if (donations.length > 0) {
+      for (let i = 0; i < donations.length; i += CHUNK) {
+        const chunk = donations.slice(i, i + CHUNK);
+        const { error } = await supabase.from("donations").insert(chunk);
+        if (error) throw new Error(`Lỗi khi import donations: ${error.message}`);
+      }
+      donationsCount = donations.length;
     }
-    photosCount = photos.length;
-  }
 
-  // 8. Insert profiles
-  let profilesCount = 0;
-  const profiles = (importPayload.profiles ?? []).map(sanitizeGeneric);
-  if (profiles.length > 0) {
-    for (let i = 0; i < profiles.length; i += CHUNK) {
-      const chunk = profiles.slice(i, i + CHUNK);
-      const { error } = await supabase.from("profiles").insert(chunk);
-      if (error) return { error: `Lỗi khi import profiles: ${error.message}` };
+    // 6. Insert expenses
+    let expensesCount = 0;
+    const expenses = (importPayload.expenses ?? []).map(sanitizeGeneric);
+    if (expenses.length > 0) {
+      for (let i = 0; i < expenses.length; i += CHUNK) {
+        const chunk = expenses.slice(i, i + CHUNK);
+        const { error } = await supabase.from("expenses").insert(chunk);
+        if (error) throw new Error(`Lỗi khi import expenses: ${error.message}`);
+      }
+      expensesCount = expenses.length;
     }
-    profilesCount = profiles.length;
+
+    // 7. Insert photos
+    let photosCount = 0;
+    const photos = (importPayload.photos ?? []).map(sanitizeGeneric);
+    if (photos.length > 0) {
+      for (let i = 0; i < photos.length; i += CHUNK) {
+        const chunk = photos.slice(i, i + CHUNK);
+        const { error } = await supabase.from("photos").insert(chunk);
+        if (error) throw new Error(`Lỗi khi import photos: ${error.message}`);
+      }
+      photosCount = photos.length;
+    }
+
+    // 8. Insert profiles
+    let profilesCount = 0;
+    const profiles = (importPayload.profiles ?? []).map(sanitizeGeneric);
+    if (profiles.length > 0) {
+      for (let i = 0; i < profiles.length; i += CHUNK) {
+        const chunk = profiles.slice(i, i + CHUNK);
+        const { error } = await supabase.from("profiles").insert(chunk);
+        if (error) throw new Error(`Lỗi khi import profiles: ${error.message}`);
+      }
+      profilesCount = profiles.length;
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/members");
+    revalidatePath("/dashboard/data");
+    revalidatePath("/dashboard/photos");
+
+    return {
+      success: true,
+      imported: {
+        persons: persons.length,
+        relationships: relationships.length,
+        person_details_private: privateDetailsCount,
+        custom_events: customEventsCount,
+        donations: donationsCount,
+        expenses: expensesCount,
+        photos: photosCount,
+        profiles: profilesCount,
+      },
+    };
+  } catch (error) {
+    // Nếu import gặp lỗi, cố gắng restore lại dữ liệu backup
+    try {
+      // Xoá lại toàn bộ
+      await supabase.from("donations").delete().not("id", "is", null);
+      await supabase.from("expenses").delete().not("id", "is", null);
+      await supabase.from("photos").delete().not("id", "is", null);
+      await supabase.from("profiles").delete().not("id", "is", null);
+      await supabase.from("custom_events").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("relationships").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("person_details_private").delete().neq("person_id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("persons").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+      // Insert lại backup
+      const CHUNK = 200;
+      if (currentBackup.persons) {
+        const p = currentBackup.persons.map(sanitizePerson);
+        for (let i = 0; i < p.length; i += CHUNK) await supabase.from("persons").insert(p.slice(i, i + CHUNK));
+      }
+      if (currentBackup.relationships) {
+        const r = currentBackup.relationships.filter((r) => r.person_a !== r.person_b).map(sanitizeRelationship);
+        for (let i = 0; i < r.length; i += CHUNK) await supabase.from("relationships").insert(r.slice(i, i + CHUNK));
+      }
+      if (currentBackup.person_details_private) {
+        const pd = currentBackup.person_details_private;
+        for (let i = 0; i < pd.length; i += CHUNK) await supabase.from("person_details_private").insert(pd.slice(i, i + CHUNK));
+      }
+      if (currentBackup.custom_events) {
+        const ce = currentBackup.custom_events.map(sanitizeCustomEvent);
+        for (let i = 0; i < ce.length; i += CHUNK) await supabase.from("custom_events").insert(ce.slice(i, i + CHUNK));
+      }
+      if (currentBackup.donations) {
+        const d = currentBackup.donations.map(sanitizeGeneric);
+        for (let i = 0; i < d.length; i += CHUNK) await supabase.from("donations").insert(d.slice(i, i + CHUNK));
+      }
+      if (currentBackup.expenses) {
+        const e = currentBackup.expenses.map(sanitizeGeneric);
+        for (let i = 0; i < e.length; i += CHUNK) await supabase.from("expenses").insert(e.slice(i, i + CHUNK));
+      }
+      if (currentBackup.photos) {
+        const ph = currentBackup.photos.map(sanitizeGeneric);
+        for (let i = 0; i < ph.length; i += CHUNK) await supabase.from("photos").insert(ph.slice(i, i + CHUNK));
+      }
+      if (currentBackup.profiles) {
+        const pr = currentBackup.profiles.map(sanitizeGeneric);
+        for (let i = 0; i < pr.length; i += CHUNK) await supabase.from("profiles").insert(pr.slice(i, i + CHUNK));
+      }
+    } catch (_restoreErr) {
+      return { error: `CẢNH BÁO NGHIÊM TRỌNG: Import thất bại (${error instanceof Error ? error.message : String(error)}) và khôi phục dữ liệu cũng thất bại!` };
+    }
+    
+    return { error: `Đã xảy ra lỗi khi phục hồi dữ liệu: ${error instanceof Error ? error.message : String(error)}. Dữ liệu cũ đã được khôi phục thành công.` };
   }
-
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/members");
-  revalidatePath("/dashboard/data");
-  revalidatePath("/dashboard/photos");
-
-  return {
-    success: true,
-    imported: {
-      persons: persons.length,
-      relationships: relationships.length,
-      person_details_private: privateDetailsCount,
-      custom_events: customEventsCount,
-      donations: donationsCount,
-      expenses: expensesCount,
-      photos: photosCount,
-      profiles: profilesCount,
-    },
-  };
 }

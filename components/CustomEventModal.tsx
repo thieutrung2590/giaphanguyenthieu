@@ -49,50 +49,54 @@ export default function CustomEventModal({
 
   useEffect(() => {
     if (isOpen) {
-      if (eventToEdit) {
-        setName(eventToEdit.name || "");
-        setEventDate(eventToEdit.event_date || "");
-        setLocation(eventToEdit.location || "");
-        setContent(eventToEdit.content || "");
-        
-        if (eventToEdit.lunar_day && eventToEdit.lunar_month && eventToEdit.lunar_year) {
-          setDateMode("lunar");
-          setLunarDay(eventToEdit.lunar_day);
-          setLunarMonth(Math.abs(eventToEdit.lunar_month));
-          setLunarYear(eventToEdit.lunar_year);
-          setIsLeapMonth(!!eventToEdit.is_leap_month);
+      queueMicrotask(() => {
+        if (eventToEdit) {
+          setName(eventToEdit.name || "");
+          setEventDate(eventToEdit.event_date || "");
+          setLocation(eventToEdit.location || "");
+          setContent(eventToEdit.content || "");
+          
+          if (eventToEdit.lunar_day && eventToEdit.lunar_month && eventToEdit.lunar_year) {
+            setDateMode("lunar");
+            setLunarDay(eventToEdit.lunar_day);
+            setLunarMonth(Math.abs(eventToEdit.lunar_month));
+            setLunarYear(eventToEdit.lunar_year);
+            setIsLeapMonth(!!eventToEdit.is_leap_month);
+          } else {
+            setDateMode("solar");
+            setLunarDay("");
+            setLunarMonth("");
+            setLunarYear("");
+            setIsLeapMonth(false);
+          }
         } else {
+          setName("");
+          const now = new Date();
+          const y = now.getFullYear();
+          const m = String(now.getMonth() + 1).padStart(2, "0");
+          const d = String(now.getDate()).padStart(2, "0");
+          setEventDate(`${y}-${m}-${d}`);
+          setLocation("");
+          setContent("");
           setDateMode("solar");
           setLunarDay("");
           setLunarMonth("");
           setLunarYear("");
           setIsLeapMonth(false);
         }
-      } else {
-        setName("");
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, "0");
-        const d = String(now.getDate()).padStart(2, "0");
-        setEventDate(`${y}-${m}-${d}`);
-        setLocation("");
-        setContent("");
-        setDateMode("solar");
-        setLunarDay("");
-        setLunarMonth("");
-        setLunarYear("");
-        setIsLeapMonth(false);
-      }
-      setError(null);
-      setLunarConvertError(null);
+        setError(null);
+        setLunarConvertError(null);
+      });
     }
   }, [isOpen, eventToEdit]);
 
   useEffect(() => {
     if (dateMode === "lunar") {
       if (lunarDay === "" || lunarMonth === "" || lunarYear === "") {
-        setEventDate("");
-        setLunarConvertError(null);
+        queueMicrotask(() => {
+          setEventDate("");
+          setLunarConvertError(null);
+        });
         return;
       }
 
@@ -101,8 +105,10 @@ export default function CustomEventModal({
       const numY = Number(lunarYear);
 
       if (numD < 1 || numD > 30 || numM < 1 || numM > 12 || numY < 100) {
-        setEventDate("");
-        setLunarConvertError("Ngày/tháng/năm âm lịch vượt quá phạm vi.");
+        queueMicrotask(() => {
+          setEventDate("");
+          setLunarConvertError("Ngày/tháng/năm âm lịch vượt quá phạm vi.");
+        });
         return;
       }
 
@@ -113,11 +119,15 @@ export default function CustomEventModal({
         const sy = solar.getYear();
         const sm = String(solar.getMonth()).padStart(2, "0");
         const sd = String(solar.getDay()).padStart(2, "0");
-        setEventDate(`${sy}-${sm}-${sd}`);
-        setLunarConvertError(null);
+        queueMicrotask(() => {
+          setEventDate(`${sy}-${sm}-${sd}`);
+          setLunarConvertError(null);
+        });
       } catch {
-        setEventDate("");
-        setLunarConvertError("Ngày âm lịch không tồn tại (vd: 30/2).");
+        queueMicrotask(() => {
+          setEventDate("");
+          setLunarConvertError("Ngày âm lịch không tồn tại (vd: 30/2).");
+        });
       }
     }
   }, [dateMode, lunarDay, lunarMonth, lunarYear, isLeapMonth]);

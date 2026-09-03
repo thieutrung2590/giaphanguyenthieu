@@ -6,6 +6,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
 export const createClient = () => {
   if (!supabaseUrl || !supabaseKey) {
+    console.warn("[Supabase Client] Thiếu biến môi trường NEXT_PUBLIC_SUPABASE_URL hoặc NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY. Các truy vấn sẽ trả về rỗng.");
     // Return a dummy client to avoid crashing the render if accessed before redirect
     return {
       auth: {

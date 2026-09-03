@@ -10,7 +10,8 @@ import config from "@/app/config";
 import { AdminUserData, UserRole } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trash } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 interface AdminUserListProps {
   initialUsers: AdminUserData[];
@@ -32,10 +33,12 @@ export default function AdminUserList({
   const [isCreating, setIsCreating] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setIsDemo(window.location.hostname === config.demoDomain);
+      queueMicrotask(() => setIsDemo(window.location.hostname === config.demoDomain));
     }
   }, []);
 
@@ -44,8 +47,15 @@ export default function AdminUserList({
     type: "success" | "error" | "info" = "info",
   ) => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setNotification(null), 5000);
   };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     if (isDemo) {
@@ -177,7 +187,7 @@ export default function AdminUserList({
         "success",
       );
       setIsCreateModalOpen(false);
-      setTimeout(() => window.location.reload(), 1500);
+      router.refresh();
     } catch (error: unknown) {
       const msg =
         error instanceof Error
@@ -389,7 +399,7 @@ export default function AdminUserList({
               {users.length === 0 && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-6 py-8 text-center text-stone-500"
                   >
                     Không tìm thấy người dùng nào.

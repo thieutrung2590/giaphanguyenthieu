@@ -23,7 +23,7 @@ export default function DashboardMemberList({
 
   const filteredPersons = useMemo(() => {
     return initialPersons.filter((person) => {
-      const matchesSearch = person.full_name
+      const matchesSearch = (person.full_name || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
@@ -90,9 +90,9 @@ export default function DashboardMemberList({
           case "birth_desc":
             return (b.birth_year || 0) - (a.birth_year || 0);
           case "name_asc":
-            return a.full_name.localeCompare(b.full_name, "vi");
+            return (a.full_name || "").localeCompare((b.full_name || ""), "vi");
           case "name_desc":
-            return b.full_name.localeCompare(a.full_name, "vi");
+            return (b.full_name || "").localeCompare((a.full_name || ""), "vi");
           case "updated_desc":
             return (
               new Date(b.updated_at || 0).getTime() -

@@ -17,12 +17,11 @@ import {
 } from "lucide-react";
 import { Lunar, Solar } from "lunar-javascript";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface MemberFormProps {
   initialData?: Person;
   isEditing?: boolean;
-  isAdmin?: boolean;
   canEditPrivate?: boolean;
   /** Called with the saved person's ID after a successful save. Overrides default router.push. */
   onSuccess?: (personId: string) => void;
@@ -33,7 +32,6 @@ interface MemberFormProps {
 export default function MemberForm({
   initialData,
   isEditing = false,
-  isAdmin = false,
   canEditPrivate = false,
   onSuccess,
   onCancel,
@@ -96,6 +94,14 @@ export default function MemberForm({
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     initialData?.avatar_url || null,
   );
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview && avatarPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
 
   const [note, setNote] = useState(initialData?.note || "");
 
@@ -563,6 +569,9 @@ export default function MemberForm({
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          if (avatarPreview && avatarPreview.startsWith("blob:")) {
+                            URL.revokeObjectURL(avatarPreview);
+                          }
                           setAvatarFile(file);
                           setAvatarPreview(URL.createObjectURL(file));
                         }

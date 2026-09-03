@@ -1,10 +1,18 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useState } from 'react';
 import DeletePhotoButton from './DeletePhotoButton';
 
+interface Photo {
+  id: string;
+  title?: string;
+  url: string;
+  uploader_email?: string;
+}
+
 interface PhotoCardProps {
-  photo: any;
+  photo: Photo;
   secureUrl: string;
   isAdmin: boolean;
 }
@@ -21,10 +29,12 @@ export default function PhotoCard({ photo, secureUrl, isAdmin }: PhotoCardProps)
           className="aspect-square relative overflow-hidden bg-gray-100 group cursor-pointer"
           onClick={() => setIsLightboxOpen(true)} // Mở Lightbox khi click vào ảnh
         >
-          <img 
+          <Image 
             src={secureUrl} 
             alt={photo.title || 'Ảnh kỷ niệm'} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
           
           {/* Nút xóa */}
@@ -65,12 +75,18 @@ export default function PhotoCard({ photo, secureUrl, isAdmin }: PhotoCardProps)
           </button>
           
           {/* Ảnh phóng to */}
-          <img 
-            src={secureUrl} 
-            alt={photo.title || 'Ảnh phóng to'} 
-            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+          <div 
+            className="relative max-w-full max-h-[90vh] w-full h-full flex items-center justify-center"
             onClick={(e) => e.stopPropagation()} // Ngăn việc bấm vào chính bức ảnh làm đóng Lightbox
-          />
+          >
+            <Image 
+              src={secureUrl} 
+              alt={photo.title || 'Ảnh phóng to'} 
+              fill
+              className="object-contain rounded-lg shadow-2xl"
+              sizes="100vw"
+            />
+          </div>
         </div>
       )}
     </>

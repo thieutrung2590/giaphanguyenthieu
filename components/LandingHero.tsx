@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import Image from "next/image";
+
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
@@ -32,10 +34,10 @@ const staggerContainer: Variants = {
 };
 
 interface LandingHeroProps {
-  siteName: string;
+  siteName?: string;
 }
 
-export default function LandingHero({ siteName }: LandingHeroProps) {
+export default function LandingHero({ siteName: _siteName }: LandingHeroProps) {
   return (
     <>
       <motion.div
@@ -53,9 +55,11 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
             variants={fadeIn} 
             className="w-full flex justify-center mb-4 sm:mb-8"
           >
-            <img 
+            <Image 
               src="/hoanh-phi.png" 
               alt="Hoành phi Họ Nguyễn Thiệu" 
+              width={600}
+              height={200}
               className="w-full max-w-[350px] md:max-w-[500px] lg:max-w-[600px] object-contain drop-shadow-xl hover:scale-[1.02] transition-transform duration-500"
             />
           </motion.div>
@@ -76,7 +80,7 @@ export default function LandingHero({ siteName }: LandingHeroProps) {
           </h1>
 
           <p className="text-lg sm:text-xl md:text-2xl text-stone-600 max-w-2xl mx-auto leading-relaxed font-light">
-            **Một dòng họ muốn hưng thịnh, trước hết phải biết trân trọng và gìn giữ cội nguồn. Hướng về tiên tổ là để nhớ mình từ đâu mà đến, biết đoàn kết, yêu thương và nâng đỡ nhau. Khi con cháu đồng lòng, truyền thống được tiếp nối, dòng họ sẽ ngày càng vững mạnh và trường tồn.**
+            <strong>Một dòng họ muốn hưng thịnh, trước hết phải biết trân trọng và gìn giữ cội nguồn. Hướng về tiên tổ là để nhớ mình từ đâu mà đến, biết đoàn kết, yêu thương và nâng đỡ nhau. Khi con cháu đồng lòng, truyền thống được tiếp nối, dòng họ sẽ ngày càng vững mạnh và trường tồn.</strong>
           </p>
         </motion.div>
 
