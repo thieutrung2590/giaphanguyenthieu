@@ -30,14 +30,14 @@ export default async function MemberDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  // Fetch Private Data if Admin
+  // Fetch Private Data if Admin or Editor
   let privateData = null;
-  if (isAdmin) {
+  if (canEdit) {
     const { data } = await supabase
       .from("person_details_private")
       .select("*")
       .eq("person_id", id)
-      .single();
+      .maybeSingle();
     privateData = data;
   }
 
@@ -78,6 +78,7 @@ export default async function MemberDetailPage({ params }: PageProps) {
             privateData={privateData}
             isAdmin={isAdmin}
             canEdit={canEdit}
+            canViewPrivate={canEdit}
           />
         </div>
       </main>

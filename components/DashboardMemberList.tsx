@@ -362,10 +362,15 @@ export default function DashboardMemberList({
               ),
             )
               .sort(([genA], [genB]) => {
+                const a = Number(genA);
+                const b = Number(genB);
+                if (a === 0 && b === 0) return 0;
+                if (a === 0) return 1;
+                if (b === 0) return -1;
                 if (sortOption === "generation_desc") {
-                  return Number(genB) - Number(genA);
+                  return b - a;
                 }
-                return Number(genA) - Number(genB);
+                return a - b;
               })
               .map(([gen, persons]) => {
                 const familiesMap = new Map<string, typeof persons>();

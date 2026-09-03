@@ -1,7 +1,7 @@
 import { DashboardProvider } from "@/components/DashboardContext";
 import DashboardViews from "@/components/DashboardViews";
 import MemberDetailModal from "@/components/MemberDetailModal";
-import ViewToggle from "@/components/ViewToggle";
+import ViewToggle, { ViewMode } from "@/components/ViewToggle";
 import { getProfile, getSupabase } from "@/utils/supabase/queries";
 
 interface PageProps {
@@ -9,7 +9,7 @@ interface PageProps {
 }
 
 export default async function FamilyTreePage({ searchParams }: PageProps) {
-  const { rootId } = await searchParams;
+  const { rootId, view } = await searchParams;
 
   const profile = await getProfile();
   const canEdit = profile?.role === "admin" || profile?.role === "editor";
@@ -44,24 +44,50 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
 
   let finalRootId = rootId;
 
-  // Nếu không có rootId hợp lệ, lấy fallback
+  // Nếu không có rootId hợp lệ, lấy fallback thông minh ưu tiên Cụ Tổ đời 1 trực hệ
   if (!finalRootId || !personsMap.has(finalRootId)) {
     const rootsFallback = persons.filter((p) => !childIds.has(p.id));
     if (rootsFallback.length > 0) {
-      finalRootId = rootsFallback[0].id;
+      const bloodlineGen1 = rootsFallback.filter(
+        (p) => p.generation === 1 && !p.is_in_law
+      );
+      const anyGen1 = rootsFallback.filter((p) => p.generation === 1);
+      const bloodlineRoots = rootsFallback.filter((p) => !p.is_in_law);
+
+      const sortByBirthYear = (
+        a: (typeof persons)[0],
+        b: (typeof persons)[0]
+      ) => {
+        const ya = a.birth_year ?? Infinity;
+        const yb = b.birth_year ?? Infinity;
+        return ya - yb;
+      };
+
+      if (bloodlineGen1.length > 0) {
+        finalRootId = [...bloodlineGen1].sort(sortByBirthYear)[0].id;
+      } else if (anyGen1.length > 0) {
+        finalRootId = [...anyGen1].sort(sortByBirthYear)[0].id;
+      } else if (bloodlineRoots.length > 0) {
+        finalRootId = [...bloodlineRoots].sort(sortByBirthYear)[0].id;
+      } else {
+        finalRootId = [...rootsFallback].sort(sortByBirthYear)[0].id;
+      }
     } else if (persons.length > 0) {
       finalRootId = persons[0].id; // ultimate fallback
     }
   }
 
   return (
-    <DashboardProvider>
+    <DashboardProvider
+      initialView={view as ViewMode}
+      initialRootId={finalRootId}
+    >
       <ViewToggle />
       <DashboardViews
         persons={persons}
         relationships={relationships}
         canEdit={canEdit}
-        rootId={finalRootId} /* Đã truyền biến này xuống component */
+        rootId={finalRootId}
       />
       <MemberDetailModal />
     </DashboardProvider>

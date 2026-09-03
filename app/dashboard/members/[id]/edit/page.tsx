@@ -46,7 +46,7 @@ export default async function EditMemberPage({ params }: PageProps) {
     .from("person_details_private")
     .select("*")
     .eq("person_id", id)
-    .single();
+    .maybeSingle();
 
   const initialData = { ...person, ...privateData };
 
@@ -61,7 +61,7 @@ export default async function EditMemberPage({ params }: PageProps) {
           <Link
             href={`/dashboard/members/${id}`}
             className="p-2 -ml-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-colors"
-            title="Quay lại danh sách"
+            title="Quay lại chi tiết thành viên"
           >
             <ArrowLeft className="size-5" />
           </Link>
@@ -70,7 +70,11 @@ export default async function EditMemberPage({ params }: PageProps) {
       </div>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 w-full flex-1">
-        <MemberForm initialData={initialData} isEditing={true} />
+        <MemberForm
+          initialData={initialData}
+          isEditing={true}
+          canEditPrivate={true}
+        />
       </main>
     </div>
   );

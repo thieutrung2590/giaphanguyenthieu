@@ -21,13 +21,23 @@ export const DashboardContext = createContext<DashboardState | undefined>(
   undefined,
 );
 
-export function DashboardProvider({ children }: { children: React.ReactNode }) {
+export function DashboardProvider({
+  children,
+  initialView,
+  initialRootId,
+}: {
+  children: React.ReactNode;
+  initialView?: ViewMode;
+  initialRootId?: string | null;
+}) {
   const searchParams = useSearchParams();
   const [memberModalId, setMemberModalId] = useState<string | null>(null);
   const [showCreateMember, setShowCreateMember] = useState(false);
   const [showAvatar, setShowAvatar] = useState<boolean>(true);
-  const [view, setViewState] = useState<ViewMode>("list");
-  const [rootId, setRootIdState] = useState<string | null>(null);
+  const [view, setViewState] = useState<ViewMode>(initialView || "list");
+  const [rootId, setRootIdState] = useState<string | null>(
+    initialRootId || null,
+  );
 
   // Initialize from URL and listen to Next.js route changes
   useEffect(() => {
