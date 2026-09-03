@@ -16,6 +16,7 @@ import {
   User,
 } from "lucide-react";
 import { Lunar, Solar } from "lunar-javascript";
+import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
@@ -290,13 +291,24 @@ export default function MemberForm({
 
       // 0. Handle Avatar Upload if a new file is selected
       if (avatarFile) {
-        const fileExt = avatarFile.name.split(".").pop();
+        let fileToUpload: File = avatarFile;
+        try {
+          fileToUpload = await imageCompression(avatarFile, {
+            maxSizeMB: 0.5,
+            maxWidthOrHeight: 800,
+            useWebWorker: true,
+          });
+        } catch (compressionErr) {
+          console.warn("Avatar compression failed, uploading original:", compressionErr);
+        }
+
+        const fileExt = fileToUpload.name.split(".").pop() || "jpg";
         const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("avatars")
-          .upload(filePath, avatarFile);
+          .upload(filePath, fileToUpload);
 
         if (uploadError) throw uploadError;
 

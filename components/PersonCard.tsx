@@ -46,11 +46,11 @@ export default function PersonCard({ person }: PersonCardProps) {
           >
             {person.avatar_url ? (
               <Image
-                unoptimized
                 src={person.avatar_url}
                 alt={person.full_name}
                 width={64}
                 height={64}
+                sizes="64px"
                 // Thêm class grayscale để chuyển ảnh thật thành ảnh đen trắng
                 className={`h-full w-full object-cover ${isDeceased ? "grayscale" : ""}`}
               />

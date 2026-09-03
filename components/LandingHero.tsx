@@ -14,11 +14,10 @@ import Link from "next/link";
 import Image from "next/image";
 
 const fadeIn: Variants = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    transition: { duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.6, ease: "easeOut" },
   },
 };
 
@@ -27,8 +26,8 @@ const staggerContainer: Variants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.15,
-      delayChildren: 0.1,
+      staggerChildren: 0.1,
+      delayChildren: 0.05,
     },
   },
 };
@@ -55,13 +54,17 @@ export default function LandingHero({ siteName: _siteName }: LandingHeroProps) {
             variants={fadeIn} 
             className="w-full flex justify-center mb-4 sm:mb-8"
           >
-            <Image 
-              src="/hoanh-phi.png" 
-              alt="Hoành phi Họ Nguyễn Thiệu" 
-              width={600}
-              height={200}
-              className="w-full max-w-[350px] md:max-w-[500px] lg:max-w-[600px] object-contain drop-shadow-xl hover:scale-[1.02] transition-transform duration-500"
-            />
+            <div className="relative w-full max-w-[350px] md:max-w-[450px] lg:max-w-[500px] aspect-[352/107]">
+              <Image 
+                src="/hoanh-phi.png" 
+                alt="Hoành phi Họ Nguyễn Thiệu" 
+                width={352}
+                height={107}
+                priority
+                sizes="(max-width: 768px) 350px, (max-width: 1024px) 450px, 500px"
+                className="w-full h-auto object-contain drop-shadow-xl hover:scale-[1.02] transition-transform duration-500"
+              />
+            </div>
           </motion.div>
 
           <motion.div

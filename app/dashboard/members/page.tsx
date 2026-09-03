@@ -11,18 +11,18 @@ interface PageProps {
 export default async function FamilyTreePage({ searchParams }: PageProps) {
   const { rootId, view } = await searchParams;
 
-  const profile = await getProfile();
-  const canEdit = profile?.role === "admin" || profile?.role === "editor";
-
   const supabase = await getSupabase();
 
-  const [personsRes, relsRes] = await Promise.all([
+  const [profile, personsRes, relsRes] = await Promise.all([
+    getProfile(),
     supabase
       .from("persons")
       .select("*")
       .order("birth_year", { ascending: true, nullsFirst: false }),
     supabase.from("relationships").select("*"),
   ]);
+
+  const canEdit = profile?.role === "admin" || profile?.role === "editor";
 
   // Ghi log lỗi từ Supabase nếu có để dễ dàng debug
   if (personsRes.error) console.error("Error fetching persons:", personsRes.error);
