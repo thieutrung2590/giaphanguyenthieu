@@ -1,6 +1,6 @@
 import { getSupabase, getIsAdmin } from "@/utils/supabase/queries";
-import { History, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
-import { AddHistoryForm, DeleteHistoryButton } from "./ClientActions";
+import { History, AlertCircle, ArrowRight, ArrowLeft, Calendar } from "lucide-react";
+import { AddHistoryForm, EditHistoryModal, DeleteHistoryButton } from "./ClientActions";
 import Link from "next/link";
 
 export const metadata = {
@@ -59,42 +59,61 @@ export default async function HistoryPage() {
         {isAdmin && <AddHistoryForm />}
 
         {!error && (
-          <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-stone-200 before:to-transparent">
-            {histories?.map((item) => (
-              <div key={item.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                
-                <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-stone-100 text-stone-400 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                </div>
+          <div className="relative pl-6 sm:pl-8 space-y-6 before:absolute before:left-2 sm:before:left-3 before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-amber-400 before:via-stone-200 before:to-stone-100">
+            {histories?.map((item) => {
+              // Lấy đoạn trích ngắn nội dung (loại bỏ markdown ảnh để nhìn sạch đẹp)
+              const cleanSnippet = item.content
+                ? item.content.replace(/!\[.*?\]\(.*?\)/g, '[Hình ảnh]').replace(/\n+/g, ' ').trim().slice(0, 150)
+                : '';
 
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white border border-stone-200/60 p-4 sm:p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-300 transition-all group/card">
-                  <div className="flex items-center justify-between gap-3">
-                    
-                    {/* ĐÃ SỬA: ĐƯỜNG LINK TRỎ ĐÚNG VÀO THƯ MỤC DASHBOARD */}
-                    <Link href={`/dashboard/history/${item.id}`} className="flex-1 block">
-                      {item.event_date && (
-                        <time className="text-[11px] sm:text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
+              return (
+                <div key={item.id} className="relative group">
+                  {/* Nút tròn mốc thời gian trên trục dọc */}
+                  <div className="absolute -left-[1.95rem] sm:-left-[2.45rem] top-5 flex items-center justify-center w-5 sm:w-6 h-5 sm:h-6 rounded-full border-2 border-white bg-amber-500 text-white shadow-sm z-10 transition-transform group-hover:scale-110">
+                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                  </div>
+
+                  {/* Thẻ bài viết toàn chiều rộng, hiển thị trọn vẹn tiêu đề */}
+                  <div className="w-full bg-white border border-stone-200/70 p-5 sm:p-6 rounded-2xl shadow-xs hover:shadow-md hover:border-amber-300 transition-all">
+                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                      {item.event_date ? (
+                        <time className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/50">
+                          <Calendar className="size-3.5" />
                           {safeFormatDate(item.event_date)}
                         </time>
+                      ) : (
+                        <span className="text-xs text-stone-400 italic">Chưa xác định ngày</span>
                       )}
-                      <h3 className="text-base font-bold text-stone-800 group-hover/card:text-amber-700 transition-colors line-clamp-2">
+                      
+                      {isAdmin && (
+                        <div className="flex items-center gap-1">
+                          <EditHistoryModal item={item} />
+                          <DeleteHistoryButton id={item.id} />
+                        </div>
+                      )}
+                    </div>
+
+                    <Link href={`/dashboard/history/${item.id}`} className="block group/title">
+                      {/* Tiêu đề hiển thị đầy đủ 100%, không bị cắt chữ */}
+                      <h3 className="text-base sm:text-lg font-bold text-stone-800 group-hover/title:text-amber-700 transition-colors leading-snug break-words">
                         {item.title}
                       </h3>
-                      <div className="flex items-center gap-1 mt-2 text-xs font-medium text-stone-400 group-hover/card:text-amber-600 transition-colors">
-                        Đọc bài viết <ArrowRight className="size-3" />
+
+                      {cleanSnippet && (
+                        <p className="mt-2 text-sm text-stone-500 leading-relaxed line-clamp-2">
+                          {cleanSnippet}...
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-1.5 mt-3 text-xs font-semibold text-amber-600 group-hover/title:translate-x-1 transition-transform">
+                        <span>Đọc bài viết</span>
+                        <ArrowRight className="size-3.5" />
                       </div>
                     </Link>
-                    
-                    {isAdmin && (
-                      <div className="shrink-0 relative z-20">
-                        <DeleteHistoryButton id={item.id} />
-                      </div>
-                    )}
-
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {(!histories || histories.length === 0) && (
               <p className="text-center text-stone-400 text-sm py-10 relative z-20 bg-stone-50/80 rounded-2xl border border-dashed border-stone-200">

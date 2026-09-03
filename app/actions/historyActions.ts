@@ -96,6 +96,55 @@ export async function addHistoryEntry(formData: FormData): Promise<void> {
   revalidatePath('/dashboard/history');
 }
 
+export async function updateHistoryEntry(id: string, formData: FormData): Promise<void> {
+  const isAdmin = await getIsAdmin();
+  if (!isAdmin) {
+    throw new Error("Truy cập bị từ chối: Yêu cầu quyền Quản trị viên.");
+  }
+
+  if (!id || typeof id !== 'string' || id.trim() === '') {
+    throw new Error("Lỗi xác thực: ID bản ghi không hợp lệ.");
+  }
+
+  const rawTitle = formData.get('title');
+  const rawContent = formData.get('content');
+  const rawDate = formData.get('event_date');
+
+  if (!rawTitle || typeof rawTitle !== 'string' || rawTitle.trim() === '') {
+    throw new Error("Lỗi xác thực: Tiêu đề không được để trống hoặc sai định dạng.");
+  }
+  
+  if (!rawContent || typeof rawContent !== 'string' || rawContent.trim() === '') {
+    throw new Error("Lỗi xác thực: Nội dung không được để trống hoặc sai định dạng.");
+  }
+
+  let eventDate: string | null = null;
+  if (rawDate && typeof rawDate === 'string' && rawDate.trim() !== '') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate.trim())) {
+      eventDate = rawDate.trim();
+    } else {
+      throw new Error("Lỗi xác thực: Định dạng ngày không hợp lệ.");
+    }
+  }
+
+  const supabaseAdmin = getAdminClient();
+  const { error } = await supabaseAdmin
+    .from('family_history')
+    .update({ 
+        title: rawTitle.trim(), 
+        content: rawContent.trim(), 
+        event_date: eventDate 
+    })
+    .eq('id', id.trim());
+
+  if (error) {
+    throw new Error(`Lỗi cập nhật CSDL: ${error.message}`);
+  }
+
+  revalidatePath('/dashboard/history');
+  revalidatePath(`/dashboard/history/${id.trim()}`);
+}
+
 export async function deleteHistoryEntry(id: string): Promise<void> {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) {
