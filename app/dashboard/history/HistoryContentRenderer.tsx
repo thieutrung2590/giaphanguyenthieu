@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import { X, ZoomIn } from 'lucide-react';
 
 interface HistoryContentRendererProps {
@@ -17,14 +16,24 @@ interface ParsedBlock {
 }
 
 /**
- * Tách nội dung thành các khối văn bản và hình ảnh (nhận diện cú pháp Markdown ![alt](url) và link ảnh)
+ * Chuẩn hóa URL ảnh: Nếu là private Vercel Blob URL trực tiếp thì chuyển qua proxy /api/history-image
+ */
+function normalizeImageUrl(url: string): string {
+  if (url.includes('.blob.vercel-storage.com') && !url.startsWith('/api/history-image')) {
+    return `/api/history-image?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
+/**
+ * Tách nội dung thành các khối văn bản và hình ảnh (nhận diện cú pháp Markdown ![alt](url) hỗ trợ cả URL tương đối và tuyệt đối)
  */
 function parseContent(content: string): ParsedBlock[] {
   if (!content) return [];
 
   const blocks: ParsedBlock[] = [];
-  // Regex khớp cú pháp markdown: ![alt text](https://url)
-  const markdownImageRegex = /!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g;
+  // Regex khớp cú pháp markdown: ![alt text](url) - hỗ trợ cả /api/... lẫn https://...
+  const markdownImageRegex = /!\[(.*?)\]\(([^\s)]+)\)/g;
 
   let lastIndex = 0;
   let match;
@@ -42,7 +51,8 @@ function parseContent(content: string): ParsedBlock[] {
 
     // Khối ảnh
     const alt = match[1] || 'Hình ảnh tư liệu';
-    const url = match[2];
+    const rawUrl = match[2];
+    const url = normalizeImageUrl(rawUrl);
     blocks.push({ type: 'image', alt, url });
 
     lastIndex = matchIndex + match[0].length;

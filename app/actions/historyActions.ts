@@ -39,11 +39,15 @@ export async function uploadHistoryImageAction(formData: FormData): Promise<{ su
     const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9.-]/g, '_') : 'image.jpg';
     const filename = `history/${Date.now()}-${safeName}`;
 
+    // Upload lên Vercel Blob với quyền private (theo cấu hình kho lưu trữ)
     const blob = await put(filename, file, {
-      access: 'public',
+      access: 'private',
     });
 
-    return { success: true, url: blob.url };
+    // Tạo đường dẫn proxy công khai an toàn để hiển thị ảnh
+    const displayUrl = `/api/history-image?url=${encodeURIComponent(blob.url)}`;
+
+    return { success: true, url: displayUrl };
   } catch (error) {
     console.error("Lỗi khi tải ảnh bài viết lên kho lưu trữ:", error);
     return {
