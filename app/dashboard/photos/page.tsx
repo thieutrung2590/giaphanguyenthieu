@@ -36,7 +36,7 @@ export default async function PhotosPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
         {photos && photos.length > 0 ? (
           photos.map((photo) => {
-            const secureUrl = generateSignedUrl(photo.url, 15);
+            const secureUrl = generateSignedUrl(photo.url, 1440);
 
             // 2. Truyền dữ liệu vào Component PhotoCard
             return (

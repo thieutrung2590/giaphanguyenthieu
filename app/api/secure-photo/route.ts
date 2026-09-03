@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('Content-Type') || 'image/jpeg',
-        // Chỉ lưu cache tối đa 15 phút (bằng đúng thời gian sống của token)
-        'Cache-Control': 'public, max-age=900',
+        // Lưu cache 24 giờ phù hợp với token
+        'Cache-Control': 'public, max-age=86400',
       },
     });
   } catch (error) {
