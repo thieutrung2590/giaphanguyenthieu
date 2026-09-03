@@ -7,6 +7,7 @@ import {
   GitBranch,
   Link2,
   Plus,
+  RefreshCw,
   Unlink,
   Users,
 } from "lucide-react";
@@ -21,6 +22,7 @@ interface BranchBannerProps {
   allPersonsMap: Map<string, Person>;
   canEdit?: boolean;
   onOpenLinkModal: () => void;
+  onOpenChangeHeadModal: () => void;
   onBackToMainTree: () => void;
 }
 
@@ -32,6 +34,7 @@ export default function BranchBanner({
   allPersonsMap,
   canEdit = false,
   onOpenLinkModal,
+  onOpenChangeHeadModal,
   onBackToMainTree,
 }: BranchBannerProps) {
   // Tìm xem người đầu cành đã có cha/mẹ trong relationships chưa
@@ -64,11 +67,23 @@ export default function BranchBanner({
               </span>
             </div>
 
-            <p className="text-xs sm:text-sm text-stone-500 mt-0.5">
-              Người đứng đầu cành:{" "}
-              <strong className="text-stone-800">{branchHead.full_name}</strong>
-              {branchHead.birth_year ? ` (sinh ${branchHead.birth_year})` : ""}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <p className="text-xs sm:text-sm text-stone-500">
+                Người đứng đầu cành:{" "}
+                <strong className="text-stone-800">{branchHead.full_name}</strong>
+                {branchHead.birth_year ? ` (sinh ${branchHead.birth_year})` : ""}
+              </p>
+              {canEdit && (
+                <button
+                  onClick={onOpenChangeHeadModal}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 px-2 py-0.5 rounded-lg transition-colors shadow-2xs"
+                  title="Thay đổi người đứng đầu cành này khi có dữ liệu đầy đủ hơn"
+                >
+                  <RefreshCw className="size-3" />
+                  Đổi người đứng đầu
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

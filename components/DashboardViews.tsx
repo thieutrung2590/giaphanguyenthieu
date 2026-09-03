@@ -5,6 +5,7 @@ import BranchBanner from "@/components/BranchBanner";
 import BranchEmptyState from "@/components/BranchEmptyState";
 import BranchNavBar from "@/components/BranchNavBar";
 import BranchSettingsModal from "@/components/BranchSettingsModal";
+import ChangeBranchHeadModal from "@/components/ChangeBranchHeadModal";
 import { useDashboard } from "@/components/DashboardContext";
 import DashboardMemberList from "@/components/DashboardMemberList";
 import LinkBranchModal from "@/components/LinkBranchModal";
@@ -60,6 +61,7 @@ export default function DashboardViews({
   const [localBranches, setLocalBranches] = useState<BranchConfig[]>(branches);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [isChangeHeadModalOpen, setIsChangeHeadModalOpen] = useState(false);
 
   const rootId = contextRootId || propRootId;
 
@@ -190,6 +192,7 @@ export default function DashboardViews({
           allPersonsMap={personsMap}
           canEdit={canEdit}
           onOpenLinkModal={() => setIsLinkModalOpen(true)}
+          onOpenChangeHeadModal={() => setIsChangeHeadModalOpen(true)}
           onBackToMainTree={() => {
             setBranch(null);
             setRootId(null);
@@ -274,6 +277,24 @@ export default function DashboardViews({
               router.refresh();
             }}
           />
+
+          {activeBranch && (
+            <ChangeBranchHeadModal
+              isOpen={isChangeHeadModalOpen}
+              onClose={() => setIsChangeHeadModalOpen(false)}
+              branch={activeBranch}
+              allPersons={persons}
+              onHeadChanged={(newHeadId) => {
+                setLocalBranches((prev) =>
+                  prev.map((b) =>
+                    b.id === activeBranch.id ? { ...b, headId: newHeadId } : b,
+                  ),
+                );
+                setRootId(newHeadId);
+                router.refresh();
+              }}
+            />
+          )}
 
           {activeBranch && branchHead && (
             <LinkBranchModal

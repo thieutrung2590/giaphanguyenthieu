@@ -1,6 +1,6 @@
 "use server";
 
-import { BranchConfig, Person, Relationship } from "@/types";
+import { BranchConfig } from "@/types";
 import { getProfile, getSupabase } from "@/utils/supabase/queries";
 import { revalidatePath } from "next/cache";
 
@@ -49,58 +49,12 @@ export async function getBranchConfigs(): Promise<BranchConfig[]> {
     console.error("Error reading branch configs:", err);
   }
 
-  // Fallback tự động khởi tạo mặc định dựa trên con của Cụ Tổ
-  try {
-    const [personsRes, relsRes] = await Promise.all([
-      supabase.from("persons").select("*"),
-      supabase
-        .from("relationships")
-        .select("*")
-        .in("type", ["biological_child", "adopted_child"]),
-    ]);
-
-    const persons: Person[] = personsRes.data || [];
-    const rels: Relationship[] = relsRes.data || [];
-
-    const childIds = new Set(rels.map((r) => r.person_b));
-    const gen1Bloodline = persons.filter(
-      (p) => !childIds.has(p.id) && !p.is_in_law && p.generation === 1,
-    );
-    const cuTo = gen1Bloodline[0] || persons.find((p) => !childIds.has(p.id));
-
-    let childrenOfCuTo: Person[] = [];
-    if (cuTo) {
-      const childrenIds = rels
-        .filter((r) => r.person_a === cuTo.id)
-        .map((r) => r.person_b);
-      childrenOfCuTo = persons
-        .filter((p) => childrenIds.includes(p.id))
-        .sort((a, b) => {
-          const aOrder = a.birth_order ?? Infinity;
-          const bOrder = b.birth_order ?? Infinity;
-          if (aOrder !== bOrder) return aOrder - bOrder;
-          return (a.birth_year ?? Infinity) - (b.birth_year ?? Infinity);
-        });
-    }
-
-    const defaultBranches: BranchConfig[] = [];
-    for (let i = 1; i <= 5; i++) {
-      const child = childrenOfCuTo[i - 1];
-      defaultBranches.push({
-        id: i,
-        name: DEFAULT_BRANCH_NAMES[i] || `Cành ${i}`,
-        headId: child ? child.id : null,
-      });
-    }
-    return defaultBranches;
-  } catch (err) {
-    console.error("Error generating default branches:", err);
-    return [1, 2, 3, 4, 5].map((i) => ({
-      id: i,
-      name: DEFAULT_BRANCH_NAMES[i] || `Cành ${i}`,
-      headId: null,
-    }));
-  }
+  // Mặc định cả 5 cành 1..5 đều để headId: null để người dùng tự do chọn hoặc nhập mới từ đầu
+  return [1, 2, 3, 4, 5].map((i) => ({
+    id: i,
+    name: DEFAULT_BRANCH_NAMES[i] || `Cành ${i}`,
+    headId: null,
+  }));
 }
 
 /**
