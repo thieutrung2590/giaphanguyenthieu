@@ -1,7 +1,14 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, Sparkles, User, Users, Briefcase, Coins, Heart, Compass, Zap, Download, History, X, AlertCircle, CheckCircle2 } from "lucide-react";
-import { useMemo, useState, useEffect, ElementType, ReactNode } from "react";
+import { 
+  ArrowLeft, CalendarDays, CalendarSearch, Clock, Loader2, 
+  Sparkles, User, Users, Briefcase, Coins, Heart, Compass, 
+  Zap, Download, History, X, AlertCircle, CheckCircle2,
+  FileImage, FileText, Printer, ChevronDown
+} from "lucide-react";
+import { useMemo, useState, useEffect, useRef, ElementType, ReactNode } from "react";
+import { toPng } from "html-to-image";
+import jsPDF from "jspdf";
 import { generateLaSo } from "tuvi-neo";
 import { getLuangiaiAI } from "./action";
 import { 
@@ -70,19 +77,6 @@ interface ChartInfo {
 interface ChartData {
   info: ChartInfo;
   gridCung: (House | null)[];
-}
-
-interface Html2CanvasOptions {
-  scale: number;
-  backgroundColor: string;
-  useCORS: boolean;
-  logging: boolean;
-}
-
-type Html2CanvasFn = (element: HTMLElement, options: Html2CanvasOptions) => Promise<HTMLCanvasElement>;
-
-interface CustomWindow extends Window {
-  html2canvas?: Html2CanvasFn;
 }
 
 // --- KIỂU DỮ LIỆU ĐẦU VÀO VÀ ĐẦU RA CHO TUVI-NEO ---
@@ -416,66 +410,123 @@ export default function TuViPage() {
     setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
-  const handleDownload = () => {
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleExport = async (format: "png" | "pdf" | "print") => {
     if (isDownloading) return;
+    setExportMenuOpen(false);
+
+    const el = document.getElementById("laso-chart");
+    if (!el) {
+      showToast("Không tìm thấy dữ liệu lá số để xuất!", "error");
+      return;
+    }
+
     setIsDownloading(true);
 
-    const executeCapture = async () => {
-      try {
-        const el = document.getElementById("laso-chart");
-        if (!el) throw new Error("Không tìm thấy lá số");
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      if (format === "print") {
+        const printStyle = document.createElement("style");
+        printStyle.id = "tuvi-print-style";
+        printStyle.innerHTML = `
+          @media print {
+            body * { visibility: hidden !important; }
+            #laso-chart, #laso-chart * { visibility: visible !important; }
+            #laso-chart {
+              position: fixed !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100vw !important;
+              height: 100vh !important;
+              max-width: none !important;
+              margin: 0 !important;
+              padding: 10px !important;
+              background-color: #ffffff !important;
+              border: 1px solid #a8a29e !important;
+              box-shadow: none !important;
+              border-radius: 0 !important;
+            }
+            @page {
+              size: landscape;
+              margin: 0.5cm;
+            }
+          }
+        `;
+        document.head.appendChild(printStyle);
 
-        const win = window as unknown as CustomWindow;
-        if (!win.html2canvas) throw new Error("Thư viện html2canvas chưa được tải");
+        const cleanup = () => {
+          const s = document.getElementById("tuvi-print-style");
+          if (s && document.head.contains(s)) document.head.removeChild(s);
+          window.removeEventListener("afterprint", cleanup);
+          setIsDownloading(false);
+        };
 
-        const canvas = await win.html2canvas(el, { 
-          scale: 2, 
-          backgroundColor: "#ffffff",
-          useCORS: true,
-          logging: false
-        });
+        window.addEventListener("afterprint", cleanup);
+        window.print();
+        setTimeout(cleanup, 2000);
+        return;
+      }
 
-        const dataUrl = canvas.toDataURL("image/png");
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const safeName = (formData.name || "Tu-Vi").trim().replace(/[\s/\\?%*:|"<>]+/g, "-");
+
+      const imgData = await toPng(el, {
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2.5,
+      });
+
+      if (format === "png") {
         const link = document.createElement("a");
-        link.download = `La-So-${formData.name.replace(/\s+/g, '-')}.png`;
-        link.href = dataUrl;
+        link.download = `La-So-${safeName}.png`;
+        link.href = imgData;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        setIsDownloading(false);
-      } catch (err) {
-        console.error("Lỗi html2canvas:", err);
-        setIsDownloading(false);
-        setConfirmDialog({
-          isOpen: true,
-          title: "Trình duyệt chặn tạo ảnh",
-          message: "Tính năng tự động tải ảnh đang bị trình duyệt chặn. Bạn có muốn dùng tính năng In (Lưu thành PDF chất lượng cao) để thay thế không?",
-          onConfirm: () => {
-            window.print();
-            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-          },
-          onCancel: () => {
-            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-          }
-        });
-      }
-    };
+        showToast("Đã tải ảnh lá số thành công!", "success");
+      } else if (format === "pdf") {
+        const width = el.offsetWidth || el.clientWidth || 1000;
+        const height = el.offsetHeight || el.clientHeight || 750;
 
-    const win = window as unknown as CustomWindow;
-    if (win.html2canvas) {
-      executeCapture();
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
-      script.onload = executeCapture;
-      script.onerror = () => {
-        setIsDownloading(false);
-        showToast("Lỗi mạng: Không thể tải thư viện hỗ trợ chụp ảnh.", "error");
-      };
-      document.body.appendChild(script);
+        const pdf = new jsPDF({
+          orientation: "landscape",
+          unit: "mm",
+          format: "a4",
+        });
+
+        const pageWidth = 297;
+        const pageHeight = 210;
+        const margin = 8;
+        const targetWidth = pageWidth - margin * 2;
+        const targetHeight = (height / width) * targetWidth;
+
+        let posY = (pageHeight - targetHeight) / 2;
+        if (posY < margin) posY = margin;
+
+        pdf.addImage(imgData, "PNG", margin, posY, targetWidth, targetHeight, undefined, "FAST");
+        pdf.save(`La-So-${safeName}.pdf`);
+        showToast("Đã lưu file PDF lá số thành công!", "success");
+      }
+    } catch (err) {
+      console.error("Lỗi xuất lá số:", err);
+      showToast("Không thể tạo tệp xuất lá số. Vui lòng thử lại!", "error");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -851,14 +902,58 @@ export default function TuViPage() {
                 </button>
                 <h2 className={`text-2xl font-bold hidden sm:block ${theme.textTitle}`}>Lá số Tử vi</h2>
                 
-                <button 
-                  onClick={handleDownload} 
-                  disabled={isDownloading}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm transition-colors disabled:opacity-50 font-medium ${theme.btnDownload}`}
-                >
-                  {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  <span className="hidden sm:inline">{isDownloading ? "Đang tải..." : "Tải ảnh (hoặc PDF)"}</span>
-                </button>
+                <div className="relative" ref={exportMenuRef}>
+                  <button 
+                    onClick={() => setExportMenuOpen(prev => !prev)} 
+                    disabled={isDownloading}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm transition-all duration-200 disabled:opacity-50 font-medium ${theme.btnDownload}`}
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    <span className="hidden sm:inline">{isDownloading ? "Đang xuất..." : "Xuất lá số"}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${exportMenuOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {exportMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-50 overflow-hidden">
+                      <button
+                        onClick={() => handleExport("png")}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors text-left"
+                      >
+                        <FileImage className="w-4 h-4 text-amber-600 shrink-0" />
+                        <div>
+                          <div className="font-semibold">Tải ảnh PNG</div>
+                          <div className="text-[11px] text-stone-500">Ảnh sắc nét, dễ chia sẻ</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => handleExport("pdf")}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors text-left border-t border-stone-100"
+                      >
+                        <FileText className="w-4 h-4 text-red-600 shrink-0" />
+                        <div>
+                          <div className="font-semibold">Lưu file PDF</div>
+                          <div className="text-[11px] text-stone-500">Khổ A4 chuẩn in ấn</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => handleExport("print")}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-stone-700 hover:bg-amber-50 hover:text-amber-800 transition-colors text-left border-t border-stone-100"
+                      >
+                        <Printer className="w-4 h-4 text-stone-600 shrink-0" />
+                        <div>
+                          <div className="font-semibold">In lá số</div>
+                          <div className="text-[11px] text-stone-500">Mở hộp thoại in</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div id="laso-chart" className="grid grid-cols-4 grid-rows-4 gap-1 sm:gap-2 max-w-5xl mx-auto h-[620px] sm:h-[780px] bg-stone-200/50 p-1.5 sm:p-2 rounded-xl border border-stone-300">
