@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 const BRANCH_EVENT_NAME = "__CONFIG_BRANCHES__";
 
 const DEFAULT_BRANCH_NAMES: Record<number, string> = {
-  1: "Cành 1 (Chi trưởng)",
+  1: "Cành 1",
   2: "Cành 2",
   3: "Cành 3",
   4: "Cành 4",
@@ -91,6 +91,7 @@ export async function saveBranchConfigs(branches: BranchConfig[]) {
           name: BRANCH_EVENT_NAME,
           content: JSON.stringify(branches),
           event_date: "2000-01-01",
+          created_by: profile?.id,
         });
 
       if (insertError) throw insertError;
