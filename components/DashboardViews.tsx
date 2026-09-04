@@ -39,7 +39,7 @@ interface DashboardViewsProps {
   relationships: Relationship[];
   branches?: BranchConfig[];
   canEdit?: boolean;
-  rootId?: string;
+  ancestralRootId?: string | null;
 }
 
 export default function DashboardViews({
@@ -47,7 +47,7 @@ export default function DashboardViews({
   relationships,
   branches = [],
   canEdit = false,
-  rootId: propRootId,
+  ancestralRootId,
 }: DashboardViewsProps) {
   const router = useRouter();
   const {
@@ -62,8 +62,6 @@ export default function DashboardViews({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isChangeHeadModalOpen, setIsChangeHeadModalOpen] = useState(false);
-
-  const rootId = contextRootId || propRootId;
 
   // Build persons map
   const personsMap = useMemo(
@@ -103,6 +101,7 @@ export default function DashboardViews({
 
   // Determine roots for tree views
   const { roots, defaultRootId } = useMemo(() => {
+    // 1. Nếu đang xem một Cành cụ thể và cành đó có người đứng đầu:
     if (activeBranch && branchHead) {
       return {
         roots: [branchHead],
@@ -110,28 +109,45 @@ export default function DashboardViews({
       };
     }
 
-    const childIds = new Set(
-      relationships
-        .filter(
-          (r) => r.type === "biological_child" || r.type === "adopted_child",
-        )
-        .map((r) => r.person_b),
-    );
+    // 2. Nếu đang xem TOÀN DÒNG HỌ:
+    // Nếu người dùng chọn một người cụ thể trong Toàn Dòng Họ qua RootSelector thì ưu tiên contextRootId
+    let finalRootId = contextRootId;
 
-    let finalRootId = rootId;
-
+    // Nếu chưa chọn (hoặc vừa chuyển về Toàn Dòng Họ), LUÔN DÙNG CỤ THỦY TỔ (ancestralRootId)
     if (!finalRootId || !personsMap.has(finalRootId)) {
+      finalRootId = ancestralRootId || null;
+    }
+
+    // Fallback an toàn nếu chưa có ancestralRootId
+    if (!finalRootId || !personsMap.has(finalRootId)) {
+      const childIds = new Set(
+        relationships
+          .filter(
+            (r) => r.type === "biological_child" || r.type === "adopted_child",
+          )
+          .map((r) => r.person_b),
+      );
+
       const rootsFallback = persons.filter((p) => !childIds.has(p.id));
       if (rootsFallback.length > 0) {
-        const gen1 = rootsFallback.filter((p) => p.generation === 1);
+        const bloodlineGen1 = rootsFallback.filter(
+          (p) => p.generation === 1 && !p.is_in_law,
+        );
+        const anyGen1 = rootsFallback.filter((p) => p.generation === 1);
+        const bloodlineRoots = rootsFallback.filter((p) => !p.is_in_law);
+
         const sortByBirthYear = (a: Person, b: Person) => {
           const ya = a.birth_year ?? Infinity;
           const yb = b.birth_year ?? Infinity;
           return ya - yb;
         };
 
-        if (gen1.length > 0) {
-          finalRootId = [...gen1].sort(sortByBirthYear)[0].id;
+        if (bloodlineGen1.length > 0) {
+          finalRootId = [...bloodlineGen1].sort(sortByBirthYear)[0].id;
+        } else if (anyGen1.length > 0) {
+          finalRootId = [...anyGen1].sort(sortByBirthYear)[0].id;
+        } else if (bloodlineRoots.length > 0) {
+          finalRootId = [...bloodlineRoots].sort(sortByBirthYear)[0].id;
         } else {
           finalRootId = [...rootsFallback].sort(sortByBirthYear)[0].id;
         }
@@ -149,9 +165,9 @@ export default function DashboardViews({
       roots: calculatedRoots,
       defaultRootId: finalRootId,
     };
-  }, [activeBranch, branchHead, relationships, rootId, personsMap, persons]);
+  }, [activeBranch, branchHead, contextRootId, ancestralRootId, personsMap, relationships, persons]);
 
-  const activeRootId = rootId || defaultRootId;
+  const activeRootId = defaultRootId;
 
   // Handler khi gán người có sẵn làm đầu cành
   const handleAssignExistingHead = async (branchId: number, personId: string) => {
@@ -159,7 +175,6 @@ export default function DashboardViews({
     setLocalBranches((prev) =>
       prev.map((b) => (b.id === branchId ? { ...b, headId: personId } : b)),
     );
-    setRootId(personId);
     router.refresh();
   };
 
@@ -171,12 +186,8 @@ export default function DashboardViews({
         selectedBranchId={contextBranch}
         onSelectBranch={(bId) => {
           setBranch(bId);
-          if (bId) {
-            const b = localBranches.find((x) => x.id === bId);
-            if (b?.headId) setRootId(b.headId);
-          } else {
-            setRootId(null);
-          }
+          // Luôn xóa rootId khi đổi cành / đổi tab để Toàn Dòng Họ luôn quay về Cụ Thủy Tổ Nguyễn Thiệu Tri
+          setRootId(null);
         }}
         canEdit={canEdit}
         onOpenSettings={() => setIsSettingsOpen(true)}

@@ -37,59 +37,65 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
   // Khởi tạo Map ngắn gọn hơn
   const personsMap = new Map(persons.map((p) => [p.id, p]));
 
-  let finalRootId = rootId;
+  // 1. Luôn xác định chính xác Cụ Thủy Tổ của Toàn Dòng Họ (đời 1, huyết thống, sinh sớm nhất)
+  let ancestralRootId: string | null = null;
+  const childIds = new Set(
+    relationships
+      .filter(
+        (r) => r.type === "biological_child" || r.type === "adopted_child"
+      )
+      .map((r) => r.person_b)
+  );
 
-  // Nếu đang xem một Cành cụ thể và cành đó có người đứng đầu:
+  const rootsFallback = persons.filter((p) => !childIds.has(p.id));
+  if (rootsFallback.length > 0) {
+    const bloodlineGen1 = rootsFallback.filter(
+      (p) => p.generation === 1 && !p.is_in_law
+    );
+    const anyGen1 = rootsFallback.filter((p) => p.generation === 1);
+    const bloodlineRoots = rootsFallback.filter((p) => !p.is_in_law);
+
+    const sortByBirthYear = (
+      a: (typeof persons)[0],
+      b: (typeof persons)[0]
+    ) => {
+      const ya = a.birth_year ?? Infinity;
+      const yb = b.birth_year ?? Infinity;
+      return ya - yb;
+    };
+
+    if (bloodlineGen1.length > 0) {
+      ancestralRootId = [...bloodlineGen1].sort(sortByBirthYear)[0].id;
+    } else if (anyGen1.length > 0) {
+      ancestralRootId = [...anyGen1].sort(sortByBirthYear)[0].id;
+    } else if (bloodlineRoots.length > 0) {
+      ancestralRootId = [...bloodlineRoots].sort(sortByBirthYear)[0].id;
+    } else {
+      ancestralRootId = [...rootsFallback].sort(sortByBirthYear)[0].id;
+    }
+  } else if (persons.length > 0) {
+    ancestralRootId = persons[0].id;
+  }
+
+  // 2. Xác định Cành đang chọn (nếu có)
   const activeBranch = currentBranchNum
     ? branches.find((b) => b.id === currentBranchNum)
     : null;
 
-  if (activeBranch && activeBranch.headId && personsMap.has(activeBranch.headId)) {
-    finalRootId = activeBranch.headId;
-  } else if (!finalRootId || !personsMap.has(finalRootId)) {
-    const childIds = new Set(
-      relationships
-        .filter(
-          (r) => r.type === "biological_child" || r.type === "adopted_child"
-        )
-        .map((r) => r.person_b)
-    );
-
-    const rootsFallback = persons.filter((p) => !childIds.has(p.id));
-    if (rootsFallback.length > 0) {
-      const bloodlineGen1 = rootsFallback.filter(
-        (p) => p.generation === 1 && !p.is_in_law
-      );
-      const anyGen1 = rootsFallback.filter((p) => p.generation === 1);
-      const bloodlineRoots = rootsFallback.filter((p) => !p.is_in_law);
-
-      const sortByBirthYear = (
-        a: (typeof persons)[0],
-        b: (typeof persons)[0]
-      ) => {
-        const ya = a.birth_year ?? Infinity;
-        const yb = b.birth_year ?? Infinity;
-        return ya - yb;
-      };
-
-      if (bloodlineGen1.length > 0) {
-        finalRootId = [...bloodlineGen1].sort(sortByBirthYear)[0].id;
-      } else if (anyGen1.length > 0) {
-        finalRootId = [...anyGen1].sort(sortByBirthYear)[0].id;
-      } else if (bloodlineRoots.length > 0) {
-        finalRootId = [...bloodlineRoots].sort(sortByBirthYear)[0].id;
-      } else {
-        finalRootId = [...rootsFallback].sort(sortByBirthYear)[0].id;
-      }
-    } else if (persons.length > 0) {
-      finalRootId = persons[0].id; // ultimate fallback
-    }
+  // 3. Xác định rootId ban đầu
+  let initialRootId: string | null = null;
+  if (activeBranch?.headId && personsMap.has(activeBranch.headId)) {
+    initialRootId = activeBranch.headId;
+  } else if (rootId && personsMap.has(rootId)) {
+    initialRootId = rootId;
+  } else {
+    initialRootId = ancestralRootId;
   }
 
   return (
     <DashboardProvider
       initialView={view as ViewMode}
-      initialRootId={finalRootId}
+      initialRootId={initialRootId}
       initialBranch={currentBranchNum}
     >
       <ViewToggle />
@@ -98,7 +104,7 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
         relationships={relationships}
         branches={branches}
         canEdit={canEdit}
-        rootId={finalRootId}
+        ancestralRootId={ancestralRootId}
       />
       <MemberDetailModal />
     </DashboardProvider>
