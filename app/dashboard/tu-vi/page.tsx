@@ -285,6 +285,84 @@ const CHI_OF_GRID: Record<number, string> = {
   12: "Dần", 13: "Sửu", 14: "Tý", 15: "Hợi" 
 };
 
+function renderAIReadingContent(content: string) {
+  if (!content) return null;
+
+  const isError = content.startsWith("Lỗi:") || content.startsWith("LỖI");
+  if (isError) {
+    return (
+      <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">
+        {content}
+      </div>
+    );
+  }
+
+  // Chia nhỏ theo các đoạn văn
+  const blocks = content.split(/\n\s*\n/);
+
+  return (
+    <div className="space-y-4">
+      {blocks.map((block, bIdx) => {
+        const lines = block.split("\n");
+        return (
+          <div key={bIdx} className="space-y-2">
+            {lines.map((line, lIdx) => {
+              const trimmed = line.trim();
+              if (!trimmed) return null;
+
+              // Kiểm tra dòng tiêu đề: ### ..., **1. ...**, 1. ... **
+              const isHeading = /^(\#{1,4}\s+|\*\*\d+[\.\)]|\d+[\.\)]\s+\*\*)/.test(trimmed);
+              const isBullet = /^[•\-\*]\s+/.test(trimmed);
+
+              const renderWithBold = (str: string) => {
+                const parts = str.split(/(\*\*[^*]+\*\*)/g);
+                return parts.map((part, idx) => {
+                  if (part.startsWith("**") && part.endsWith("**")) {
+                    return (
+                      <strong key={idx} className="font-bold text-stone-900">
+                        {part.slice(2, -2)}
+                      </strong>
+                    );
+                  }
+                  return part;
+                });
+              };
+
+              if (isHeading) {
+                const cleanHeading = trimmed.replace(/^#+\s*/, "");
+                return (
+                  <div
+                    key={lIdx}
+                    className="text-base sm:text-lg font-bold text-amber-900 tracking-wide mt-3 pt-2 border-b border-amber-200/50 pb-1"
+                  >
+                    {renderWithBold(cleanHeading)}
+                  </div>
+                );
+              }
+
+              if (isBullet) {
+                const bulletContent = trimmed.replace(/^[•\-\*]\s+/, "");
+                return (
+                  <div key={lIdx} className="flex items-start gap-2.5 pl-2 sm:pl-3 text-sm sm:text-base leading-relaxed text-stone-700">
+                    <span className="text-amber-600 mt-1 shrink-0 text-xs">◆</span>
+                    <span className="flex-1">{renderWithBold(bulletContent)}</span>
+                  </div>
+                );
+              }
+
+              return (
+                <p key={lIdx} className="text-sm sm:text-base leading-relaxed text-stone-700 text-justify">
+                  {renderWithBold(trimmed)}
+                </p>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function TuViPage() {
   const currentYear = new Date().getFullYear();
   
@@ -424,8 +502,8 @@ export default function TuViPage() {
       const st = (cung.Saotot || []).map(s => s.Name).slice(0, 6).join(", ");
       const sx = (cung.Saoxau || []).map(s => s.Name).slice(0, 5).join(", ");
       let res = `Chính tinh: ${ct}`;
-      if (st) res += ` | Cát tinh: ${st}`;
-      if (sx) res += ` | Hung tinh: ${sx}`;
+      if (st) res += `; Cát tinh: ${st}`;
+      if (sx) res += `; Hung tinh: ${sx}`;
       if (cung.Tuan) res += " [Có Tuần Không]";
       if (cung.Triet) res += " [Có Triệt Lộ]";
       return res;
@@ -951,7 +1029,7 @@ export default function TuViPage() {
                       <p className="font-medium animate-pulse text-center px-4">Tinh tú đang hội tụ. AI đang phân tích...</p>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap font-medium">{aiReading}</div>
+                    renderAIReadingContent(aiReading)
                   )}
                 </div>
               </div>
